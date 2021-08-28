@@ -35,8 +35,14 @@ export function JobContextProvider({ children }) {
     [typeof window]
   );
 
+  const addJobCallback = useCallback((job) => {
+    setJobCallback([...jobs, { cron: job, tasks: [] }]);
+  });
+
   return (
-    <JobContext.Provider value={{ jobs, setJob: setJobCallback }}>
+    <JobContext.Provider
+      value={{ jobs, setJob: setJobCallback, addJob: addJobCallback }}
+    >
       {children}
     </JobContext.Provider>
   );
