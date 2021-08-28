@@ -20,8 +20,8 @@ export default function JobList({ children }) {
     <div>
       <form onSubmit={onSubmit}>
         <input type="text" placeholder="CRON" onChange={onChange} />
-        <button>
-          <PlusIcon className="w-4 h-4" />
+        <button className="bg-gray-400 hover:bg-gray-500 active:bg-gray-600 m-1">
+          <PlusIcon className="w-4 h-4 text-gray-100" />
         </button>
       </form>
       {children}
