@@ -6,6 +6,7 @@
     "start": "next start"
   },
   "dependencies": {
+    "@heroicons/react": "^1.0.4",
     "child_process": "^1.0.2",
     "cronr": "^2.2.1",
     "next": "latest",

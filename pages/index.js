@@ -13,7 +13,7 @@ export default function Home() {
         <title>Create Next App</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <div>
+      <div className="flex row gap-10">
         <JobList>
           {jobs.map((job, i) => (
             <JobListItem key={job.cron + "-" + i} job={job} />
