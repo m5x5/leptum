@@ -1,8 +1,10 @@
 export default function JobList({ children }) {
   return (
     <div>
-      <input type="text" placeholder="CRON" />
-      <button>Add Job</button>
+      <form>
+        <input type="text" placeholder="CRON" />
+        <button>Add Job</button>
+      </form>
       <h1>Jobs</h1>
       {children}
     </div>
