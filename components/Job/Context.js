@@ -26,6 +26,7 @@ export function useJobContext() {
 }
 export function JobContextProvider({ children }) {
   const [jobs, setJobs] = useState(defaultJobs);
+  const [selected, setSelected] = useState(null);
 
   const setJobCallback = useCallback(
     (jobs) => {
@@ -61,16 +62,19 @@ export function JobContextProvider({ children }) {
   const setupCRONJobs = useCallback(() => {
     let cronJobs = [];
     jobs.forEach((job) => {
-      console.log("Job");
       if (job.status !== "scheduled") return;
-      console.log("You got the job");
       const cb = () => {
         job.status = "pending";
-        console.log("Task is pending now");
+        job.tasks.forEach((task) => {
+          task.status = "due";
+        });
+        setJobCallback(jobs);
       };
-      const cronJob = new Cronr(job.cron, cb);
-      cronJob.start();
-      cronJobs.push(cronJob);
+      try {
+        const cronJob = new Cronr(job.cron, cb);
+        cronJob.start();
+        cronJobs.push(cronJob);
+      } catch {}
     });
     return cronJobs;
   });
@@ -96,7 +100,13 @@ export function JobContextProvider({ children }) {
 
   return (
     <JobContext.Provider
-      value={{ jobs, setJob: setJobCallback, addJob: addJobCallback }}
+      value={{
+        jobs,
+        setJob: setJobCallback,
+        addJob: addJobCallback,
+        selected,
+        setSelected,
+      }}
     >
       {children}
     </JobContext.Provider>
