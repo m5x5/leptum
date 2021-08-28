@@ -1,4 +1,10 @@
-import { useCallback, createContext, useContext, useState } from "react";
+import {
+  useCallback,
+  createContext,
+  useContext,
+  useState,
+  useEffect,
+} from "react";
 
 const JobContext = createContext(null);
 const defaultJobs = [
@@ -34,6 +40,21 @@ export function JobContextProvider({ children }) {
     },
     [typeof window]
   );
+
+  const getJobs = useCallback(() => {
+    if (typeof window === "undefined") return defaultJobs;
+    const jobs = localStorage.getItem("leptum");
+    if (jobs) {
+      return JSON.parse(jobs);
+    }
+    return defaultJobs;
+  }, [typeof window]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const jobs = getJobs();
+    setJobs(jobs);
+  }, [typeof window]);
 
   const addJobCallback = useCallback((job) => {
     setJobCallback([...jobs, { cron: job, tasks: [] }]);

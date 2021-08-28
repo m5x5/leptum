@@ -13,8 +13,8 @@ export default function Home() {
       </Head>
       <div>
         <JobList>
-          {jobs.map((job) => (
-            <JobListItem key={job.cron} job={job} />
+          {jobs.map((job, i) => (
+            <JobListItem key={job.cron + "-" + i} job={job} />
           ))}
         </JobList>
       </div>
