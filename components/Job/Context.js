@@ -59,6 +59,7 @@ export function JobContextProvider({ children }) {
     setJobs(jobs);
   }, [typeof window]);
 
+  // CRON
   const setupCRONJobs = useCallback(() => {
     let cronJobs = [];
     jobs.forEach((job) => {
@@ -85,6 +86,17 @@ export function JobContextProvider({ children }) {
     });
   };
 
+  // Tasks
+  const updateTask = (updates, i) => {
+    const job = jobs.find((job) => job.cron === selected) || jobs[0];
+    const newTask = {
+      ...(job?.tasks?.[i] || {}),
+      ...updates,
+    };
+    job.tasks[i] = newTask;
+    setJobCallback(jobs);
+  };
+
   useEffect(() => {
     const cronJobs = setupCRONJobs();
     return () => {
@@ -104,8 +116,9 @@ export function JobContextProvider({ children }) {
         jobs,
         setJob: setJobCallback,
         addJob: addJobCallback,
-        selected,
+        selected: selected || jobs[0].cron,
         setSelected,
+        updateTask,
       }}
     >
       {children}

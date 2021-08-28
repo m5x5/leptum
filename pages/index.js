@@ -2,9 +2,11 @@ import Head from "next/head";
 import { useJobContext } from "../components/Job/Context";
 import JobList from "../components/Job/List";
 import JobListItem from "../components/Job/ListItem";
+import TaskListItem from "../components/Tasks/Item";
+import TaskList from "../components/Tasks/List";
 
 export default function Home() {
-  const { jobs } = useJobContext();
+  const { jobs, selected } = useJobContext();
   return (
     <div className="flex flex-col items-center justify-center min-h-screen py-2">
       <Head>
@@ -17,6 +19,13 @@ export default function Home() {
             <JobListItem key={job.cron + "-" + i} job={job} />
           ))}
         </JobList>
+        <TaskList>
+          {jobs
+            .find((job) => job.cron === selected)
+            ?.tasks.map((task, i) => (
+              <TaskListItem key={task.name + "-" + i} task={task} index={i} />
+            ))}
+        </TaskList>
       </div>
     </div>
   );
