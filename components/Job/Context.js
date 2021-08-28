@@ -5,6 +5,7 @@ import {
   useState,
   useEffect,
 } from "react";
+import Cronr from "cronr";
 
 const JobContext = createContext(null);
 const defaultJobs = [
@@ -16,6 +17,7 @@ const defaultJobs = [
         status: "due",
       },
     ],
+    status: "scheduled",
   },
 ];
 
@@ -52,13 +54,45 @@ export function JobContextProvider({ children }) {
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const jobs = getJobs();
+    const jobs = getJobs()?.[0] ? getJobs() : defaultJobs;
     setJobs(jobs);
   }, [typeof window]);
 
-  const addJobCallback = useCallback((job) => {
-    setJobCallback([...jobs, { cron: job, tasks: [] }]);
+  const setupCRONJobs = useCallback(() => {
+    let cronJobs = [];
+    jobs.forEach((job) => {
+      console.log("Job");
+      if (job.status !== "scheduled") return;
+      console.log("You got the job");
+      const cb = () => {
+        job.status = "pending";
+        console.log("Task is pending now");
+      };
+      const cronJob = new Cronr(job.cron, cb);
+      cronJob.start();
+      cronJobs.push(cronJob);
+    });
+    return cronJobs;
   });
+
+  const destroyCRONJobs = (cronJobs) => {
+    cronJobs.forEach((cronJob) => {
+      cronJob.stop();
+    });
+  };
+
+  useEffect(() => {
+    const cronJobs = setupCRONJobs();
+    return () => {
+      destroyCRONJobs(cronJobs);
+    };
+  }, [JSON.stringify(jobs)]);
+
+  const addJobCallback = useCallback((job) => {
+    setJobCallback([...jobs, { cron: job, tasks: [], status: "scheduled" }]);
+  });
+
+  const getDuration = useCallback((job) => {});
 
   return (
     <JobContext.Provider

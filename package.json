@@ -6,7 +6,10 @@
     "start": "next start"
   },
   "dependencies": {
+    "child_process": "^1.0.2",
+    "cronr": "^2.2.1",
     "next": "latest",
+    "node-cron": "^3.0.0",
     "react": "^17.0.2",
     "react-dom": "^17.0.2"
   },
@@ -14,5 +17,8 @@
     "autoprefixer": "^10.2.6",
     "postcss": "^8.3.5",
     "tailwindcss": "^2.2.4"
+  },
+  "browser": {
+    "child_process": false
   }
 }
