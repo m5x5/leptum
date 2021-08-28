@@ -16,11 +16,11 @@ export default function JobList({ children }) {
 
   return (
     <div>
+      <h1 className="font-semibold">Jobs</h1>
       <form onSubmit={onSubmit}>
         <input type="text" placeholder="CRON" onChange={onChange} />
         <button>Add Job</button>
       </form>
-      <h1>Jobs</h1>
       {children}
     </div>
   );
