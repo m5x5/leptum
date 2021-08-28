@@ -28,6 +28,8 @@ export function JobContextProvider({ children }) {
   const [jobs, setJobs] = useState(defaultJobs);
   const [selected, setSelected] = useState(null);
 
+  const job = jobs.find((job) => job.cron === selected) || jobs[0];
+
   const setJobCallback = useCallback(
     (jobs) => {
       setJobs(jobs);
@@ -88,12 +90,21 @@ export function JobContextProvider({ children }) {
 
   // Tasks
   const updateTask = (updates, i) => {
-    const job = jobs.find((job) => job.cron === selected) || jobs[0];
     const newTask = {
       ...(job?.tasks?.[i] || {}),
       ...updates,
     };
     job.tasks[i] = newTask;
+    setJobCallback(jobs);
+  };
+
+  const addTask = (cron) => {
+    const newTask = {
+      name: cron,
+      status: "due",
+    };
+    console.log(cron);
+    job.tasks.push(newTask);
     setJobCallback(jobs);
   };
 
@@ -119,6 +130,7 @@ export function JobContextProvider({ children }) {
         selected: selected || jobs[0].cron,
         setSelected,
         updateTask,
+        addTask,
       }}
     >
       {children}
