@@ -5,7 +5,7 @@ import Sound from "react-sound";
 
 // Create tailwind list item
 export default function JobListItem({ job } = { job: {} }) {
-  const { setSelected } = useJobContext();
+  const { setSelected, deleteJob } = useJobContext();
   if (!job.cron) return null;
 
   let descriptiveName;
@@ -26,13 +26,19 @@ export default function JobListItem({ job } = { job: {} }) {
     setSelected(job.cron);
   };
 
+  const onDelete = () => {
+    deleteJob(job.cron);
+  };
+
   return (
-    <div className="flex justify-between" onClick={onClick}>
+    <div
+      className="flex justify-between select-none cursor-pointer"
+      onClick={onClick}
+      onDoubleClick={onDelete}
+    >
       <h3 className="inline">{descriptiveName}</h3>
       {job.status === "pending" ? (
-        <>
-          <ChevronDoubleUpIcon className="inline text-blue-500 h-4 w-4 m-1" />
-        </>
+        <ChevronDoubleUpIcon className="inline text-blue-500 h-4 w-4 m-1" />
       ) : (
         ""
       )}

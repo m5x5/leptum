@@ -71,6 +71,11 @@ export function JobContextProvider({ children }) {
     sound = new Audio("./piece-of-cake-611.mp3");
   }, [typeof window]);
 
+  const deleteJob = (cron) => {
+    const newJobs = jobs.filter((job) => job.cron !== cron);
+    setJobCallback(newJobs);
+  };
+
   // CRON
   const setupCRONJobs = useCallback(() => {
     let cronJobs = [];
@@ -150,6 +155,7 @@ export function JobContextProvider({ children }) {
         job,
         jobIndex,
         updateJob,
+        deleteJob,
       }}
     >
       {children}
