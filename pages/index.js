@@ -16,7 +16,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div className="flex row w-full">
-        <Sidebar>
+        <Sidebar className="flex-grow">
           {jobs.map((job, i) => (
             <JobListItem key={job.cron + "-" + i} job={job} />
           ))}
