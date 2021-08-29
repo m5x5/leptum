@@ -13,10 +13,7 @@ export default function TaskListItem({ task, index }) {
   };
 
   return (
-    <div
-      className="select-none cursor-pointer bg-white p-3 rounded-xl grid grid-rows-2 grid-cols-task"
-      onDoubleClick={() => deleteTask(index)}
-    >
+    <div className="select-none cursor-pointer bg-white p-3 rounded-xl grid grid-rows-2 grid-cols-task">
       <h3 className="inline text-2xl font-bold col-span-1 auto-cols-max">
         {task.name}
       </h3>
@@ -26,7 +23,10 @@ export default function TaskListItem({ task, index }) {
           (task.status === "completed" ? "bg-green-200" : "")
         }
       >
-        <TrashIcon className="w-6 h-6 hover:text-red-500 transition" />
+        <TrashIcon
+          className="w-6 h-6 hover:text-red-500 transition"
+          onClick={() => deleteTask(index)}
+        />
         <CheckCircleIcon
           className="w-6 h-6 hover:text-green-500 transition"
           onClick={onChangeStatus}
