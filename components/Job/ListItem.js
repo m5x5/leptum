@@ -1,12 +1,20 @@
 import { useJobContext } from "./Context";
 import { ChevronDoubleUpIcon } from "@heroicons/react/solid";
 import cronstrue from "cronstrue";
+import Sound from "react-sound";
 
 // Create tailwind list item
 export default function JobListItem({ job } = { job: {} }) {
   const { setSelected } = useJobContext();
   if (!job.cron) return null;
-  const descriptiveName = cronstrue.toString(job.cron);
+  let descriptiveName = cronstrue.toString(job.cron);
+  const unwantedString = "At 0 minutes past the hour, ";
+  if (descriptiveName.startsWith(unwantedString)) {
+    descriptiveName = descriptiveName.replace(unwantedString, "");
+    const arr = descriptiveName.split("");
+    arr[0] = arr[0].toUpperCase();
+    descriptiveName = arr.join("");
+  }
 
   const onClick = () => {
     setSelected(job.cron);
@@ -16,7 +24,16 @@ export default function JobListItem({ job } = { job: {} }) {
     <div className="flex justify-between" onClick={onClick}>
       <h3 className="inline">{descriptiveName}</h3>
       {job.status === "pending" ? (
-        <ChevronDoubleUpIcon className="inline text-blue-500 h-4 w-4 m-1" />
+        <>
+          <ChevronDoubleUpIcon className="inline text-blue-500 h-4 w-4 m-1" />
+          <Sound
+            url="./piece-of-cake-611.mp3"
+            playStatus={Sound.status.PLAYING}
+            autoLoad={true}
+            loop={false}
+            onError={(error) => console.log(error)}
+          />
+        </>
       ) : (
         ""
       )}
