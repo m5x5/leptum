@@ -31,7 +31,6 @@ export function JobContextProvider({ children }) {
 
   const job = jobs.find((job) => job.cron === selected) || jobs[0];
   const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
-  let sound;
 
   const setJobCallback = useCallback(
     (jobs) => {
@@ -129,6 +128,11 @@ export function JobContextProvider({ children }) {
     setJobCallback(jobs);
   };
 
+  const deleteTask = (i) => {
+    job.tasks.splice(i, 1);
+    setJobCallback(jobs);
+  };
+
   useEffect(() => {
     const cronJobs = setupCRONJobs();
     return () => {
@@ -156,6 +160,7 @@ export function JobContextProvider({ children }) {
         jobIndex,
         updateJob,
         deleteJob,
+        deleteTask,
       }}
     >
       {children}

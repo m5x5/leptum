@@ -3,7 +3,7 @@ import { useJobContext } from "../Job/Context";
 
 export default function TaskListItem({ task, index }) {
   const [status, setStatus] = useState(task.status);
-  const { updateTask } = useJobContext();
+  const { updateTask, deleteTask } = useJobContext();
 
   const onChangeStatus = () => {
     task.status = status === "due" ? "completed" : "due";
@@ -12,7 +12,10 @@ export default function TaskListItem({ task, index }) {
   };
 
   return (
-    <div>
+    <div
+      className="select-none cursor-pointer"
+      onDoubleClick={() => deleteTask(index)}
+    >
       <h3 className="inline">{task.name}</h3>
       <input
         type="checkbox"

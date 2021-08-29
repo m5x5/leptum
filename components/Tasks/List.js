@@ -17,7 +17,7 @@ export default function TaskList({ children }) {
     setTask("");
   };
 
-  const onDone = () => {
+  const onDone = (e) => {
     e.preventDefault();
     updateJob({ status: "due" });
   };
