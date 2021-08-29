@@ -32,7 +32,18 @@ export default function JobListItem({ job } = { job: {} }) {
 
   return (
     <div
-      className="flex justify-between select-none cursor-pointer"
+      className={`
+      flex
+      justify-between
+      select-none
+      cursor-pointer
+      px-3
+      py-2
+      hover:bg-gray-200
+      mx-2
+      rounded-xl
+      active:bg-gray-300
+      `}
       onClick={onClick}
       onDoubleClick={onDelete}
     >
