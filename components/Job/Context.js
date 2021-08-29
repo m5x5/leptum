@@ -76,7 +76,7 @@ export function JobContextProvider({ children }) {
   };
 
   // CRON
-  const setupCRONJobs = useCallback(() => {
+  const setupCRONJobs = () => {
     let cronJobs = [];
     jobs.forEach((job) => {
       if (job.status !== "scheduled") return;
@@ -101,7 +101,7 @@ export function JobContextProvider({ children }) {
       } catch {}
     });
     return cronJobs;
-  });
+  };
 
   const destroyCRONJobs = (cronJobs) => {
     cronJobs.forEach((cronJob) => {
