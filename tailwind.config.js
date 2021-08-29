@@ -8,6 +8,9 @@ module.exports = {
       fontFamily: {
         sans: ["Product Sans", ...defaultTheme.fontFamily.sans],
       },
+      gridTemplateColumns: {
+        task: "1fr auto",
+      },
     },
   },
   variants: {

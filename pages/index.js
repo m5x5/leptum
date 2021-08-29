@@ -21,7 +21,7 @@ export default function Home() {
             <JobListItem key={job.cron + "-" + i} job={job} />
           ))}
         </Sidebar>
-        <div>
+        <div className="flex-grow px-8">
           <CreationBar />
           <TaskList>
             {jobs
