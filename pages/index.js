@@ -1,4 +1,5 @@
 import Head from "next/head";
+import CreationBar from "../components/CreationBar";
 import { useJobContext } from "../components/Job/Context";
 import JobList from "../components/Job/List";
 import JobListItem from "../components/Job/ListItem";
@@ -14,19 +15,22 @@ export default function Home() {
         <title>Leptum</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <div className="flex row gap-10 w-full">
+      <div className="flex row w-full">
         <Sidebar>
           {jobs.map((job, i) => (
             <JobListItem key={job.cron + "-" + i} job={job} />
           ))}
         </Sidebar>
-        <TaskList>
-          {jobs
-            .find((job) => job.cron === selected)
-            ?.tasks.map((task, i) => (
-              <TaskListItem key={task.name + "-" + i} task={task} index={i} />
-            ))}
-        </TaskList>
+        <div>
+          <CreationBar />
+          <TaskList>
+            {jobs
+              .find((job) => job.cron === selected)
+              ?.tasks.map((task, i) => (
+                <TaskListItem key={task.name + "-" + i} task={task} index={i} />
+              ))}
+          </TaskList>
+        </div>
       </div>
     </div>
   );
