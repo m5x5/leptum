@@ -6,6 +6,7 @@ import {
   useEffect,
 } from "react";
 import Cronr from "cronr";
+import CronrCounter from "cronr/CronrCounter";
 
 const JobContext = createContext(null);
 const defaultJobs = [
@@ -17,7 +18,7 @@ const defaultJobs = [
         status: "due",
       },
     ],
-    status: "scheduled",
+    status: "due",
   },
 ];
 let sound;
@@ -26,46 +27,44 @@ export function useJobContext() {
   return useContext(JobContext);
 }
 export function JobContextProvider({ children }) {
-  const [jobs, setJobs] = useState(defaultJobs);
-  const [selected, setSelected] = useState(null);
-
-  const job = jobs.find((job) => job.cron === selected) || jobs[0];
-  const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
-
-  const setJobCallback = useCallback(
-    (jobs) => {
-      setJobs(jobs);
-      saveJobs(jobs);
-    },
-    [setJobs]
-  );
-
-  const saveJobs = useCallback(
-    (jobs) => {
-      if (typeof window === "undefined") return;
-      localStorage.setItem("leptum", JSON.stringify(jobs));
-    },
-    [typeof window]
-  );
-
-  const getJobs = useCallback(() => {
+  const getJobs = () => {
     if (typeof window === "undefined") return defaultJobs;
     const jobs = localStorage.getItem("leptum");
     if (jobs) {
       return JSON.parse(jobs);
     }
     return defaultJobs;
-  }, [typeof window]);
+  };
+
+  const [jobs, setJobs] = useState(() => {
+    if (typeof window === "undefined") return defaultJobs;
+    const jobs = getJobs()?.[0] ? getJobs() : defaultJobs;
+    console.log(jobs);
+    return jobs;
+  });
+  const [selected, setSelected] = useState(null);
+
+  console.log("jobs", jobs);
+  const job = jobs.find((job) => job.cron === selected) || jobs[0];
+  const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
+
+  const setJobCallback = (jobs) => {
+    setJobs([...jobs]);
+    saveJobs([...jobs]);
+  };
+
+  const saveJobs = (jobs) => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("leptum", JSON.stringify(jobs));
+  };
 
   const updateJob = (updated) => {
     jobs[jobIndex] = { ...(job || {}), ...updated };
-    console.log(jobs);
     setJobCallback(jobs);
   };
+
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const jobs = getJobs()?.[0] ? getJobs() : defaultJobs;
-    setJobs(jobs);
 
     sound = new Audio("./piece-of-cake-611.mp3");
   }, [typeof window]);
@@ -79,8 +78,9 @@ export function JobContextProvider({ children }) {
   const setupCRONJobs = () => {
     let cronJobs = [];
     jobs.forEach((job) => {
-      if (job.status !== "scheduled") return;
+      if (job.status === "pending") return;
       const cb = () => {
+        job.lastEndTime = Date.now();
         job.status = "pending";
         job.tasks.forEach((task) => {
           task.status = "due";
@@ -95,7 +95,24 @@ export function JobContextProvider({ children }) {
         }
       };
       try {
-        const cronJob = new Cronr(job.cron, cb);
+        const cronJob = new Cronr(job.cron, cb, {
+          startTime: new Date(
+            Math.floor(
+              (job.lastEndTime || Date.now() - 1000 * 60 * 60 * 24 * 31) / 1000
+            ) * 1000
+          ),
+        });
+        const counter = new CronrCounter({
+          pattern: job.cron,
+          ts: job.lastEndTime || Date.now(),
+        });
+        counter.result.next();
+        const dueDate = counter.result.next().value;
+        const timeLeft = dueDate - new Date();
+
+        if (timeLeft <= 0) {
+          cb();
+        }
         cronJob.start();
         cronJobs.push(cronJob);
       } catch {}
