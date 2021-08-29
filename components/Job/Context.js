@@ -20,6 +20,7 @@ const defaultJobs = [
     status: "scheduled",
   },
 ];
+let sound;
 
 export function useJobContext() {
   return useContext(JobContext);
@@ -29,6 +30,8 @@ export function JobContextProvider({ children }) {
   const [selected, setSelected] = useState(null);
 
   const job = jobs.find((job) => job.cron === selected) || jobs[0];
+  const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
+  let sound;
 
   const setJobCallback = useCallback(
     (jobs) => {
@@ -55,10 +58,17 @@ export function JobContextProvider({ children }) {
     return defaultJobs;
   }, [typeof window]);
 
+  const updateJob = (updated) => {
+    jobs[jobIndex] = { ...(job || {}), ...updated };
+    console.log(jobs);
+    setJobCallback(jobs);
+  };
   useEffect(() => {
     if (typeof window === "undefined") return;
     const jobs = getJobs()?.[0] ? getJobs() : defaultJobs;
     setJobs(jobs);
+
+    sound = new Audio("./piece-of-cake-611.mp3");
   }, [typeof window]);
 
   // CRON
@@ -72,6 +82,13 @@ export function JobContextProvider({ children }) {
           task.status = "due";
         });
         setJobCallback(jobs);
+        if (sound) {
+          if (sound.readyState > 0) {
+            sound.play();
+          } else {
+            sound.onload = () => sound.play();
+          }
+        }
       };
       try {
         const cronJob = new Cronr(job.cron, cb);
@@ -103,7 +120,6 @@ export function JobContextProvider({ children }) {
       name: cron,
       status: "due",
     };
-    console.log(cron);
     job.tasks.push(newTask);
     setJobCallback(jobs);
   };
@@ -131,6 +147,9 @@ export function JobContextProvider({ children }) {
         setSelected,
         updateTask,
         addTask,
+        job,
+        jobIndex,
+        updateJob,
       }}
     >
       {children}

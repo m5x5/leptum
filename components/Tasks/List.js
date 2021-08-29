@@ -4,7 +4,7 @@ import { useJobContext } from "../Job/Context";
 
 export default function TaskList({ children }) {
   const [task, setTask] = useState([]);
-  const { addTask } = useJobContext();
+  const { addTask, updateJob, jobIndex } = useJobContext();
 
   const onChange = (e) => {
     const { value } = e.target;
@@ -15,6 +15,11 @@ export default function TaskList({ children }) {
     e.preventDefault();
     addTask(task);
     setTask("");
+  };
+
+  const onDone = () => {
+    e.preventDefault();
+    updateJob({ status: "due" });
   };
 
   return (
@@ -30,7 +35,10 @@ export default function TaskList({ children }) {
         <button className="bg-gray-400 hover:bg-gray-500 active:bg-gray-600 m-1">
           <PlusIcon className="w-4 h-4 text-gray-100" />
         </button>
-        <button className="bg-gray-400 hover:bg-gray-500 active:bg-gray-600 m-1">
+        <button
+          className="bg-gray-400 hover:bg-gray-500 active:bg-gray-600 m-1"
+          onClick={onDone}
+        >
           <CheckIcon className="w-4 h-4 text-gray-100" />
         </button>
       </form>

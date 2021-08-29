@@ -7,13 +7,19 @@ import Sound from "react-sound";
 export default function JobListItem({ job } = { job: {} }) {
   const { setSelected } = useJobContext();
   if (!job.cron) return null;
-  let descriptiveName = cronstrue.toString(job.cron);
-  const unwantedString = "At 0 minutes past the hour, ";
-  if (descriptiveName.startsWith(unwantedString)) {
-    descriptiveName = descriptiveName.replace(unwantedString, "");
-    const arr = descriptiveName.split("");
-    arr[0] = arr[0].toUpperCase();
-    descriptiveName = arr.join("");
+
+  let descriptiveName;
+  try {
+    descriptiveName = cronstrue.toString(job.cron);
+    const unwantedString = "At 0 minutes past the hour, ";
+    if (descriptiveName.startsWith(unwantedString)) {
+      descriptiveName = descriptiveName.replace(unwantedString, "");
+      const arr = descriptiveName.split("");
+      arr[0] = arr[0].toUpperCase();
+      descriptiveName = arr.join("");
+    }
+  } catch {
+    return null;
   }
 
   const onClick = () => {
@@ -26,13 +32,6 @@ export default function JobListItem({ job } = { job: {} }) {
       {job.status === "pending" ? (
         <>
           <ChevronDoubleUpIcon className="inline text-blue-500 h-4 w-4 m-1" />
-          <Sound
-            url="./piece-of-cake-611.mp3"
-            playStatus={Sound.status.PLAYING}
-            autoLoad={true}
-            loop={false}
-            onError={(error) => console.log(error)}
-          />
         </>
       ) : (
         ""
