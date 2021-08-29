@@ -13,7 +13,7 @@ export default function TaskListItem({ task, index }) {
   };
 
   return (
-    <div className="select-none cursor-pointer bg-white p-3 rounded-xl grid grid-rows-2 grid-cols-task">
+    <div className="select-none cursor-pointer bg-white p-3 rounded-xl grid grid-rows-2 grid-cols-task mb-3">
       <h3 className="inline text-2xl font-bold col-span-1 auto-cols-max">
         {task.name}
       </h3>

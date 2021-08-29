@@ -28,7 +28,7 @@ export default function Sidebar({ children, className, ...props }) {
       {...props}
     >
       <div className="p-3 w-full shadow-md gap-3 flex items-center mb-3">
-        <div className="bg-gray-400 inline-block p-2 rounded-xl">
+        <div className="bg-blue-300 inline-block p-2 rounded-xl">
           <CalendarIcon className="w-6 h-6 text-gray-900" />
         </div>
         <h3 className="text-xl font-semibold inline-block">Leptum</h3>
