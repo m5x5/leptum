@@ -1,7 +1,6 @@
 import Head from "next/head";
 import CreationBar from "../components/CreationBar";
 import { useJobContext } from "../components/Job/Context";
-import JobList from "../components/Job/List";
 import JobListItem from "../components/Job/ListItem";
 import Sidebar from "../components/Sidebar";
 import TaskListItem from "../components/Tasks/Item";
