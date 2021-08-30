@@ -7,6 +7,7 @@ import {
 } from "react";
 import Cronr from "cronr";
 import CronrCounter from "cronr/CronrCounter";
+import Modal from "../Modal";
 
 const JobContext = createContext(null);
 const defaultJobs = [
@@ -181,6 +182,7 @@ export function JobContextProvider({ children }) {
       }}
     >
       {children}
+      <Modal />
     </JobContext.Provider>
   );
 }
