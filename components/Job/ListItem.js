@@ -1,26 +1,28 @@
 import { useJobContext } from "./Context";
 import { ChevronDoubleUpIcon } from "@heroicons/react/solid";
-import cronstrue from "cronstrue";
-import Sound from "react-sound";
+import {
+  getDescription,
+  getPrettyTimeTillNextOccurrence,
+} from "../../utils/cron";
+import { useEffect, useState } from "react";
 
 // Create tailwind list item
 export default function JobListItem({ job } = { job: {} }) {
   const { setSelected, deleteJob } = useJobContext();
+  const [count, update] = useState(0);
   if (!job.cron) return null;
 
-  let descriptiveName;
-  try {
-    descriptiveName = cronstrue.toString(job.cron);
-    const unwantedString = "At 0 minutes past the hour, ";
-    if (descriptiveName.startsWith(unwantedString)) {
-      descriptiveName = descriptiveName.replace(unwantedString, "");
-      const arr = descriptiveName.split("");
-      arr[0] = arr[0].toUpperCase();
-      descriptiveName = arr.join("");
-    }
-  } catch {
-    return null;
-  }
+  const descriptiveName = getDescription(job.cron);
+  if (!descriptiveName) return null;
+
+  const time = getPrettyTimeTillNextOccurrence(job.cron);
+  console.log("Rendered");
+  useEffect(() => {
+    const timeout = setTimeout(() => {
+      update(count + 1);
+    }, 1000);
+    return () => clearTimeout(timeout);
+  }, [count]);
 
   const onClick = () => {
     setSelected(job.cron);
@@ -53,7 +55,9 @@ export default function JobListItem({ job } = { job: {} }) {
       {job.status === "pending" ? (
         <ChevronDoubleUpIcon className="inline text-blue-500 h-4 w-4 m-1" />
       ) : (
-        ""
+        <span className="py-0.5 px-1.5 rounded-xl dark:bg-gray-700 dark:text-gray-400">
+          {time}
+        </span>
       )}
     </div>
   );
