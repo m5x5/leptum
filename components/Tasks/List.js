@@ -12,10 +12,7 @@ export default function TaskList({ children }) {
   return (
     <div className="mt-8">
       {children}
-      <button
-        className="bg-green-400 hover:bg-green-500 active:bg-green-600 rounded-xl py-2 w-full text-white mt-8 transition"
-        onClick={onDone}
-      >
+      <button className="w-full mt-8 btn-success" onClick={onDone}>
         Done
       </button>
     </div>

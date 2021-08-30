@@ -1,4 +1,26 @@
 body,
 html {
-  @apply bg-gray-200;
+  @apply bg-gray-200 dark:bg-gray-900;
+}
+
+/* Ripple effect */
+.ripple {
+  background-position: center;
+  transition: background 0.3s;
+}
+.ripple:hover {
+  @apply bg-gray-500;
+  background: #374151 radial-gradient(circle, transparent 1%, #4b5563 1%)
+    center/15000%;
+}
+.ripple:active {
+  @apply bg-gray-600;
+  background-size: 100%;
+  transition: background 0s;
+}
+
+.btn-success {
+  @apply bg-green-400 hover:bg-green-500 active:bg-green-600
+    dark:bg-green-800 hover:bg-green-700
+    rounded-xl py-2 text-white font-bold transition;
 }

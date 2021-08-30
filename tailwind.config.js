@@ -4,6 +4,9 @@ module.exports = {
   purge: ["./pages/**/*.{js,ts,jsx,tsx}", "./components/**/*.{js,ts,jsx,tsx}"],
   darkMode: "media", // or 'media' or 'class'
   theme: {
+    ripple: (theme) => ({
+      colors: theme("colors"),
+    }),
     extend: {
       fontFamily: {
         sans: ["Product Sans", ...defaultTheme.fontFamily.sans],
@@ -16,5 +19,5 @@ module.exports = {
   variants: {
     extend: {},
   },
-  plugins: [],
+  plugins: [require("tailwindcss-ripple")()],
 };
