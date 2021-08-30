@@ -43,7 +43,7 @@ export default function CreationBar() {
       </button>
       <form onSubmit={onSubmit} className="flex flex-row w-full gap-3">
         <input
-          className="bg-white dark:bg-gray-700 focus:border-blue-500 p-3 rounded-r-xl appearance-none border-gray-200 w-full text-gray-700 leading-tight focus:outline-none flex-grow"
+          className="bg-white dark:bg-gray-700 focus:border-blue-500 p-3 rounded-r-xl appearance-none border-gray-200 w-full text-gray-700 dark:text-gray-300 leading-tight focus:outline-none flex-grow"
           id="todo"
           type="text"
           placeholder={mode === "task" ? "Add a task" : "Add a CRON job"}
