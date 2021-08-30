@@ -8,6 +8,7 @@ import {
 import Cronr from "cronr";
 import CronrCounter from "cronr/CronrCounter";
 import Modal from "../Modal";
+import { getNextOccurrence, timeTillNextOccurrence } from "../../utils/cron";
 
 const JobContext = createContext(null);
 const defaultJobs = [
@@ -108,8 +109,9 @@ export function JobContextProvider({ children }) {
           ts: job.lastEndTime || Date.now(),
         });
         counter.result.next();
-        const dueDate = counter.result.next().value;
-        const timeLeft = dueDate - new Date();
+        const dueDate = getNextOccurrence(job.cron);
+        const timeLeft = timeTillNextOccurrence(job.cron);
+        console.log({ dueDate, timeLeft });
 
         if (timeLeft <= 0) {
           cb();

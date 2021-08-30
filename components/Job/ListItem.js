@@ -6,7 +6,6 @@ import {
 } from "../../utils/cron";
 import { useEffect, useState } from "react";
 
-// Create tailwind list item
 export default function JobListItem({ job } = { job: {} }) {
   const { setSelected, deleteJob } = useJobContext();
   const [count, update] = useState(0);
