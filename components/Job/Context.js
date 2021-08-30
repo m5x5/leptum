@@ -5,10 +5,9 @@ import {
   useState,
   useEffect,
 } from "react";
-import Cronr from "cronr";
-import CronrCounter from "cronr/CronrCounter";
 import Modal from "../Modal";
 import { getNextOccurrence, timeTillNextOccurrence } from "../../utils/cron";
+import * as workerTimers from "worker-timers";
 
 const JobContext = createContext(null);
 const defaultJobs = [
@@ -76,14 +75,17 @@ export function JobContextProvider({ children }) {
     setJobCallback(newJobs);
   };
 
+  console.log("Rendered");
   // CRON
   const setupCRONJobs = () => {
     let cronJobs = [];
     jobs.forEach((job) => {
+      console.log("job", job);
       if (job.status === "pending") return;
+
       const cb = () => {
-        job.lastEndTime = Date.now();
         job.status = "pending";
+        console.log("Set to pending here");
         job.tasks.forEach((task) => {
           task.status = "due";
         });
@@ -97,35 +99,28 @@ export function JobContextProvider({ children }) {
         }
       };
       try {
-        const cronJob = new Cronr(job.cron, cb, {
-          startTime: new Date(
-            Math.floor(
-              (job.lastEndTime || Date.now() - 1000 * 60 * 60 * 24 * 31) / 1000
-            ) * 1000
-          ),
-        });
-        const counter = new CronrCounter({
-          pattern: job.cron,
-          ts: job.lastEndTime || Date.now(),
-        });
-        counter.result.next();
+        let timeLeft = timeTillNextOccurrence(job.cron);
+        if (timeLeft <= 0) {
+          timeLeft = 0;
+        }
+        const timer = workerTimers.setTimeout(() => {
+          console.log("It was me :sob:");
+          cb();
+        }, timeLeft);
         const dueDate = getNextOccurrence(job.cron);
-        const timeLeft = timeTillNextOccurrence(job.cron);
         console.log({ dueDate, timeLeft });
 
-        if (timeLeft <= 0) {
-          cb();
-        }
-        cronJob.start();
-        cronJobs.push(cronJob);
-      } catch {}
+        cronJobs.push(timer);
+      } catch (err) {
+        console.log(err);
+      }
     });
     return cronJobs;
   };
 
   const destroyCRONJobs = (cronJobs) => {
     cronJobs.forEach((cronJob) => {
-      cronJob.stop();
+      workerTimers.clearTimeout(cronJob);
     });
   };
 

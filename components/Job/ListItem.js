@@ -15,7 +15,7 @@ export default function JobListItem({ job } = { job: {} }) {
   if (!descriptiveName) return null;
 
   const time = getPrettyTimeTillNextOccurrence(job.cron);
-  console.log("Rendered");
+
   useEffect(() => {
     const timeout = setTimeout(() => {
       update(count + 1);

@@ -2,7 +2,7 @@ import { ExclamationIcon } from "@heroicons/react/outline";
 import { useState } from "react";
 
 export default function Modal({ onConfirm = () => {} }) {
-  const [hide, setHide] = useState(false);
+  const [hide, setHide] = useState(true);
   return (
     <div
       className={
