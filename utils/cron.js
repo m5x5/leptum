@@ -18,6 +18,7 @@ export const getPrettyTimeTillNextOccurrence = (cron) => {
   const time = timeTillNextOccurrence(cron);
   const prettyTimeTillNextOccurrence = prettyMilliseconds(time, {
     secondsDecimalDigits: 0,
+    unitCount: 2,
   });
   return prettyTimeTillNextOccurrence;
 };
