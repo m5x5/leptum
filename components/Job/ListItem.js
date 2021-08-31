@@ -6,13 +6,19 @@ import {
 } from "../../utils/cron";
 import { useEffect, useState } from "react";
 
+const MAX_NAME_LENGTH = 27;
+
 export default function JobListItem({ job } = { job: {} }) {
   const { setSelected, deleteJob } = useJobContext();
   const [count, update] = useState(0);
   if (!job.cron) return null;
 
-  const descriptiveName = getDescription(job.cron);
+  let descriptiveName = getDescription(job.cron);
   if (!descriptiveName) return null;
+
+  if (descriptiveName.length > MAX_NAME_LENGTH) {
+    descriptiveName = descriptiveName.substring(0, MAX_NAME_LENGTH) + "...";
+  }
 
   const time = getPrettyTimeTillNextOccurrence(job.cron);
 
