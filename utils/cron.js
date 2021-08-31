@@ -39,3 +39,25 @@ export const getDescription = (cron) => {
     return "";
   }
 };
+
+export const sortObjectsByDueDate = (a, b) => {
+  const aDueDate = getNextOccurrence(a.cron);
+  const bDueDate = getNextOccurrence(b.cron);
+  if (aDueDate < bDueDate) {
+    return -1;
+  }
+  if (aDueDate > bDueDate) {
+    return 1;
+  }
+  return 0;
+};
+
+export const filterInvalidCron = (obj) => {
+  try {
+    getNextOccurrence(obj.cron);
+    return true;
+  } catch (err) {
+    console.log(err);
+    return false;
+  }
+};

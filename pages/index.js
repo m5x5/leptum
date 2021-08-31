@@ -5,6 +5,7 @@ import JobListItem from "../components/Job/ListItem";
 import Sidebar from "../components/Sidebar";
 import TaskListItem from "../components/Tasks/Item";
 import TaskList from "../components/Tasks/List";
+import { filterInvalidCron, sortObjectsByDueDate } from "../utils/cron";
 
 export default function Home() {
   const { jobs, selected } = useJobContext();
@@ -16,9 +17,12 @@ export default function Home() {
       </Head>
       <div className="flex row w-full">
         <Sidebar className="flex-grow">
-          {jobs.map((job, i) => (
-            <JobListItem key={job.cron + "-" + i} job={job} />
-          ))}
+          {jobs
+            .filter(filterInvalidCron)
+            .sort(sortObjectsByDueDate)
+            .map((job, i) => (
+              <JobListItem key={job.cron + "-" + i} job={job} />
+            ))}
         </Sidebar>
         <div className="flex-grow px-8">
           <CreationBar />
