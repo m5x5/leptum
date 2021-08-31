@@ -15,7 +15,7 @@ export default function Home() {
         <title>Leptum</title>
         <link rel="icon" href="/favicon.ico" />
       </Head>
-      <div className="flex row w-full">
+      <div className="flex row w-full h-screen overflow-y-auto">
         <Sidebar className="flex-grow">
           {jobs
             .filter(filterInvalidCron)
@@ -24,7 +24,7 @@ export default function Home() {
               <JobListItem key={job.cron + "-" + i} job={job} />
             ))}
         </Sidebar>
-        <div className="flex-grow px-8">
+        <div className="flex-grow px-8 h-screen overflow-y-auto">
           <CreationBar />
           <TaskList>
             {jobs
