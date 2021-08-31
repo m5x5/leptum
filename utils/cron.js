@@ -57,7 +57,6 @@ export const filterInvalidCron = (obj) => {
     getNextOccurrence(obj.cron);
     return true;
   } catch (err) {
-    console.log(err);
     return false;
   }
 };

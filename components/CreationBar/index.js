@@ -41,9 +41,9 @@ export default function CreationBar() {
           <ClockIcon className="w-5 h-5 text-gray-400" />
         )}
       </button>
-      <form onSubmit={onSubmit} className="flex flex-row w-full gap-3">
+      <form onSubmit={onSubmit} className="flex flex-row w-full gap-1">
         <input
-          className="bg-white dark:bg-gray-700 focus:border-blue-500 p-3 rounded-r-xl appearance-none border-gray-200 w-full text-gray-700 dark:text-gray-300 leading-tight focus:outline-none flex-grow"
+          className="bg-white dark:bg-gray-700 focus:border-blue-500 p-3 appearance-none border-gray-200 w-full text-gray-700 dark:text-gray-300 leading-tight focus:outline-none flex-grow"
           id="todo"
           type="text"
           placeholder={mode === "task" ? "Add a task" : "Add a CRON job"}
@@ -51,7 +51,7 @@ export default function CreationBar() {
           onChange={onChangeText}
         />
         <button
-          className="bg-blue-500 hover:bg-blue-700 text-white font-bold p-2 rounded-xl focus:outline-none focus:shadow-outline h-11 w-11"
+          className="bg-blue-500 dark:bg-blue-800 hover:bg-blue-600 dark:hover:bg-blue-700 text-white dark:text-blue-200 font-bold p-2 rounded-r-xl focus:outline-none focus:shadow-outline h-11 w-11"
           type="button"
           onClick={onSubmit}
         >
