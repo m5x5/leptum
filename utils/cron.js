@@ -43,6 +43,10 @@ export const getDescription = (cron) => {
 export const sortObjectsByDueDate = (a, b) => {
   const aDueDate = getNextOccurrence(a.cron);
   const bDueDate = getNextOccurrence(b.cron);
+  if (a.status === "pending" && b.status !== "pending") {
+    return -1;
+  }
+
   if (aDueDate < bDueDate) {
     return -1;
   }
