@@ -20,7 +20,7 @@ export default function TaskListItem({ task, index }) {
       <div
         className={
           "flex justify-end bg-gray-200 dark:bg-gray-700 col-auto auto-cols-min auto p-2 rounded-xl gap-2 " +
-          (task.status === "completed" ? "bg-green-200" : "")
+          (task.status === "completed" ? "bg-green-200 dark:bg-green-900" : "")
         }
       >
         <TrashIcon
