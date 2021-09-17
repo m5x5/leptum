@@ -14,21 +14,21 @@ export default function TaskListItem({ task, index }) {
 
   return (
     <div className="select-none cursor-pointer bg-white dark:bg-gray-800 p-3 rounded-xl grid grid-rows-2 grid-cols-task mb-3">
-      <h3 className="inline text-2xl font-bold col-span-1 auto-cols-max dark:text-gray-300">
+      <h3 className="inline text-xl font-bold col-span-1 auto-cols-max dark:text-gray-300">
         {task.name}
       </h3>
       <div
         className={
-          "flex justify-end bg-gray-200 dark:bg-gray-700 col-auto auto-cols-min auto p-2 rounded-xl gap-2 " +
+          "flex justify-end bg-gray-200 dark:bg-gray-700 col-auto auto-cols-min auto p-1 rounded-xl gap-1 " +
           (task.status === "completed" ? "bg-green-200 dark:bg-green-900" : "")
         }
       >
         <TrashIcon
-          className="w-6 h-6 hover:text-red-500 transition dark:text-gray-400"
+          className="w-5 h-5 hover:text-red-500 transition dark:text-gray-400"
           onClick={() => deleteTask(index)}
         />
         <CheckCircleIcon
-          className="w-6 h-6 hover:text-green-500 transition dark:text-gray-400"
+          className="w-5 h-5 hover:text-green-500 transition dark:text-gray-400"
           onClick={onChangeStatus}
         />
       </div>
