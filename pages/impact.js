@@ -8,10 +8,40 @@ const defaultState = {
   impacts: [
     {
       activity: "Morning",
+      stress: "40",
+      fulfillment: "20",
+      motivation: "35",
+      cleanliness: "7",
+    },
+    {
+      activity: "Procrastinate a while",
+      stress: "60",
+      fulfillment: "0",
+      motivation: "0",
+      cleanliness: "11",
+      shame: "60",
+    },
+    {
+      activity: "Arriving from a long night",
+      stress: "40",
+      fulfillment: "10",
+      motivation: "5",
+      commitment: "20",
+      cleanliness: "20",
+    },
+    {
+      activity: "Procrastinating",
+      fulfillment: "0",
+      motivation: "5",
+      commitment: "10",
+      cleanliness: "25",
+    },
+    {
+      activity: "Morning",
       stress: "20",
       motivation: "40",
       fulfillment: "25",
-      clean: "55",
+      cleanliness: "55",
     },
     {
       activity: "Evening",

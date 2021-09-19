@@ -19,6 +19,9 @@ const IMPACT_TYPES = [
   "shame",
   "gratitude",
   "energy",
+  "fulfillment",
+  "guilt",
+  "commitment",
 ];
 
 const CustomTooltip = ({ active, payload, label }) => {
