@@ -71,7 +71,6 @@ export default function ImpactPage() {
     <div className="w-full h-full bg-gray-900 text-white flex">
       <NewSidebar />
       <div className="flex-grow p-4 h-screen overflow-y-auto">
-        <p className="text-4xl">Add Activity </p>
         <SummaryChart impacts={state.impacts} activities={state.activities} />
         <div className="grid grid-cols-2 flex-grow gap-4 mt-12">
           <input

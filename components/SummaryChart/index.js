@@ -75,7 +75,7 @@ export default function SummaryChart({ impacts }) {
   });
 
   return (
-    <ResponsiveContainer width="100%" height="auto" aspect={1}>
+    <ResponsiveContainer width="100%" height="auto" aspect={1.7}>
       <AreaChart data={impacts} className={"h-40"}>
         <XAxis dataKey="activity" />
         <Tooltip content={<CustomTooltip />} />
