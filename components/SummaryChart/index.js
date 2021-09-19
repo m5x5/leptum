@@ -80,7 +80,13 @@ export default function SummaryChart({ impacts }) {
         <XAxis dataKey="activity" />
         <Tooltip content={<CustomTooltip />} />
         {IMPACT_TYPES.map((type, i) => (
-          <Area type="monotone" dataKey={type} fill={palette[i]} stackId="1" />
+          <Area
+            type="monotone"
+            dataKey={type}
+            fill={palette[i]}
+            stackId="1"
+            stroke={false}
+          />
         ))}
       </AreaChart>
     </ResponsiveContainer>
