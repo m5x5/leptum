@@ -82,13 +82,15 @@ export default function ImpactPage() {
           <button className="btn btn-primary btn-sm" onClick={() => {}}>
             <PlusSmIcon className="w-6" />
           </button>
-          {impacts.map((impact) => (
-            <ImpactCard
-              impact={impact}
-              impacts={state.impacts}
-              activities={activities}
-            />
-          ))}
+          {impacts
+            .filter((impact) => impact !== "activity")
+            .map((impact) => (
+              <ImpactCard
+                impact={impact}
+                impacts={state.impacts}
+                activities={activities}
+              />
+            ))}
         </div>
       </div>
     </div>

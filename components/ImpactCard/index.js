@@ -2,12 +2,19 @@ import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 
 export default function ImpactCard({ impacts = [], activities, impact }) {
-  const data = activities.map((activity, index) => ({
-    activity,
-    value:
-      getNumberFromString(impacts[index]?.[impact]) ||
-      console.log(impacts, index),
-  }));
+  const data = activities.map((activity, index) => {
+    let value = getNumberFromString(impacts[index]?.[impact]);
+
+    if (!value || value !== 0) {
+      if (impacts[index - 1]?.[impact]) {
+        value = impacts[index - 1]?.[impact];
+      }
+    }
+    return {
+      activity,
+      value,
+    };
+  });
 
   return (
     <div className="text-left p-5 bg-gray-800 rounded-md">
