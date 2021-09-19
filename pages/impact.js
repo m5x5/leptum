@@ -27,6 +27,7 @@ const defaultState = {
       cleanliness: "25",
       shame: "0",
       guilt: "5",
+      motivation: "30",
     },
   ],
 };

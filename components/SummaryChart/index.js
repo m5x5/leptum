@@ -29,7 +29,7 @@ const CustomTooltip = ({ active, payload, label }) => {
         <div className="tooltip-content">
           <ul>
             {payload
-              .filter((item) => item.value)
+              .filter((item) => +item.value)
               .reverse()
               .map((item) => (
                 <li
