@@ -65,6 +65,7 @@ const defaultState = {
 
 export default function ImpactPage() {
   const [state, setState] = useState(defaultState);
+  const [activityName, setActivityName] = useState("");
   const impacts = Object.keys(state.impacts[0]);
   const activities = state.impacts.map((impact) => impact.activity);
 
@@ -96,6 +97,21 @@ export default function ImpactPage() {
     setState(newState);
   };
 
+  const addActivity = () => {
+    if (!activityName) return;
+
+    const newState = { ...state };
+    newState.impacts.push({
+      activity: activityName,
+    });
+    setState(newState);
+    setActivityName("");
+  };
+
+  const changeActivityName = (e) => {
+    setActivityName(e.target.value);
+  };
+
   return (
     <div className="w-full h-full bg-gray-900 text-white flex">
       <NewSidebar />
@@ -107,8 +123,10 @@ export default function ImpactPage() {
             className="w-full"
             placeholder="Activity"
             className="p-2 px-3 bg-gray-800 rounded-md"
+            onChange={changeActivityName}
+            value={activityName}
           />
-          <button className="btn btn-primary btn-sm" onClick={() => {}}>
+          <button className="btn btn-primary btn-sm" onClick={addActivity}>
             <PlusSmIcon className="w-6" />
           </button>
           {impacts
