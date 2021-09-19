@@ -3,6 +3,7 @@ import { useState } from "react";
 import ImpactCard from "../components/ImpactCard";
 import { PlusSmIcon } from "@heroicons/react/outline";
 import SummaryChart from "../components/SummaryChart";
+import { useEffect } from "react";
 
 const defaultState = {
   impacts: [
@@ -63,9 +64,37 @@ const defaultState = {
 };
 
 export default function ImpactPage() {
-  const [state] = useState(defaultState);
+  const [state, setState] = useState(defaultState);
   const impacts = Object.keys(state.impacts[0]);
   const activities = state.impacts.map((impact) => impact.activity);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const stored = localStorage.getItem("leptum-impacts");
+    if (stored) {
+      const newState = JSON.parse(stored);
+      if (newState.impacts.length > 0) {
+        setState({ ...newState });
+      }
+    }
+  }, [typeof window]);
+
+  useEffect(() => {
+    localStorage.setItem("leptum-impacts", JSON.stringify(state));
+  }, [JSON.stringify(state)]);
+
+  const onChange = (impact) => (e) => {
+    const value = e.target.value;
+    const newState = { ...state };
+
+    // Update [impact] property of last object in state.impacts
+    if (newState.impacts[newState.impacts.length - 1]) {
+      newState.impacts[newState.impacts.length - 1][impact] = value;
+    }
+
+    setState(newState);
+  };
 
   return (
     <div className="w-full h-full bg-gray-900 text-white flex">
@@ -89,6 +118,7 @@ export default function ImpactPage() {
                 impact={impact}
                 impacts={state.impacts}
                 activities={activities}
+                onChange={onChange(impact)}
               />
             ))}
         </div>

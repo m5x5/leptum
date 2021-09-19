@@ -1,7 +1,12 @@
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 
-export default function ImpactCard({ impacts = [], activities, impact }) {
+export default function ImpactCard({
+  impacts = [],
+  activities,
+  impact,
+  onChange,
+}) {
   const data = activities.map((activity, index) => {
     let value = getNumberFromString(impacts[index]?.[impact]);
 
@@ -42,6 +47,8 @@ export default function ImpactCard({ impacts = [], activities, impact }) {
         className="w-full"
         placeholder="%"
         className="rounded-md w-full py-2 px-3 bg-gray-700 mt-5"
+        onChange={onChange}
+        value={impacts[impacts.length - 1]?.[impact] || ""}
       />
     </div>
   );
