@@ -60,12 +60,10 @@ export default function SummaryChart({ impacts }) {
   impacts = impacts.map((impact, i) => {
     const newImpact = {};
     IMPACT_TYPES.forEach((type) => {
-      console.log(type);
       let value = getNumberFromString(impact[type]);
 
       // If the value doesn't exist take the value of the previous one
       if (!value) {
-        console.log(value, i);
         if (impacts[i - 1]?.[type]) {
           value = impacts[i - 1][type];
         }
