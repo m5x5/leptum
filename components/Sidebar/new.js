@@ -20,9 +20,11 @@ export default function NewSidebar() {
             <ClockIcon className="h-6" />
           </div>
         </Link>
-        <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
-          <CalendarIcon className="h-6" />
-        </div>
+        <Link href="/impact">
+          <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
+            <CalendarIcon className="h-6" />
+          </div>
+        </Link>
       </div>
     </div>
   );

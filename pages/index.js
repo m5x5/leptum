@@ -3,6 +3,7 @@ import CreationBar from "../components/CreationBar";
 import { useJobContext } from "../components/Job/Context";
 import JobListItem from "../components/Job/ListItem";
 import Sidebar from "../components/Sidebar";
+import NewSidebar from "../components/Sidebar/new";
 import TaskListItem from "../components/Tasks/Item";
 import TaskList from "../components/Tasks/List";
 import { filterInvalidCron, sortObjectsByDueDate } from "../utils/cron";
@@ -17,6 +18,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
       <div className="flex row w-full h-screen overflow-y-auto">
+        <NewSidebar />
         <Sidebar className="flex-grow">
           {jobs
             .filter(filterInvalidCron)

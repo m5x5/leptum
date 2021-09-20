@@ -24,18 +24,11 @@ export default function Sidebar({ children, className, ...props }) {
         transition-all
         transition-duration-200
         transition-timing-ease-in-out
+        pt-3
         ${className}
       `}
       {...props}
     >
-      <div className="p-3 w-full shadow-md gap-3 flex items-center mb-3">
-        <div className="bg-blue-300 dark:bg-blue-900 inline-block p-2 rounded-xl">
-          <CalendarIcon className="w-6 h-6 text-gray-900 dark:text-blue-300" />
-        </div>
-        <h3 className="text-xl font-semibold inline-block dark:text-white">
-          Leptum
-        </h3>
-      </div>
       {children}
     </div>
   );
