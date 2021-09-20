@@ -9,3 +9,17 @@ export const capitalize = (str) => {
   });
   return strArr.join("");
 };
+
+export const IMPACT_TYPES = [
+  "stress",
+  "cleanliness",
+  "motivation",
+  "confidence",
+  "happiness",
+  "shame",
+  "gratitude",
+  "energy",
+  "fulfillment",
+  "guilt",
+  "commitment",
+];

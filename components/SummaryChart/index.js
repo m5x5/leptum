@@ -1,7 +1,7 @@
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import distinctColors from "distinct-colors";
-import { capitalize } from "../../utils";
+import { capitalize, IMPACT_TYPES } from "../../utils";
 
 const palette = distinctColors({
   count: 30,
@@ -9,20 +9,6 @@ const palette = distinctColors({
   lightMax: 60,
   chromaMin: 50,
 });
-
-const IMPACT_TYPES = [
-  "stress",
-  "cleanliness",
-  "motivation",
-  "confidence",
-  "happiness",
-  "shame",
-  "gratitude",
-  "energy",
-  "fulfillment",
-  "guilt",
-  "commitment",
-];
 
 const CustomTooltip = ({ active, payload, label }) => {
   if (active && payload && payload.length) {

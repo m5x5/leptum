@@ -4,6 +4,7 @@ import ImpactCard from "../components/ImpactCard";
 import { PlusSmIcon } from "@heroicons/react/outline";
 import SummaryChart from "../components/SummaryChart";
 import { useEffect } from "react";
+import { IMPACT_TYPES } from "../utils";
 
 const defaultState = {
   impacts: [
@@ -66,7 +67,6 @@ const defaultState = {
 export default function ImpactPage() {
   const [state, setState] = useState(defaultState);
   const [activityName, setActivityName] = useState("");
-  const impacts = Object.keys(state.impacts[0]);
   const activities = state.impacts.map((impact) => impact.activity);
 
   useEffect(() => {
@@ -129,16 +129,16 @@ export default function ImpactPage() {
           <button className="btn btn-primary btn-sm" onClick={addActivity}>
             <PlusSmIcon className="w-6" />
           </button>
-          {impacts
-            .filter((impact) => impact !== "activity")
-            .map((impact) => (
+          {IMPACT_TYPES.filter((impact) => impact !== "activity").map(
+            (impact) => (
               <ImpactCard
                 impact={impact}
                 impacts={state.impacts}
                 activities={activities}
                 onChange={onChange(impact)}
               />
-            ))}
+            )
+          )}
         </div>
       </div>
     </div>
