@@ -1,7 +1,8 @@
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import distinctColors from "distinct-colors";
-import { capitalize, IMPACT_TYPES } from "../../utils";
+import { IMPACT_TYPES } from "../../utils";
+import CustomTooltip from "./CustomTooltip";
 
 const palette = distinctColors({
   count: 30,
@@ -9,38 +10,6 @@ const palette = distinctColors({
   lightMax: 60,
   chromaMin: 50,
 });
-
-const CustomTooltip = ({ active, payload, label }) => {
-  if (active && payload && payload.length) {
-    return (
-      <div className="bg-gray-800 p-4 rounded-lg">
-        <div className="text-lg">{label}</div>
-        <div className="tooltip-content">
-          <ul>
-            {payload
-              .filter((item) => +item.value)
-              .reverse()
-              .map((item) => (
-                <li
-                  key={item.id}
-                  className="flex items-center justify-start pt-1"
-                >
-                  <span
-                    style={{ backgroundColor: item.fill }}
-                    className="h-5 w-5 inline-block rounded-lg m-1"
-                  ></span>
-                  <span className="">
-                    {capitalize(item.dataKey)}: {item.value}
-                  </span>
-                </li>
-              ))}
-          </ul>
-        </div>
-      </div>
-    );
-  }
-  return null;
-};
 
 export default function SummaryChart({ impacts }) {
   impacts = impacts.map((impact, i) => {
