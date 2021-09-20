@@ -12,7 +12,7 @@ export default function ImpactCard({
 
     if (!value || value !== 0) {
       if (impacts[index - 1]?.[impact]) {
-        value = impacts[index - 1]?.[impact];
+        value = getNumberFromString(impacts[index - 1]?.[impact]);
       }
     }
     return {

@@ -65,7 +65,7 @@ export default function SummaryChart({ impacts }) {
       // If the value doesn't exist take the value of the previous one
       if (!value) {
         if (impacts[i - 1]?.[type]) {
-          value = impacts[i - 1][type];
+          value = getNumberFromString(impacts[i - 1][type]);
         }
       }
       newImpact[type] = value;
