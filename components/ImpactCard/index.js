@@ -6,6 +6,7 @@ import {
   Tooltip,
 } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
+import CustomTooltip from "./CustomTooltip";
 
 export default function ImpactCard({
   impacts = [],
@@ -57,14 +58,7 @@ export default function ImpactCard({
             strokeWidth={3}
             fillOpacity={1}
           />
-          <Tooltip
-            contentStyle={{
-              backgroundColor: "rgb(75,85,99)",
-              borderRadius: "5px",
-              border: "none",
-            }}
-            className="bg-gray-600"
-          />
+          <Tooltip className="bg-gray-600" content={<CustomTooltip />} />
         </ComposedChart>
       </ResponsiveContainer>
       <input
