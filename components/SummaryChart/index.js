@@ -6,10 +6,30 @@ import CustomTooltip from "./CustomTooltip";
 
 const palette = distinctColors({
   count: 30,
-  lightMin: 30,
-  lightMax: 60,
+  lightMin: 50,
+  lightMax: 70,
   chromaMin: 50,
 });
+
+// Material Design Colors
+palette.unshift(
+  "#E53935",
+  "#D81B60",
+  "#8E24AA",
+  "#5E35B1",
+  "#3949AB",
+  "#1E88E5",
+  "#039BE5",
+  "#00ACC1",
+  "#00897B",
+  "#43A047",
+  "#7CB342",
+  "#C0CA33",
+  "#FDD835",
+  "#FFB300",
+  "#FB8C00",
+  "#F4511E"
+);
 
 export default function SummaryChart({ impacts }) {
   impacts = impacts.map((impact, i) => {

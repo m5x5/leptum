@@ -1,4 +1,10 @@
-import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts";
+import {
+  Line,
+  Area,
+  ComposedChart,
+  ResponsiveContainer,
+  Tooltip,
+} from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 
 export default function ImpactCard({
@@ -23,14 +29,33 @@ export default function ImpactCard({
 
   return (
     <div className="text-left p-5 bg-gray-800 rounded-md">
+      <div className="bg-green-700"></div>
       <p className="text-2xl">{impact}</p>
       <ResponsiveContainer aspect={1.5} className="mt-3" height="auto">
-        <LineChart data={data}>
+        <ComposedChart data={data}>
+          <defs>
+            <linearGradient id="colorUv" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="1%" stopColor="rgb(4, 120,87)" stopOpacity={0.9} />
+              <stop offset="99%" stopColor="transparent" stopOpacity={100} />
+            </linearGradient>
+          </defs>
           <Line
             type="monotone"
-            stroke="#ffffff"
-            dataKey="value"
+            strokeLinecap="round"
             strokeWidth={3}
+            style={{ strokeDasharray: "0.4 0.4" }}
+            dataKey="value"
+            stroke="#ffffff"
+            dot={false}
+            legendType="none"
+          />
+          <Area
+            type="monotone"
+            dataKey="value"
+            stroke={false}
+            fill="url(#colorUv)"
+            strokeWidth={3}
+            fillOpacity={1}
           />
           <Tooltip
             contentStyle={{
@@ -40,7 +65,7 @@ export default function ImpactCard({
             }}
             className="bg-gray-600"
           />
-        </LineChart>
+        </ComposedChart>
       </ResponsiveContainer>
       <input
         type="text"
