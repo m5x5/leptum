@@ -5,6 +5,7 @@ import { PlusSmIcon } from "@heroicons/react/outline";
 import SummaryChart from "../components/SummaryChart";
 import { useEffect } from "react";
 import { IMPACT_TYPES } from "../utils";
+import ActivitySelector from "../components/ActivitySelector";
 
 const defaultState = {
   impacts: [
@@ -21,6 +22,7 @@ const defaultState = {
 export default function ImpactPage() {
   const [state, setState] = useState(defaultState);
   const [activityName, setActivityName] = useState("");
+  const [activityIndex, setActivityIndex] = useState(0);
   const activities = state.impacts.map((impact) => impact.activity);
 
   useEffect(() => {
@@ -66,10 +68,19 @@ export default function ImpactPage() {
     setActivityName(e.target.value);
   };
 
+  const onChangeActivity = (index) => {
+    setActivityIndex(index);
+  };
+
   return (
     <div className="w-full h-full bg-gray-900 text-white flex">
       <NewSidebar />
       <div className="flex-grow p-4 h-screen overflow-y-auto">
+        <ActivitySelector
+          impacts={state.impacts}
+          index={activityIndex}
+          onChange={onChangeActivity}
+        />
         <SummaryChart impacts={state.impacts} activities={state.activities} />
         <div className="grid grid-cols-2 flex-grow gap-4 mt-12">
           <input
