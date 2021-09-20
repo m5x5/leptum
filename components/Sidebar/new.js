@@ -1,16 +1,18 @@
-import { ClockIcon, TerminalIcon } from "@heroicons/react/solid";
+import { CalendarIcon, ClockIcon } from "@heroicons/react/solid";
 import Link from "next/link";
 
 export default function NewSidebar() {
   return (
     <div className="h-screen w-14 bg-black p-1 flex flex-col">
-      <div className="px-4 py-1 w-12 h-12 rounded-md select-none">
-        <span
-          className="text-white text-3xl"
-          style={{ fontFamily: "Rye", fontWeight: "regular" }}
-        >
-          L
-        </span>
+      <div className="px-4 py-1 w-12 h-12 select-none cursor-pointer">
+        <Link href="/">
+          <span
+            className="text-white text-3xl"
+            style={{ fontFamily: "Rye", fontWeight: "regular" }}
+          >
+            L
+          </span>
+        </Link>
       </div>
       <div className="flex-grow flex flex-col items-center justify-center">
         <Link href="/">
@@ -19,7 +21,7 @@ export default function NewSidebar() {
           </div>
         </Link>
         <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
-          <TerminalIcon className="h-6" />
+          <CalendarIcon className="h-6" />
         </div>
       </div>
     </div>
