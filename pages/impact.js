@@ -1,12 +1,11 @@
 import NewSidebar from "../components/Sidebar/new";
 import { useState } from "react";
 import ImpactCard from "../components/ImpactCard";
-import { PlusSmIcon } from "@heroicons/react/outline";
 import SummaryChart from "../components/SummaryChart";
 import { useEffect } from "react";
 import { IMPACT_TYPES } from "../utils";
 import ActivitySelector from "../components/ActivitySelector";
-import { PencilIcon } from "@heroicons/react/solid";
+import { PencilIcon, PlusIcon, TrashIcon } from "@heroicons/react/solid";
 
 const defaultState = {
   impacts: [
@@ -32,6 +31,7 @@ export default function ImpactPage() {
     if (typeof window === "undefined") return;
 
     const stored = localStorage.getItem("leptum-impacts");
+    const editMode = !!localStorage.getItem("leptum-impacts-edit-mode");
     if (stored) {
       const newState = JSON.parse(stored);
       if (newState.impacts.length > 0) {
@@ -39,6 +39,7 @@ export default function ImpactPage() {
         setActivityIndex(newState.impacts.length - 1);
       }
     }
+    setEditMode(editMode);
   }, [typeof window]);
 
   useEffect(() => {
@@ -76,7 +77,17 @@ export default function ImpactPage() {
   };
 
   const toggleEditMode = () => {
+    localStorage.setItem("leptum-impacts-edit-mode", editMode);
     setEditMode(!editMode);
+  };
+
+  const deleteActivity = () => {
+    const result = confirm("Are you sure you want to delete this activity?");
+    if (!result) return;
+    const newState = { ...state };
+    newState.impacts.splice(activityIndex, 1);
+    setState(newState);
+    setActivityIndex(activityIndex - 1);
   };
 
   return (
@@ -98,15 +109,21 @@ export default function ImpactPage() {
             onChange={changeActivityName}
             value={activityName}
           />
-          <div className="flex flex-row justify-between items-center">
+          <div className="flex flex-row justify-between items-center text-gray-400">
             <button className="btn btn-primary btn-sm" onClick={addActivity}>
-              <PlusSmIcon className="w-6" />
+              <PlusIcon className="w-5" />
             </button>
             <button
               className="btn btn-secondary btn-sm"
               onClick={toggleEditMode}
             >
-              <PencilIcon className="w-6" />
+              <PencilIcon className="w-5" />
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={deleteActivity}
+            >
+              <TrashIcon className="w-5" />
             </button>
           </div>
           {IMPACT_TYPES.filter((impact) => impact !== "activity").map(

@@ -4,6 +4,7 @@ import {
   ComposedChart,
   ResponsiveContainer,
   Tooltip,
+  ReferenceLine,
 } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import CustomTooltip from "./CustomTooltip";
@@ -67,6 +68,7 @@ export default function ImpactCard({
             fillOpacity={1}
           />
           <Tooltip className="bg-gray-600" content={<CustomTooltip />} />
+          <ReferenceLine x={activityIndex} stroke="#D81B60" strokeWidth={3} />
         </ComposedChart>
       </ResponsiveContainer>
       {editMode && (
