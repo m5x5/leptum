@@ -33,6 +33,7 @@ export default function ImpactPage() {
       const newState = JSON.parse(stored);
       if (newState.impacts.length > 0) {
         setState({ ...newState });
+        setActivityIndex(newState.impacts.length - 1);
       }
     }
   }, [typeof window]);
@@ -46,8 +47,8 @@ export default function ImpactPage() {
     const newState = { ...state };
 
     // Update [impact] property of last object in state.impacts
-    if (newState.impacts[newState.impacts.length - 1]) {
-      newState.impacts[newState.impacts.length - 1][impact] = value;
+    if (newState.impacts[activityIndex]) {
+      newState.impacts[activityIndex][impact] = value;
     }
 
     setState(newState);
@@ -100,6 +101,7 @@ export default function ImpactPage() {
                 impact={impact}
                 impacts={state.impacts}
                 activities={activities}
+                activityIndex={activityIndex}
                 onChange={onChange(impact)}
               />
             )

@@ -13,6 +13,7 @@ export default function ImpactCard({
   activities,
   impact,
   onChange,
+  activityIndex,
 }) {
   const data = activities.map((activity, index) => {
     let value = getNumberFromString(impacts[index]?.[impact]);
@@ -67,7 +68,7 @@ export default function ImpactCard({
         placeholder="%"
         className="rounded-md w-full py-2 px-3 bg-gray-700 mt-5"
         onChange={onChange}
-        value={impacts[impacts.length - 1]?.[impact] || ""}
+        value={impacts[activityIndex]?.[impact] || ""}
       />
     </div>
   );
