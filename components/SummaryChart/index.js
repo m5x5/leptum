@@ -59,7 +59,7 @@ export default function SummaryChart({ impacts }) {
             dataKey={type}
             fill={palette[i]}
             stackId="1"
-            stroke={false}
+            stroke="none"
           />
         ))}
       </AreaChart>

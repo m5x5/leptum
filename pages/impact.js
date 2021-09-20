@@ -58,9 +58,8 @@ export default function ImpactPage() {
     if (!activityName) return;
 
     const newState = { ...state };
-    newState.impacts.push({
-      activity: activityName,
-    });
+    // insert after activityIndex
+    newState.impacts.splice(activityIndex + 1, 0, { activity: activityName });
     setState(newState);
     setActivityName("");
   };

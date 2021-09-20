@@ -2,7 +2,7 @@ import { capitalize } from "../../utils";
 
 export default function CustomTooltip({ active, payload, label }) {
   if (!(active && payload && payload.length)) return null;
-  console.log({ active, payload, label });
+
   return (
     <div className="bg-gray-800 p-4 rounded-lg">
       <div className="text-lg">{payload[0].payload.activity}</div>

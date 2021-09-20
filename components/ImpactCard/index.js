@@ -16,11 +16,17 @@ export default function ImpactCard({
   activityIndex,
 }) {
   const data = activities.map((activity, index) => {
+    let rawValue = impacts[index]?.[impact];
     let value = getNumberFromString(impacts[index]?.[impact]);
 
-    if (!value || value !== 0) {
-      if (impacts[index - 1]?.[impact]) {
-        value = getNumberFromString(impacts[index - 1]?.[impact]);
+    if (typeof rawValue === "undefined" || rawValue === "") {
+      if (impact === "stress") console.log(rawValue, { index });
+      for (let i = index; 0 < i; i--) {
+        let val = impacts[i - 1]?.[impact];
+        if (typeof val !== "undefined" && val !== "") {
+          value = getNumberFromString(val);
+          break;
+        }
       }
     }
     return {
@@ -54,7 +60,7 @@ export default function ImpactCard({
           <Area
             type="monotone"
             dataKey="value"
-            stroke={false}
+            stroke="none"
             fill="url(#colorUv)"
             strokeWidth={3}
             fillOpacity={1}
