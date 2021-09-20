@@ -1,4 +1,4 @@
-import { ClockIcon, TerminalIcon } from "@heroicons/react/outline";
+import { ClockIcon, TerminalIcon } from "@heroicons/react/solid";
 import Link from "next/link";
 
 export default function NewSidebar() {
@@ -14,12 +14,12 @@ export default function NewSidebar() {
       </div>
       <div className="flex-grow flex flex-col items-center justify-center">
         <Link href="/">
-          <div className="text-gray-400 p-3 hover:text-blue-600 transition cursor-pointer">
-            <ClockIcon className="h-7" />
+          <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
+            <ClockIcon className="h-6" />
           </div>
         </Link>
-        <div className="text-gray-400 p-3 hover:text-blue-600 transition cursor-pointer">
-          <TerminalIcon className="h-7" />
+        <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
+          <TerminalIcon className="h-6" />
         </div>
       </div>
     </div>
