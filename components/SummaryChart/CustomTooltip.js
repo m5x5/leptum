@@ -2,9 +2,10 @@ import { capitalize } from "../../utils";
 
 export default function ({ active, payload, label }) {
   if (active && payload && payload.length) {
+    console.log({ active, payload, label });
     return (
       <div className="bg-gray-800 p-4 rounded-lg">
-        <div className="text-lg">{label}</div>
+        <div className="text-lg">{payload[0].payload.activity}</div>
         <div className="tooltip-content">
           <ul>
             {payload
