@@ -6,11 +6,13 @@ import SummaryChart from "../components/SummaryChart";
 import { useEffect } from "react";
 import { IMPACT_TYPES } from "../utils";
 import ActivitySelector from "../components/ActivitySelector";
+import { PencilIcon } from "@heroicons/react/solid";
 
 const defaultState = {
   impacts: [
     {
       activity: "Started using Leptum",
+      date: Date.now(),
       stress: "40",
       fulfillment: "20",
       motivation: "35",
@@ -23,6 +25,7 @@ export default function ImpactPage() {
   const [state, setState] = useState(defaultState);
   const [activityName, setActivityName] = useState("");
   const [activityIndex, setActivityIndex] = useState(0);
+  const [editMode, setEditMode] = useState(true);
   const activities = state.impacts.map((impact) => impact.activity);
 
   useEffect(() => {
@@ -72,6 +75,10 @@ export default function ImpactPage() {
     setActivityIndex(index);
   };
 
+  const toggleEditMode = () => {
+    setEditMode(!editMode);
+  };
+
   return (
     <div className="w-full h-full bg-gray-900 text-white flex">
       <NewSidebar />
@@ -91,9 +98,17 @@ export default function ImpactPage() {
             onChange={changeActivityName}
             value={activityName}
           />
-          <button className="btn btn-primary btn-sm" onClick={addActivity}>
-            <PlusSmIcon className="w-6" />
-          </button>
+          <div className="flex flex-row justify-between items-center">
+            <button className="btn btn-primary btn-sm" onClick={addActivity}>
+              <PlusSmIcon className="w-6" />
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={toggleEditMode}
+            >
+              <PencilIcon className="w-6" />
+            </button>
+          </div>
           {IMPACT_TYPES.filter((impact) => impact !== "activity").map(
             (impact) => (
               <ImpactCard
@@ -102,6 +117,7 @@ export default function ImpactPage() {
                 activities={activities}
                 activityIndex={activityIndex}
                 onChange={onChange(impact)}
+                editMode={editMode}
               />
             )
           )}

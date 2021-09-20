@@ -14,6 +14,7 @@ export default function ImpactCard({
   impact,
   onChange,
   activityIndex,
+  editMode,
 }) {
   const data = activities.map((activity, index) => {
     let rawValue = impacts[index]?.[impact];
@@ -68,14 +69,16 @@ export default function ImpactCard({
           <Tooltip className="bg-gray-600" content={<CustomTooltip />} />
         </ComposedChart>
       </ResponsiveContainer>
-      <input
-        type="text"
-        className="w-full"
-        placeholder="%"
-        className="rounded-md w-full py-2 px-3 bg-gray-700 mt-5"
-        onChange={onChange}
-        value={impacts[activityIndex]?.[impact] || ""}
-      />
+      {editMode && (
+        <input
+          type="text"
+          className="w-full"
+          placeholder="%"
+          className="rounded-md w-full py-2 px-3 bg-gray-700 mt-5"
+          onChange={onChange}
+          value={impacts[activityIndex]?.[impact] || ""}
+        />
+      )}
     </div>
   );
 }
