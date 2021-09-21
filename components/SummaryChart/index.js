@@ -57,10 +57,7 @@ export default function SummaryChart({ impacts, selectedLines }) {
           <Area
             type="monotone"
             dataKey={type}
-            fill={
-              console.log(IMPACT_TYPES.indexOf(type)) ||
-              palette[IMPACT_TYPES.indexOf(type)]
-            }
+            fill={palette[IMPACT_TYPES.indexOf(type)]}
             stackId="1"
             stroke="none"
           />

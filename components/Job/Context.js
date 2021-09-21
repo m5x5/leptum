@@ -6,7 +6,7 @@ import {
   useEffect,
 } from "react";
 import Modal from "../Modal";
-import { getNextOccurrence, timeTillNextOccurrence } from "../../utils/cron";
+import { timeTillNextOccurrence } from "../../utils/cron";
 import * as workerTimers from "worker-timers";
 
 const JobContext = createContext(null);
@@ -40,12 +40,10 @@ export function JobContextProvider({ children }) {
   const [jobs, setJobs] = useState(() => {
     if (typeof window === "undefined") return defaultJobs;
     const jobs = getJobs()?.[0] ? getJobs() : defaultJobs;
-    console.log(jobs);
     return jobs;
   });
   const [selected, setSelected] = useState(null);
 
-  console.log("jobs", jobs);
   const job = jobs.find((job) => job.cron === selected) || jobs[0];
   const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
 
@@ -75,21 +73,20 @@ export function JobContextProvider({ children }) {
     setJobCallback(newJobs);
   };
 
-  console.log("Rendered");
   // CRON
   const setupCRONJobs = () => {
     let cronJobs = [];
     jobs.forEach((job) => {
-      console.log("job", job);
       if (job.status === "pending") return;
 
       const cb = () => {
         job.status = "pending";
-        console.log("Set to pending here");
         job.tasks.forEach((task) => {
           task.status = "due";
         });
+
         setJobCallback(jobs);
+
         if (sound) {
           if (sound.readyState > 0) {
             sound.play();
@@ -104,16 +101,11 @@ export function JobContextProvider({ children }) {
           timeLeft = 0;
         }
         const timer = workerTimers.setTimeout(() => {
-          console.log("It was me :sob:");
           cb();
         }, timeLeft);
-        const dueDate = getNextOccurrence(job.cron);
-        console.log({ dueDate, timeLeft });
 
         cronJobs.push(timer);
-      } catch (err) {
-        console.log(err);
-      }
+      } catch {}
     });
     return cronJobs;
   };
@@ -158,8 +150,6 @@ export function JobContextProvider({ children }) {
   const addJobCallback = useCallback((job) => {
     setJobCallback([...jobs, { cron: job, tasks: [], status: "scheduled" }]);
   });
-
-  const getDuration = useCallback((job) => {});
 
   return (
     <JobContext.Provider

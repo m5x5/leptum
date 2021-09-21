@@ -22,7 +22,6 @@ export default function ImpactCard({
     let value = getNumberFromString(impacts[index]?.[impact]);
 
     if (typeof rawValue === "undefined" || rawValue === "") {
-      if (impact === "stress") console.log(rawValue, { index });
       for (let i = index; 0 < i; i--) {
         let val = impacts[i - 1]?.[impact];
         if (typeof val !== "undefined" && val !== "") {

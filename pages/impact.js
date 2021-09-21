@@ -41,9 +41,7 @@ export default function ImpactPage() {
         setActivityIndex(newState.impacts.length - 1);
       }
     }
-    if (selected) {
-      setSelectedLines(JSON.parse(selected));
-    }
+    setSelectedLines(JSON.parse(selected || []));
     setEditMode(editMode);
   }, [typeof window]);
 
