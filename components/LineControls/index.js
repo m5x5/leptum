@@ -1,7 +1,7 @@
 import { IMPACT_TYPES } from "../../utils";
 
 export default function LineControls({ onChange = () => {}, selected = [] }) {
-  const toggle = (item) => {
+  const onClick = (item) => {
     const index = selected.indexOf(item);
 
     if (index < 0) {
@@ -9,6 +9,14 @@ export default function LineControls({ onChange = () => {}, selected = [] }) {
     } else {
       selected.splice(index, 1);
     }
+
+    // Sort selected by position in impact types
+    selected = selected.sort((a, b) => {
+      const aIndex = IMPACT_TYPES.indexOf(a.type);
+      const bIndex = IMPACT_TYPES.indexOf(b.type);
+      return aIndex - bIndex;
+    });
+
     onChange(selected);
   };
 
@@ -29,9 +37,9 @@ export default function LineControls({ onChange = () => {}, selected = [] }) {
       {IMPACT_TYPES.map((type, index) => {
         return (
           <div
-            className={"box-border " + getClasses(type)}
+            className={getClasses(type)}
             key={index}
-            onClick={() => toggle(type)}
+            onClick={() => onClick(type)}
           >
             {type}
           </div>

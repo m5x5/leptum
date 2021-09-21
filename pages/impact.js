@@ -3,7 +3,6 @@ import { useState } from "react";
 import ImpactCard from "../components/ImpactCard";
 import SummaryChart from "../components/SummaryChart";
 import { useEffect } from "react";
-import { IMPACT_TYPES } from "../utils";
 import ActivitySelector from "../components/ActivitySelector";
 import { PencilIcon, PlusIcon, TrashIcon } from "@heroicons/react/solid";
 import LineControls from "../components/LineControls";
@@ -97,13 +96,6 @@ export default function ImpactPage() {
   };
 
   const selectLines = (selected) => {
-    // Sort selected by position in impact types
-    selected = selected.sort((a, b) => {
-      const aIndex = IMPACT_TYPES.indexOf(a.type);
-      const bIndex = IMPACT_TYPES.indexOf(b.type);
-      return aIndex - bIndex;
-    });
-
     localStorage.setItem("leptum-impacts-selected", JSON.stringify(selected));
     setSelectedLines([...selected]);
   };
