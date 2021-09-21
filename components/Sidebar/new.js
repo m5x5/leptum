@@ -1,4 +1,4 @@
-import { CalendarIcon, ClockIcon } from "@heroicons/react/solid";
+import { CalendarIcon, ClockIcon, ServerIcon } from "@heroicons/react/solid";
 import Link from "next/link";
 
 export default function NewSidebar() {
@@ -23,6 +23,11 @@ export default function NewSidebar() {
         <Link href="/impact">
           <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
             <CalendarIcon className="h-6" />
+          </div>
+        </Link>
+        <Link href="/stacks">
+          <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
+            <ServerIcon className="h-6" />
           </div>
         </Link>
       </div>
