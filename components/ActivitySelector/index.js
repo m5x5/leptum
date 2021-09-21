@@ -14,7 +14,7 @@ export default function ActivitySelector({ impacts, index, onChange }) {
   };
 
   return (
-    <div className="w-full flex text-white justify-between items-center">
+    <div className="w-full flex text-white justify-between items-center mb-4">
       <button onClick={prev} className="p-2">
         <ArrowLeftIcon className="h-5" />
       </button>

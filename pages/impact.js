@@ -6,6 +6,7 @@ import { useEffect } from "react";
 import { IMPACT_TYPES } from "../utils";
 import ActivitySelector from "../components/ActivitySelector";
 import { PencilIcon, PlusIcon, TrashIcon } from "@heroicons/react/solid";
+import LineControls from "../components/LineControls";
 
 const defaultState = {
   impacts: [
@@ -25,6 +26,7 @@ export default function ImpactPage() {
   const [activityName, setActivityName] = useState("");
   const [activityIndex, setActivityIndex] = useState(0);
   const [editMode, setEditMode] = useState(true);
+  const [selectedLines, setSelectedLines] = useState([]);
   const activities = state.impacts.map((impact) => impact.activity);
 
   useEffect(() => {
@@ -32,12 +34,16 @@ export default function ImpactPage() {
 
     const stored = localStorage.getItem("leptum-impacts");
     const editMode = !!localStorage.getItem("leptum-impacts-edit-mode");
+    const selected = localStorage.getItem("leptum-impacts-selected");
     if (stored) {
       const newState = JSON.parse(stored);
       if (newState.impacts.length > 0) {
         setState({ ...newState });
         setActivityIndex(newState.impacts.length - 1);
       }
+    }
+    if (selected) {
+      setSelectedLines(JSON.parse(selected));
     }
     setEditMode(editMode);
   }, [typeof window]);
@@ -90,6 +96,18 @@ export default function ImpactPage() {
     setActivityIndex(activityIndex - 1);
   };
 
+  const selectLines = (selected) => {
+    // Sort selected by position in impact types
+    selected = selected.sort((a, b) => {
+      const aIndex = IMPACT_TYPES.indexOf(a.type);
+      const bIndex = IMPACT_TYPES.indexOf(b.type);
+      return aIndex - bIndex;
+    });
+
+    localStorage.setItem("leptum-impacts-selected", JSON.stringify(selected));
+    setSelectedLines([...selected]);
+  };
+
   return (
     <div className="w-full h-full bg-gray-900 text-white flex">
       <NewSidebar />
@@ -99,7 +117,12 @@ export default function ImpactPage() {
           index={activityIndex}
           onChange={onChangeActivity}
         />
-        <SummaryChart impacts={state.impacts} activities={state.activities} />
+        <LineControls selected={selectedLines} onChange={selectLines} />
+        <SummaryChart
+          impacts={state.impacts}
+          activities={state.activities}
+          selectedLines={selectedLines}
+        />
         <div className="grid grid-cols-2 flex-grow gap-4 mt-12">
           <input
             type="text"
@@ -126,8 +149,9 @@ export default function ImpactPage() {
               <TrashIcon className="w-5" />
             </button>
           </div>
-          {IMPACT_TYPES.filter((impact) => impact !== "activity").map(
-            (impact) => (
+          {selectedLines
+            .filter((impact) => impact !== "activity")
+            .map((impact) => (
               <ImpactCard
                 impact={impact}
                 impacts={state.impacts}
@@ -136,8 +160,7 @@ export default function ImpactPage() {
                 onChange={onChange(impact)}
                 editMode={editMode}
               />
-            )
-          )}
+            ))}
         </div>
       </div>
     </div>
