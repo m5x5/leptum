@@ -1,6 +1,6 @@
 import { capitalize } from "../../utils";
 
-export default function CustomTooltip({ active, payload, label }) {
+export default function CustomTooltip({ active, payload }) {
   if (!(active && payload && payload.length)) return null;
 
   return (

@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
 import EditableList from "../components/EditableList";
-import NewSidebar from "../components/Sidebar/new";
 
 const defaultGoals = [
   {
@@ -48,20 +47,17 @@ export default function GoalsPage() {
   }, [typeof window]);
 
   return (
-    <div className="w-full h-full bg-gray-900 text-white flex">
-      <NewSidebar />
-      <div className="flex-grow p-4 h-screen overflow-y-auto">
-        <h1 className="text-2xl mb-5">Goals</h1>
-        <div className="grid grid-cols-2 gap-4">
-          {stacks.map((stack, stackIndex) => (
-            <EditableList
-              name={stack.name}
-              stored={true}
-              key={(stack.name, stackIndex)}
-            />
-          ))}
-        </div>
+    <>
+      <h1 className="text-2xl mb-5">Goals</h1>
+      <div className="grid grid-cols-2 gap-4">
+        {stacks.map((stack, stackIndex) => (
+          <EditableList
+            name={stack.name}
+            stored={true}
+            key={(stack.name, stackIndex)}
+          />
+        ))}
       </div>
-    </div>
+    </>
   );
 }

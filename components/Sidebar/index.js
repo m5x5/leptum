@@ -1,4 +1,3 @@
-import { CalendarIcon } from "@heroicons/react/outline";
 import { useEffect, useState } from "react";
 
 export default function Sidebar({ children, className, ...props }) {
@@ -16,7 +15,6 @@ export default function Sidebar({ children, className, ...props }) {
       className={`
         flex-none
         flex-shrink-0
-        h-screen
         bg-gray-100
         dark:bg-gray-800
         overflow-y-auto
@@ -24,7 +22,7 @@ export default function Sidebar({ children, className, ...props }) {
         transition-all
         transition-duration-200
         transition-timing-ease-in-out
-        pt-3
+        py-3
         ${className}
       `}
       {...props}

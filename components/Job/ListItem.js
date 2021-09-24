@@ -6,7 +6,7 @@ import {
 } from "../../utils/cron";
 import { useEffect, useState } from "react";
 
-const MAX_NAME_LENGTH = 27;
+const MAX_NAME_LENGTH = 50;
 
 export default function JobListItem({ job } = { job: {} }) {
   const { setSelected, deleteJob } = useJobContext();

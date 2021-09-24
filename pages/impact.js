@@ -99,60 +99,51 @@ export default function ImpactPage() {
   };
 
   return (
-    <div className="w-full h-full bg-gray-900 text-white flex">
-      <NewSidebar />
-      <div className="flex-grow p-4 h-screen overflow-y-auto">
-        <ActivitySelector
-          impacts={state.impacts}
-          index={activityIndex}
-          onChange={onChangeActivity}
+    <>
+      <ActivitySelector
+        impacts={state.impacts}
+        index={activityIndex}
+        onChange={onChangeActivity}
+      />
+      <LineControls selected={selectedLines} onChange={selectLines} />
+      <SummaryChart
+        impacts={state.impacts}
+        activities={state.activities}
+        selectedLines={selectedLines}
+      />
+      <div className="grid grid-cols-2 flex-grow gap-4 mt-12">
+        <input
+          type="text"
+          className="w-full"
+          placeholder="Activity"
+          className="p-2 px-3 bg-gray-800 rounded-md"
+          onChange={changeActivityName}
+          value={activityName}
         />
-        <LineControls selected={selectedLines} onChange={selectLines} />
-        <SummaryChart
-          impacts={state.impacts}
-          activities={state.activities}
-          selectedLines={selectedLines}
-        />
-        <div className="grid grid-cols-2 flex-grow gap-4 mt-12">
-          <input
-            type="text"
-            className="w-full"
-            placeholder="Activity"
-            className="p-2 px-3 bg-gray-800 rounded-md"
-            onChange={changeActivityName}
-            value={activityName}
-          />
-          <div className="flex flex-row justify-between items-center text-gray-400">
-            <button className="btn btn-primary btn-sm" onClick={addActivity}>
-              <PlusIcon className="w-5" />
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={toggleEditMode}
-            >
-              <PencilIcon className="w-5" />
-            </button>
-            <button
-              className="btn btn-secondary btn-sm"
-              onClick={deleteActivity}
-            >
-              <TrashIcon className="w-5" />
-            </button>
-          </div>
-          {selectedLines
-            .filter((impact) => impact !== "activity")
-            .map((impact) => (
-              <ImpactCard
-                impact={impact}
-                impacts={state.impacts}
-                activities={activities}
-                activityIndex={activityIndex}
-                onChange={onChange(impact)}
-                editMode={editMode}
-              />
-            ))}
+        <div className="flex flex-row justify-between items-center text-gray-400">
+          <button className="btn btn-primary btn-sm" onClick={addActivity}>
+            <PlusIcon className="w-5" />
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={toggleEditMode}>
+            <PencilIcon className="w-5" />
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={deleteActivity}>
+            <TrashIcon className="w-5" />
+          </button>
         </div>
+        {selectedLines
+          .filter((impact) => impact !== "activity")
+          .map((impact) => (
+            <ImpactCard
+              impact={impact}
+              impacts={state.impacts}
+              activities={activities}
+              activityIndex={activityIndex}
+              onChange={onChange(impact)}
+              editMode={editMode}
+            />
+          ))}
       </div>
-    </div>
+    </>
   );
 }
