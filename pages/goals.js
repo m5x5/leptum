@@ -37,13 +37,13 @@ export default function GoalsPage() {
   const [stacks, setStacks] = useState(defaultGoals);
 
   useEffect(() => {
-    localStorage.setItem("stacks", JSON.stringify(stacks));
+    localStorage.setItem("goals", JSON.stringify(stacks));
   }, [JSON.stringify(stacks)]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
 
-    const stacks = JSON.parse(localStorage.getItem("stacks"));
+    const stacks = JSON.parse(localStorage.getItem("goals"));
     if (stacks) setStacks(stacks);
   }, [typeof window]);
 
