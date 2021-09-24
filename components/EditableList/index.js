@@ -21,16 +21,18 @@ export default function EditableList({ name = "", stored = false }) {
   };
 
   if (stored && typeof window !== "undefined") {
-    // Save on list change
-    useEffect(() => {
-      localStorage.setItem("leptum-list-" + name, JSON.stringify(list));
-    }, [JSON.stringify(list)]);
-
     // Restore list once window object is loaded
     useEffect(() => {
       const items = JSON.parse(localStorage.getItem("leptum-list-" + name));
+      console.log(items);
       if (items) setList(items);
     }, [typeof window]);
+
+    // Save on list change
+    useEffect(() => {
+      localStorage.setItem("leptum-list-" + name, JSON.stringify(list));
+      console.log("Saved list", list);
+    }, [JSON.stringify(list)]);
   }
 
   return (
