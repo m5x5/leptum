@@ -33,3 +33,7 @@ html {
 input[type="text"] {
   @apply bg-white dark:bg-gray-700 focus:border-blue-500 p-3 appearance-none border-gray-200 w-full text-gray-700 dark:text-gray-300 leading-tight focus:outline-none flex-grow;
 }
+
+.card {
+  @apply py-2 px-3 bg-gray-700 flex flex-row items-center justify-between rounded-lg;
+}

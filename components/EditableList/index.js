@@ -1,13 +1,13 @@
-import { PlusIcon, XIcon } from "@heroicons/react/solid";
+import { PlusIcon } from "@heroicons/react/solid";
 import { useEffect, useState } from "react";
+import EditableListItem from "./Item";
 
 export default function EditableList({ name = "", stored = false }) {
   const [list, setList] = useState([]);
+
   const removeItem = (index) => {
-    const item = list[index];
-    const newItems = list.filter((i) => i.name !== item.name);
-    list[stackIndex] = newItems;
-    setList([...list]);
+    delete list[index];
+    setList([...list.filter((i) => i)]);
   };
 
   const addItem = () => {
@@ -23,12 +23,12 @@ export default function EditableList({ name = "", stored = false }) {
   if (stored && typeof window !== "undefined") {
     // Save on list change
     useEffect(() => {
-      localStorage.setItem("list", JSON.stringify(list));
+      localStorage.setItem("leptum-list-" + name, JSON.stringify(list));
     }, [JSON.stringify(list)]);
 
     // Restore list once window object is loaded
     useEffect(() => {
-      const items = JSON.parse(localStorage.getItem("list"));
+      const items = JSON.parse(localStorage.getItem("leptum-list-" + name));
       if (items) setList(items);
     }, [typeof window]);
   }
@@ -40,18 +40,10 @@ export default function EditableList({ name = "", stored = false }) {
         <PlusIcon className="w-5 cursor-pointer" onClick={() => addItem()} />
       </div>
       <div className="flex flex-col gap-2">
-        {list.map((habit, index) => (
-          <div
-            className="py-2 px-3 bg-gray-700 flex flex-row items-center justify-between rounded-lg"
-            key={habit.name + index}
-          >
-            <h3 className="text-lg text-gray-300">{habit.name}</h3>
-            <XIcon
-              className="w-4 text-gray-400 cursor-pointer"
-              onClick={() => removeItem(index)}
-            />
-          </div>
+        {list.map((item, index) => (
+          <EditableListItem id={index} item={item} onDelete={removeItem} />
         ))}
+        {list?.[0] ? null : <p className="text-gray-600">No items.</p>}
       </div>
     </div>
   );
