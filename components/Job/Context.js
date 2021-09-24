@@ -5,7 +5,7 @@ import {
   useState,
   useEffect,
 } from "react";
-import Modal from "../Modal";
+import WelcomeModal from "../Modal/WelcomeModal";
 import { timeTillNextOccurrence } from "../../utils/cron";
 import * as workerTimers from "worker-timers";
 
@@ -169,7 +169,7 @@ export function JobContextProvider({ children }) {
       }}
     >
       {children}
-      <Modal />
+      <WelcomeModal />
     </JobContext.Provider>
   );
 }

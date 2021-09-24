@@ -3,6 +3,7 @@ import {
   ClockIcon,
   ServerIcon,
   FlagIcon,
+  CogIcon,
 } from "@heroicons/react/solid";
 import Link from "next/link";
 
@@ -41,6 +42,11 @@ export default function NewSidebar() {
           </div>
         </Link>
       </div>
+      <Link href="/settings">
+        <div className="text-gray-500 p-3 hover:text-blue-600 transition cursor-pointer">
+          <CogIcon className="h-6" />
+        </div>
+      </Link>
     </div>
   );
 }

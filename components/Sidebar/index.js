@@ -23,6 +23,7 @@ export default function Sidebar({ children, className, ...props }) {
         transition-duration-200
         transition-timing-ease-in-out
         py-3
+        max-h-60
         ${className}
       `}
       {...props}
