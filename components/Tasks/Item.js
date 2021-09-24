@@ -32,7 +32,7 @@ export default function TaskListItem({ task, index }) {
           onClick={onChangeStatus}
         />
       </div>
-      <p>{task.description}</p>
+      <p className="text-gray-400">{task.description}</p>
     </div>
   );
 }

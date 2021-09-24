@@ -5,9 +5,9 @@ import {
   useState,
   useEffect,
 } from "react";
-import WelcomeModal from "../Modal/WelcomeModal";
 import { timeTillNextOccurrence } from "../../utils/cron";
 import * as workerTimers from "worker-timers";
+import CreateTaskModal from "../Modal/CreateTaskModal";
 
 const JobContext = createContext(null);
 const defaultJobs = [
@@ -43,6 +43,7 @@ export function JobContextProvider({ children }) {
     return jobs;
   });
   const [selected, setSelected] = useState(null);
+  const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
 
   const job = jobs.find((job) => job.cron === selected) || jobs[0];
   const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
@@ -126,10 +127,11 @@ export function JobContextProvider({ children }) {
     setJobCallback(jobs);
   };
 
-  const addTask = (cron) => {
+  const addTask = (name, description) => {
     const newTask = {
-      name: cron,
+      name,
       status: "due",
+      description,
     };
     job.tasks.push(newTask);
     setJobCallback(jobs);
@@ -151,6 +153,9 @@ export function JobContextProvider({ children }) {
     setJobCallback([...jobs, { cron: job, tasks: [], status: "scheduled" }]);
   });
 
+  const openCreateTaskModal = () => setShowCreateTaskModal(true);
+  const hideCreateTaskModal = () => setShowCreateTaskModal(false);
+
   return (
     <JobContext.Provider
       value={{
@@ -166,10 +171,15 @@ export function JobContextProvider({ children }) {
         updateJob,
         deleteJob,
         deleteTask,
+        openCreateTaskModal,
       }}
     >
       {children}
-      <WelcomeModal />
+      <CreateTaskModal
+        isOpen={showCreateTaskModal}
+        onHide={hideCreateTaskModal}
+        onCreate={addTask}
+      />
     </JobContext.Provider>
   );
 }

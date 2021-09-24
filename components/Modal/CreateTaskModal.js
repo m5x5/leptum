@@ -1,23 +1,30 @@
 import { useState } from "react";
 import Modal from ".";
 
-const WelcomeModal = () => {
-  let [isOpen, setIsOpen] = useState(false);
+const CreateTaskModal = ({ onCreate, isOpen, onHide }) => {
+  let [title, setTitle] = useState("");
+  let [description, setDescription] = useState("");
 
   function closeModal() {
-    setIsOpen(false);
-  }
-
-  function openModal() {
-    setIsOpen(true);
+    onHide(false);
+    onCreate(title, description);
   }
 
   return (
     <Modal isOpen={isOpen} closeModal={closeModal}>
       <Modal.Title>Welcome to the Modal!</Modal.Title>
       <Modal.Body>
-        This is a modal component that can be used to display information to the
-        user.
+        <input
+          type="text"
+          value={title}
+          onChange={(e) => setTitle(e.target.value)}
+        />
+        <input
+          type="text"
+          value={description}
+          onChange={(e) => setDescription(e.target.value)}
+          className="mt-2"
+        />
       </Modal.Body>
       <Modal.Footer>
         <button
@@ -32,4 +39,4 @@ const WelcomeModal = () => {
   );
 };
 
-export default WelcomeModal;
+export default CreateTaskModal;

@@ -1,17 +1,11 @@
-import { PencilIcon, PlusIcon, ClockIcon } from "@heroicons/react/outline";
+import { PlusIcon, ClockIcon } from "@heroicons/react/outline";
 import { useState } from "react";
 import { useJobContext } from "../Job/Context";
 
 // Create add todo form with tailwindcss
 export default function CreationBar() {
-  const { addTask, addJob } = useJobContext();
-  const [mode, setMode] = useState("task");
+  const { addJob, openCreateTaskModal } = useJobContext();
   const [text, setText] = useState("");
-
-  const onSwitchMode = (e) => {
-    e.preventDefault();
-    setMode(mode === "task" ? "cron" : "task");
-  };
 
   const onChangeText = (e) => {
     setText(e.target.value);
@@ -20,32 +14,27 @@ export default function CreationBar() {
   const onSubmit = (e) => {
     e.preventDefault();
     if (!text) return;
-    if (mode === "task") {
-      addTask(text);
-    } else {
-      addJob(text);
-    }
+    addJob(text);
     setText("");
+  };
+
+  const addTask = () => {
+    openCreateTaskModal(true);
   };
 
   return (
     <div className="flex items-center mt-5">
       <button
         className="bg-white dark:bg-gray-700 p-3 rounded-l-xl ripple"
-        onClick={onSwitchMode}
         onSubmit={false}
       >
-        {mode === "task" ? (
-          <PencilIcon className="w-5 h-5 text-gray-400" />
-        ) : (
-          <ClockIcon className="w-5 h-5 text-gray-400" />
-        )}
+        <ClockIcon className="w-5 h-5 text-gray-400" />
       </button>
       <form onSubmit={onSubmit} className="flex flex-row w-full">
         <input
           id="todo"
           type="text"
-          placeholder={mode === "task" ? "Add a task" : "Add a CRON job"}
+          placeholder="Add a CRON job"
           value={text}
           onChange={onChangeText}
         />
@@ -56,6 +45,7 @@ export default function CreationBar() {
         >
           <PlusIcon className="w-6 h-6" />
         </button>
+        <button onClick={addTask}>Add Task</button>
       </form>
     </div>
   );
