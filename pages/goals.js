@@ -1,5 +1,6 @@
 import { PlusIcon, XIcon } from "@heroicons/react/solid";
 import { useEffect, useState } from "react";
+import EditableList from "../components/EditableList";
 import NewSidebar from "../components/Sidebar/new";
 
 const defaultGoals = [
@@ -104,6 +105,7 @@ export default function GoalsPage() {
               </div>
             </div>
           ))}
+          <EditableList name={"Summary"} />
         </div>
       </div>
     </div>
