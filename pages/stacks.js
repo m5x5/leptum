@@ -1,73 +1,90 @@
-import { XIcon } from "@heroicons/react/solid";
-import { useState } from "react";
+import { PlusIcon, TrashIcon } from "@heroicons/react/solid";
+import { useEffect, useState } from "react";
+import EditableList from "../components/EditableList";
+import ConfirmDeleteModal from "../components/Modal/Confirm/ConfirmDeleteModal";
+import CreateStackModal from "../components/Modal/CreateStackModal";
 
 const defaultStacks = [
   {
     name: "Enter Home",
-    habits: [
-      {
-        name: "Empty Bag",
-      },
-      {
-        name: "Put bottle & laptop on the table",
-      },
-      {
-        name: "Put mobile in my shelf",
-      },
-      {
-        name: "Set Goals for the time at home",
-      },
-    ],
   },
   {
     name: "Eat Dinner",
-    habits: [
-      {
-        name: "Clean Dishes",
-      },
-    ],
   },
 ];
 
 export default function StacksPage() {
   const [stacks, setStacks] = useState(defaultStacks);
+  const [showModal, setShowModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [selectedStack, setSelectedStack] = useState(null);
 
-  const removeHabit = (stackIndex, habitIndex) => {
-    const habit = stacks[stackIndex].habits[habitIndex];
-    const newHabits = stacks[stackIndex].habits.filter(
-      (habit2) => habit2.name !== habit.name
-    );
-    stacks[stackIndex].habits = newHabits;
-    setStacks([...stacks]);
+  useEffect(() => {
+    const storedStacks = localStorage.getItem("leptum-stacks");
+    if (storedStacks) {
+      setStacks(JSON.parse(storedStacks));
+    }
+  }, [typeof window]);
+
+  useEffect(() => {
+    localStorage.setItem("leptum-stacks", JSON.stringify(stacks));
+  }, [JSON.stringify(stacks)]);
+
+  const createStack = (name) => {
+    setStacks([...stacks, { name }]);
+  };
+
+  const hideModal = () => {
+    setShowModal(false);
+  };
+
+  const deleteStack = () => {
+    const newStacks = [...stacks];
+    newStacks.splice(selectedStack, 1);
+    setStacks(newStacks);
+  };
+
+  const openDeleteModal = (index) => {
+    setSelectedStack(index);
+    setShowDeleteModal(true);
+    setShowModal(false);
   };
 
   return (
     <>
-      <h1 className="text-2xl mb-5">Stacks</h1>
+      <div className="flex flex-row w-full justify-between items-center mb-5">
+        <h1 className="text-2xl ">Stacks</h1>
+        <PlusIcon
+          className="h-5 w-5 cursor-pointer"
+          onClick={() => setShowModal(true)}
+        />
+      </div>
       <div className="grid grid-cols-2 gap-4">
         {stacks.map((stack, stackIndex) => (
-          <div
-            className="p-4 bg-gray-800 rounded-lg"
-            key={(stack.name, stackIndex)}
+          <EditableList
+            name={stack.name}
+            key={stack.name + stackIndex}
+            stored={true}
           >
-            <h2 className="text-xl text-white mb-4">{stack.name}</h2>
-            <div className="flex flex-col gap-2">
-              {stack.habits.map((habit, habitIndex) => (
-                <div
-                  className="p-2 bg-gray-700 flex flex-row items-center justify-between"
-                  key={habit.name + habitIndex}
-                >
-                  <h3 className="text-lg text-gray-300">{habit.name}</h3>
-                  <XIcon
-                    className="w-4 text-gray-400 cursor-pointer"
-                    onClick={() => removeHabit(stackIndex, habitIndex)}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
+            <TrashIcon
+              className="cursor-pointer h-5 w-5"
+              onClick={() => openDeleteModal(stackIndex)}
+            />
+          </EditableList>
         ))}
       </div>
+      <CreateStackModal
+        onCreate={createStack}
+        isOpen={showModal}
+        onHide={hideModal}
+      />
+      <ConfirmDeleteModal
+        isOpen={showDeleteModal}
+        onHide={() => setShowDeleteModal(false)}
+        onConfirm={deleteStack}
+        title="Delete Stack"
+        description="Are you sure you want to delete this stack?"
+      />
     </>
   );
 }

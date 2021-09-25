@@ -2,7 +2,7 @@ import { PlusIcon } from "@heroicons/react/solid";
 import { useEffect, useState } from "react";
 import EditableListItem from "./Item";
 
-export default function EditableList({ name = "", stored = false }) {
+export default function EditableList({ name = "", stored = false, children }) {
   const [list, setList] = useState([]);
 
   const removeItem = (index) => {
@@ -24,7 +24,6 @@ export default function EditableList({ name = "", stored = false }) {
     // Restore list once window object is loaded
     useEffect(() => {
       const items = JSON.parse(localStorage.getItem("leptum-list-" + name));
-      console.log(items);
       if (items) setList(items);
     }, [typeof window]);
 
@@ -39,7 +38,10 @@ export default function EditableList({ name = "", stored = false }) {
     <div className="p-4 bg-gray-800 rounded-lg">
       <div className="flex flex-row justify-between items-center mb-4">
         <h2 className="text-xl text-white">{name}</h2>
-        <PlusIcon className="w-5 cursor-pointer" onClick={() => addItem()} />
+        <div className="flex-row flex text-gray-400 gap-1">
+          {children}
+          <PlusIcon className="w-5 cursor-pointer" onClick={() => addItem()} />
+        </div>
       </div>
       <div className="flex flex-col gap-2">
         {list.map((item, index) => (

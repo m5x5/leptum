@@ -54,7 +54,7 @@ export default function GoalsPage() {
           <EditableList
             name={stack.name}
             stored={true}
-            key={(stack.name, stackIndex)}
+            key={stack.name + stackIndex}
           />
         ))}
       </div>
