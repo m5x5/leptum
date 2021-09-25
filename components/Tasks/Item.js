@@ -1,15 +1,21 @@
 import { TrashIcon, CheckCircleIcon } from "@heroicons/react/outline";
 import { useState } from "react";
 import { useJobContext } from "../Job/Context";
+import ConfirmDeleteModal from "../Modal/Confirm/ConfirmDeleteModal";
 
 export default function TaskListItem({ task, index }) {
   const [status, setStatus] = useState(task.status);
+  const [showConfirm, setShowConfirm] = useState(false);
   const { updateTask, deleteTask } = useJobContext();
 
   const onChangeStatus = () => {
     task.status = status === "due" ? "completed" : "due";
     updateTask(task, index);
     setStatus(task.status);
+  };
+
+  const openConfirm = () => {
+    setShowConfirm(true);
   };
 
   return (
@@ -25,7 +31,7 @@ export default function TaskListItem({ task, index }) {
       >
         <TrashIcon
           className="w-5 h-5 hover:text-red-500 transition dark:text-gray-400"
-          onClick={() => deleteTask(index)}
+          onClick={openConfirm}
         />
         <CheckCircleIcon
           className="w-5 h-5 hover:text-green-500 transition dark:text-gray-400"
@@ -33,6 +39,13 @@ export default function TaskListItem({ task, index }) {
         />
       </div>
       <p className="text-gray-400">{task.description}</p>
+      <ConfirmDeleteModal
+        title={`Delete "${task.name}"?`}
+        description="Are you sure you want to delete this task?"
+        onConfirm={() => deleteTask(index)}
+        isOpen={showConfirm}
+        onHide={() => setShowConfirm(false)}
+      />
     </div>
   );
 }

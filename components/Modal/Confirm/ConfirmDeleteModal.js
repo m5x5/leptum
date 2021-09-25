@@ -1,6 +1,6 @@
 import Modal from "..";
 
-const CreateStackModal = ({
+const ConfirmDeleteModal = ({
   onConfirm,
   onCancel = () => {},
   isOpen,
@@ -47,4 +47,4 @@ const CreateStackModal = ({
   );
 };
 
-export default CreateStackModal;
+export default ConfirmDeleteModal;
