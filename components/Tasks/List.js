@@ -26,7 +26,11 @@ export default function TaskList({ children }) {
       >
         Done
       </button>
-      <LogImpactModal isOpen={logging} onCreate={onCreate} name={job.cron} />
+      <LogImpactModal
+        isOpen={logging}
+        onCreate={onCreate}
+        name={job.name || job.cron}
+      />
     </div>
   );
 }

@@ -56,7 +56,7 @@ export default function JobListItem({ job } = { job: {} }) {
       onClick={onClick}
       onDoubleClick={onDelete}
     >
-      <h3 className="inline dark:text-white">{descriptiveName}</h3>
+      <h3 className="inline dark:text-white">{job.name || descriptiveName}</h3>
       {job.status === "pending" ? (
         <ChevronDoubleUpIcon className="inline text-blue-500 h-4 w-4 m-1" />
       ) : (

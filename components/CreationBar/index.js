@@ -24,12 +24,6 @@ export default function CreationBar() {
 
   return (
     <div className="flex items-center mt-5">
-      <button
-        className="bg-white dark:bg-gray-700 p-3 rounded-l-xl ripple"
-        onSubmit={false}
-      >
-        <ClockIcon className="w-5 h-5 text-gray-400" />
-      </button>
       <form onSubmit={onSubmit} className="flex flex-row w-full">
         <input
           id="todo"

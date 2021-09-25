@@ -1,7 +1,6 @@
 import { useState } from "react";
 import { useJobContext } from "./Context";
-// Import heroicons
-import { AddIcon, PlusIcon } from "@heroicons/react/solid";
+import { PlusIcon } from "@heroicons/react/solid";
 
 export default function JobList({ children }) {
   const { addJob } = useJobContext();

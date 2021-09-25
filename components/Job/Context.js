@@ -149,8 +149,11 @@ export function JobContextProvider({ children }) {
     };
   }, [JSON.stringify(jobs)]);
 
-  const addJobCallback = useCallback((job) => {
-    setJobCallback([...jobs, { cron: job, tasks: [], status: "scheduled" }]);
+  const addJobCallback = useCallback((job, name) => {
+    setJobCallback([
+      ...jobs,
+      { cron: job, name, tasks: [], status: "scheduled" },
+    ]);
   });
 
   const openCreateTaskModal = () => setShowCreateTaskModal(true);
