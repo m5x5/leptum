@@ -5,7 +5,7 @@ const Title = ({ children }) => {
   return (
     <Dialog.Title
       as="h3"
-      className="text-lg font-medium leading-6 text-gray-100"
+      className="text-2xl font-medium leading-6 text-gray-100"
     >
       {children}
     </Dialog.Title>
@@ -15,7 +15,7 @@ const Title = ({ children }) => {
 const Body = ({ children }) => {
   return (
     <div className="mt-2">
-      <p className="text-sm text-gray-400">{children}</p>
+      <p className="text-md text-gray-400">{children}</p>
     </div>
   );
 };
@@ -38,12 +38,13 @@ const Modal = ({ children, isOpen, closeModal, className }) => {
               as={Fragment}
               enter="ease-out duration-300"
               enterFrom="opacity-0"
-              enterTo="opacity-100"
+              enterTo="opacity-25"
               leave="ease-in duration-200"
-              leaveFrom="opacity-100"
+              leaveFrom="opacity-25"
               leaveTo="opacity-0"
+              entered="opacity-25"
             >
-              <Dialog.Overlay className="fixed inset-0" />
+              <Dialog.Overlay className="fixed inset-0 bg-black opacity-25" />
             </Transition.Child>
 
             {/* This element is to trick the browser into centering the modal contents. */}
@@ -62,7 +63,7 @@ const Modal = ({ children, isOpen, closeModal, className }) => {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-black shadow-xl rounded-xl">
+              <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-gray-800 shadow-xl rounded-xl">
                 {children}
               </div>
             </Transition.Child>

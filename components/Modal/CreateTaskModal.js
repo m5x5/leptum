@@ -6,33 +6,46 @@ const CreateTaskModal = ({ onCreate, isOpen, onHide }) => {
   let [description, setDescription] = useState("");
 
   function closeModal() {
-    onHide(false);
+    onHide();
+  }
+
+  function createTask() {
     onCreate(title, description);
+    setTitle("");
+    setDescription("");
+    onHide();
   }
 
   return (
     <Modal isOpen={isOpen} closeModal={closeModal}>
-      <Modal.Title>Welcome to the Modal!</Modal.Title>
+      <Modal.Title>Create Task</Modal.Title>
       <Modal.Body>
+        <label className="mt-5 block uppercase font-semibold text-sm">
+          Title
+        </label>
         <input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          className="mt-1 rounded-lg"
         />
+        <label className="mt-5 block uppercase font-semibold text-sm">
+          Description
+        </label>
         <input
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="mt-2"
+          className="mt-1 rounded-lg"
         />
       </Modal.Body>
       <Modal.Footer>
         <button
           type="button"
-          className="inline-flex justify-center px-4 py-2 text-sm font-medium text-blue-100 bg-blue-700 border border-transparent rounded-md hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:ring-blue-500"
-          onClick={closeModal}
+          className="inline-flex justify-center px-4 py-2 text-md font-medium text-blue-100 bg-blue-700 border border-transparent rounded-md hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:ring-blue-500"
+          onClick={createTask}
         >
-          Glad to be here!
+          Create
         </button>
       </Modal.Footer>
     </Modal>
