@@ -5,12 +5,14 @@ import {
   getPrettyTimeTillNextOccurrence,
 } from "../../utils/cron";
 import { useEffect, useState } from "react";
+import EditJobModal from "../Modal/EditJobModal";
 
 const MAX_NAME_LENGTH = 50;
 
 export default function JobListItem({ job } = { job: {} }) {
-  const { setSelected, deleteJob } = useJobContext();
+  const { setSelected } = useJobContext();
   const [count, update] = useState(0);
+  const [showEditModal, setShowEditModal] = useState(false);
   if (!job.cron) return null;
 
   let descriptiveName = getDescription(job.cron);
@@ -33,8 +35,8 @@ export default function JobListItem({ job } = { job: {} }) {
     setSelected(job.cron);
   };
 
-  const onDelete = () => {
-    deleteJob(job.cron);
+  const onEdit = () => {
+    setShowEditModal(true);
   };
 
   return (
@@ -54,7 +56,7 @@ export default function JobListItem({ job } = { job: {} }) {
       dark:active:bg-gray-600
       `}
       onClick={onClick}
-      onDoubleClick={onDelete}
+      onDoubleClick={onEdit}
     >
       <h3 className="inline dark:text-white">{job.name || descriptiveName}</h3>
       {job.status === "pending" ? (
@@ -64,6 +66,12 @@ export default function JobListItem({ job } = { job: {} }) {
           {time}
         </span>
       )}
+      <EditJobModal
+        isOpen={showEditModal}
+        onHide={() => setShowEditModal(false)}
+        prevName={job.name}
+        prevCron={job.cron}
+      />
     </div>
   );
 }
