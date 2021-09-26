@@ -10,7 +10,7 @@ export default function CustomTooltip({ active, payload }) {
         <ul>
           {payload
             .filter((item) => +item.value)
-            .reverse()
+            .sort((a, b) => b.value - a.value)
             .map((item) => (
               <li
                 key={item.id}

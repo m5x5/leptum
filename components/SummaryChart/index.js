@@ -1,12 +1,4 @@
-import {
-  Area,
-  AreaChart,
-  Line,
-  LineChart,
-  ResponsiveContainer,
-  Tooltip,
-  XAxis,
-} from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import distinctColors from "distinct-colors";
 import CustomTooltip from "./CustomTooltip";
@@ -14,30 +6,12 @@ import { IMPACT_TYPES } from "../../utils";
 
 const palette = distinctColors({
   count: 30,
-  lightMin: 50,
-  lightMax: 70,
+  lightMin: 60,
+  lightMax: 90,
   chromaMin: 50,
 });
 
 // Material Design Colors
-palette.unshift(
-  "#00429d",
-  "#2e59a8",
-  "#4771b2",
-  "#5d8abd",
-  "#73a2c6",
-  "#8abccf",
-  "#a5d5d8",
-  "#c5eddf",
-  "#ffdec7",
-  "#ffbcaf",
-  "#ff9895",
-  "#f4777f",
-  "#e4576b",
-  "#cf3759",
-  "#b41648",
-  "#93003a"
-);
 
 export default function SummaryChart({ impacts, selectedLines }) {
   impacts = impacts.map((impact, i) => {
