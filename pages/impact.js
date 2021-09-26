@@ -1,4 +1,3 @@
-import NewSidebar from "../components/Sidebar/new";
 import { useState } from "react";
 import ImpactCard from "../components/ImpactCard";
 import SummaryChart from "../components/SummaryChart";
@@ -6,6 +5,7 @@ import { useEffect } from "react";
 import ActivitySelector from "../components/ActivitySelector";
 import { PencilIcon, PlusIcon, TrashIcon } from "@heroicons/react/solid";
 import LineControls from "../components/LineControls";
+import Head from "next/head";
 
 const defaultState = {
   impacts: [
@@ -100,6 +100,9 @@ export default function ImpactPage() {
 
   return (
     <>
+      <Head>
+        <title>Impact - Leptum</title>
+      </Head>
       <ActivitySelector
         impacts={state.impacts}
         index={activityIndex}
