@@ -1,4 +1,12 @@
-import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis } from "recharts";
+import {
+  Area,
+  AreaChart,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+} from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import distinctColors from "distinct-colors";
 import CustomTooltip from "./CustomTooltip";
@@ -51,18 +59,19 @@ export default function SummaryChart({ impacts, selectedLines }) {
 
   return (
     <ResponsiveContainer width="100%" height="auto" aspect={1.7}>
-      <AreaChart data={impacts} className={"h-40"}>
+      <LineChart data={impacts} className={"h-40"}>
         <Tooltip content={<CustomTooltip />} />
         {selectedLines.map((type, i) => (
-          <Area
+          <Line
             type="monotone"
             dataKey={type}
-            fill={palette[IMPACT_TYPES.indexOf(type)]}
-            stackId="1"
-            stroke="none"
+            fill="none"
+            stroke={palette[IMPACT_TYPES.indexOf(type)]}
+            dot={false}
+            strokeWidth={4}
           />
         ))}
-      </AreaChart>
+      </LineChart>
     </ResponsiveContainer>
   );
 }

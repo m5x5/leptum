@@ -14,6 +14,9 @@ module.exports = {
       gridTemplateColumns: {
         task: "1fr auto",
       },
+      gridTemplateRows: {
+        task: "1fr auto",
+      },
     },
   },
   variants: {

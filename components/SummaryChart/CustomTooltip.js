@@ -17,7 +17,7 @@ export default function CustomTooltip({ active, payload }) {
                 className="flex items-center justify-start pt-1"
               >
                 <span
-                  style={{ backgroundColor: item.fill }}
+                  style={{ backgroundColor: item.stroke }}
                   className="h-5 w-5 inline-block rounded-lg m-1"
                 ></span>
                 <span className="">
