@@ -17,15 +17,21 @@ export default function TaskList({ children }) {
     setLogging(false);
   };
 
+  const onLog = () => {
+    setLogging(true);
+  };
+
   return (
     <div className="mt-8">
       {children}
-      <button
-        className="w-full mt-8 btn-success"
-        onClick={() => setLogging(true)}
-      >
-        Done
-      </button>
+      <div className="flex flex-row w-full gap-2 mt-8">
+        <button className="flex-grow btn-success" onClick={onDone}>
+          Done
+        </button>
+        <button className="flex-grow btn-secondary" onClick={onLog}>
+          Log
+        </button>
+      </div>
       <LogImpactModal
         isOpen={logging}
         onCreate={onCreate}

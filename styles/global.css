@@ -25,15 +25,16 @@ html {
 }
 
 .btn-success {
-  @apply bg-green-400 hover:bg-green-500 active:bg-green-600
-    dark:bg-green-800 hover:bg-green-700
-    rounded-xl py-2 text-white font-bold transition;
+  @apply py-2 font-bold text-white transition bg-green-400 hover:bg-green-500 active:bg-green-600 dark:bg-green-800 hover:bg-green-700 rounded-xl;
 }
 
+.btn-secondary {
+  @apply py-2 font-bold text-white transition bg-gray-400 hover:bg-gray-500 active:bg-gray-600 dark:bg-gray-800 hover:bg-gray-700 rounded-xl;
+}
 input[type="text"] {
-  @apply bg-white dark:bg-gray-700 focus:border-blue-500 p-3 appearance-none border-gray-200 w-full text-gray-700 dark:text-gray-300 leading-tight focus:outline-none flex-grow;
+  @apply flex-grow w-full p-3 leading-tight text-gray-700 bg-white border-gray-200 appearance-none dark:bg-gray-700 focus:border-blue-500 dark:text-gray-300 focus:outline-none;
 }
 
 .card {
-  @apply py-2 px-3 bg-gray-700 flex flex-row items-center justify-between rounded-lg;
+  @apply flex flex-row items-center justify-between px-3 py-2 bg-gray-700 rounded-lg;
 }
