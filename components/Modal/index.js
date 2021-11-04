@@ -5,7 +5,7 @@ const Title = ({ children }) => {
   return (
     <Dialog.Title
       as="h3"
-      className="text-2xl font-medium leading-6 text-gray-100"
+      className="text-2xl font-medium leading-6 text-gray-200"
     >
       {children}
     </Dialog.Title>
@@ -15,7 +15,7 @@ const Title = ({ children }) => {
 const Body = ({ children }) => {
   return (
     <div className="mt-2">
-      <p className="text-md text-gray-400">{children}</p>
+      <p className="text-gray-400 text-md">{children}</p>
     </div>
   );
 };

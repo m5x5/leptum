@@ -38,3 +38,9 @@ input[type="text"] {
 .card {
   @apply flex flex-row items-center justify-between px-3 py-2 bg-gray-700 rounded-lg;
 }
+
+label {
+  text-transform: uppercase;
+  font-size: 0.8rem;
+  font-weight: bold;
+}
