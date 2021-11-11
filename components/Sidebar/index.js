@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
 import { PlusIcon } from "@heroicons/react/solid";
+import { useEffect, useState } from "react";
 import CreateJobModal from "../Modal/CreateJobModal";
 
 export default function Sidebar({ children, className, ...props }) {
@@ -40,8 +40,8 @@ export default function Sidebar({ children, className, ...props }) {
       `}
         {...props}
       >
-        <div className="flex flex-row w-full justify-between items-center px-5 mb-3">
-          <p className="text-xl">CRON Jobs</p>
+        <div className="flex flex-row items-center justify-between w-full px-5 mb-3">
+          <p className="text-xl">Routines</p>
           <PlusIcon
             className="w-6 text-gray-500 cursor-pointer"
             onClick={onClick}

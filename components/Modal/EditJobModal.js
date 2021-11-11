@@ -27,7 +27,7 @@ const EditJobModal = ({ isOpen, onHide, prevCron, prevName }) => {
 
   return (
     <Modal isOpen={isOpen} closeModal={closeModal}>
-      <Modal.Title>Edit Job</Modal.Title>
+      <Modal.Title>Routine</Modal.Title>
       <Modal.Body>
         <label>CRON</label>
         <input
