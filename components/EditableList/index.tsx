@@ -8,6 +8,7 @@ interface IProps {
   children?: JSX.Element[] | JSX.Element;
   remove: (name: string) => void;
   id: string;
+  items: any[];
 }
 
 export default function EditableList({
@@ -16,6 +17,7 @@ export default function EditableList({
   children,
   remove,
   id,
+  items,
 }: IProps) {
   const [list, setList] = useState([]);
 

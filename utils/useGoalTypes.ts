@@ -1,19 +1,23 @@
 import useSWR from "swr";
 
-interface Goal {
+interface GoalType {
   id: string;
   name: string;
-  type: string;
+  description: string;
 }
 
 const fetcher = (url: string) => fetch(url).then((r) => r.json());
-export function useGoals() {
-  const { data: goals, error, mutate } = useSWR<Goal[]>("/api/goals", fetcher);
-  const isLoading = !error && !goals;
+export function useGoalTypes() {
+  const {
+    data: goalTypes,
+    error,
+    mutate,
+  } = useSWR<GoalType[]>("/api/goal-types", fetcher);
+  const isLoading = !error && !goalTypes;
   const isError = error;
 
   const addGoal = async (goal: string) => {
-    const response = await fetch("/api/goals", {
+    const response = await fetch("/api/goal-types", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -25,7 +29,7 @@ export function useGoals() {
   };
 
   const updateGoal = async (goal: string, id: string) => {
-    const response = await fetch("/api/goals/" + id, {
+    const response = await fetch("/api/goal-types/" + id, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
@@ -37,7 +41,7 @@ export function useGoals() {
   };
 
   const deleteGoal = async (id: string) => {
-    const response = await fetch("/api/goals/" + id, {
+    const response = await fetch("/api/goal-types/" + id, {
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
@@ -48,7 +52,7 @@ export function useGoals() {
   };
 
   return {
-    goals,
+    goalTypes,
     isLoading,
     isError,
     addGoal,
