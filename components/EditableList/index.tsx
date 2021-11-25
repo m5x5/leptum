@@ -2,12 +2,27 @@ import { PlusIcon } from "@heroicons/react/solid";
 import { useEffect, useState } from "react";
 import EditableListItem from "./Item";
 
-export default function EditableList({ name = "", stored = false, children }) {
+interface IProps {
+  name: string;
+  stored: Boolean;
+  children?: JSX.Element[] | JSX.Element;
+  remove: (name: string) => void;
+  id: string;
+}
+
+export default function EditableList({
+  name = "",
+  stored = false,
+  children,
+  remove,
+  id,
+}: IProps) {
   const [list, setList] = useState([]);
 
   const removeItem = (index) => {
     delete list[index];
     setList([...list.filter((i) => i)]);
+    remove?.(index);
   };
 
   const addItem = () => {

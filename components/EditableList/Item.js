@@ -1,6 +1,6 @@
 import { XIcon } from "@heroicons/react/solid";
 
-export default function EditableListItem({ id, item, onDelete = () => {} }) {
+export default function EditableListItem({ id, item, onDelete = (id) => {} }) {
   const handleDelete = () => onDelete(id);
 
   return (
