@@ -15,6 +15,7 @@ export default function GoalsPage() {
 
   return (
     <>
+      <title>Goals - Leptum</title>
       <h1 className="text-2xl mb-5">Goals</h1>
       <div className="grid grid-cols-2 gap-4">
         {goalTypes.map((goalType) => (

@@ -1,43 +1,23 @@
 import { PrismaClient } from "@prisma/client";
 import { NextApiRequest, NextApiResponse } from "next";
 
-const prisma = new PrismaClient();
-const defaultGoals = [
-  {
-    name: "Short Term",
-    habits: [
-      {
-        name: "Eat",
-      },
-      {
-        name: "Do Homework",
-      },
-      {
-        name: "Prepare for class test",
-      },
-      {
-        name: "Improve Leptum",
-      },
-    ],
-  },
-  {
-    name: "Long Term",
-    habits: [
-      {
-        name: "Write faster",
-      },
-      {
-        name: "Read faster",
-      },
-    ],
-  },
-];
-
 export default async function handler(
-  _req: NextApiRequest,
+  req: NextApiRequest,
   res: NextApiResponse
 ) {
-  const goals = await prisma.goals.findMany();
-  console.log({ goals });
-  res.json(goals || defaultGoals);
+  const prisma = new PrismaClient();
+
+  if (req.method === "GET") {
+    const goals = await prisma.goals.findMany();
+    res.json(goals);
+  } else if (req.method === "POST") {
+    const { goal: name, type } = req.body;
+    const goal = await prisma.goals.create({
+      data: {
+        name,
+        type,
+      },
+    });
+    res.json(goal);
+  }
 }

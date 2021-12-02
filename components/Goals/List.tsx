@@ -14,11 +14,11 @@ interface IProps {
 export default function GoalList({ name = "", children, id }: IProps) {
   const { goals, deleteGoal, addGoal } = useGoals();
 
-  const addItem = () => {
+  const addItem = (): void => {
     const name = prompt("What item do you want to add?");
     if (!name) return;
 
-    addGoal(name);
+    addGoal(name, id);
   };
 
   return (
@@ -32,7 +32,12 @@ export default function GoalList({ name = "", children, id }: IProps) {
       </div>
       <div className="flex flex-col gap-2">
         {goals.map((item) => (
-          <EditableListItem id={item.id} item={item} onDelete={deleteGoal} />
+          <EditableListItem
+            id={item.id}
+            item={item}
+            onDelete={deleteGoal}
+            key={item.id}
+          />
         ))}
         {goals?.[0] ? null : <p className="text-gray-600">No items.</p>}
       </div>

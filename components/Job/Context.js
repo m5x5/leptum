@@ -1,12 +1,12 @@
 import {
-  useCallback,
   createContext,
+  useCallback,
   useContext,
-  useState,
   useEffect,
+  useState,
 } from "react";
-import { timeTillNextOccurrence } from "../../utils/cron";
 import * as workerTimers from "worker-timers";
+import { timeTillNextOccurrence } from "../../utils/cron";
 import CreateTaskModal from "../Modal/CreateTaskModal";
 
 const JobContext = createContext(null);
@@ -27,6 +27,7 @@ let sound;
 export function useJobContext() {
   return useContext(JobContext);
 }
+
 export function JobContextProvider({ children }) {
   const getJobs = () => {
     if (typeof window === "undefined") return defaultJobs;

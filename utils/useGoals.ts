@@ -12,14 +12,15 @@ export function useGoals() {
   const isLoading = !error && !goals;
   const isError = error;
 
-  const addGoal = async (goal: string) => {
+  const addGoal = async (goal: string, type: string) => {
     const response = await fetch("/api/goals", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ goal }),
+      body: JSON.stringify({ goal, type }),
     });
+    console.log(response);
     const result = await response.json();
     mutate(result.goals);
   };
