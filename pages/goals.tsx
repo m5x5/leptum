@@ -1,3 +1,4 @@
+import Head from "next/head";
 import GoalList from "../components/Goals/List";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
@@ -15,7 +16,9 @@ export default function GoalsPage() {
 
   return (
     <>
-      <title>Goals - Leptum</title>
+      <Head>
+        <title>Goals - Leptum</title>
+      </Head>
       <h1 className="text-2xl mb-5">Goals</h1>
       <div className="grid grid-cols-2 gap-4">
         {goalTypes.map((goalType) => (
