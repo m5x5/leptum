@@ -60,7 +60,7 @@ export const sortObjectsByDueDate = (a, b) => {
   return 0;
 };
 
-export const filterInvalidCron = (obj) => {
+export const isCronValid = (obj) => {
   try {
     getNextOccurrence(obj.cron);
     return true;

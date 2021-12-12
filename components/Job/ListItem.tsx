@@ -9,14 +9,18 @@ import EditJobModal from "../Modal/EditJobModal";
 
 const MAX_NAME_LENGTH = 50;
 
-export default function JobListItem({ job } = { job: {} }) {
+type Props = {
+  job: {cron:string; name:string; status:string;}
+  isValid?: boolean;
+}
+
+export default function JobListItem({ job, isValid }:Props) {
   const { setSelected } = useJobContext();
   const [count, update] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
   if (!job.cron) return null;
 
-  let descriptiveName = getDescription(job.cron);
-  if (!descriptiveName) return null;
+  let descriptiveName = getDescription(job.cron) || "";
 
   if (descriptiveName.length > MAX_NAME_LENGTH) {
     descriptiveName = descriptiveName.substring(0, MAX_NAME_LENGTH) + "...";
@@ -54,6 +58,8 @@ export default function JobListItem({ job } = { job: {} }) {
       rounded-xl
       active:bg-gray-300
       dark:active:bg-gray-600
+      border
+      ${isValid === false ? "border-red-500": "border-transparent"}
       `}
       onClick={onClick}
       onDoubleClick={onEdit}

@@ -1,11 +1,10 @@
-import { useState } from "react";
-import ImpactCard from "../components/ImpactCard";
-import SummaryChart from "../components/SummaryChart";
-import { useEffect } from "react";
-import ActivitySelector from "../components/ActivitySelector";
 import { PencilIcon, PlusIcon, TrashIcon } from "@heroicons/react/solid";
-import LineControls from "../components/LineControls";
 import Head from "next/head";
+import { useEffect, useState } from "react";
+import ActivitySelector from "../components/ActivitySelector";
+import ImpactCard from "../components/ImpactCard";
+import LineControls from "../components/LineControls";
+import SummaryChart from "../components/SummaryChart";
 
 const defaultState = {
   impacts: [
@@ -41,7 +40,7 @@ export default function ImpactPage() {
         setActivityIndex(newState.impacts.length - 1);
       }
     }
-    setSelectedLines(JSON.parse(selected || []));
+    setSelectedLines(JSON.parse(selected || "[]"));
     setEditMode(editMode);
   }, [typeof window]);
 
@@ -117,9 +116,8 @@ export default function ImpactPage() {
       <div className="grid grid-cols-2 flex-grow gap-4 mt-12">
         <input
           type="text"
-          className="w-full"
           placeholder="Activity"
-          className="p-2 px-3 bg-gray-800 rounded-md"
+          className="p-2 px-3 bg-gray-800 rounded-md w-full"
           onChange={changeActivityName}
           value={activityName}
         />

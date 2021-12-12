@@ -1,8 +1,12 @@
-import { useState } from "react";
+import { ReactNode, useState } from "react";
 import { useJobContext } from "../Job/Context";
 import LogImpactModal from "../Modal/LogImpactModal";
 
-export default function TaskList({ children }) {
+type Props = {
+  children: ReactNode;
+};
+
+export default function TaskList({ children }: Props) {
   const { updateJob, job } = useJobContext();
   const [logging, setLogging] = useState(false);
 
@@ -25,17 +29,25 @@ export default function TaskList({ children }) {
     <div className="mt-8">
       {children}
       <div className="flex flex-row w-full gap-2 mt-8">
-        <button className="flex-grow btn-success" onClick={onDone}>
+        <button
+          className="flex-grow btn-success"
+          onClick={onDone}
+          type="button"
+        >
           Done
         </button>
-        <button className="flex-grow btn-secondary" onClick={onLog}>
+        <button
+          className="flex-grow btn-secondary"
+          onClick={onLog}
+          type="button"
+        >
           Log
         </button>
       </div>
       <LogImpactModal
         isOpen={logging}
         onCreate={onCreate}
-        name={job.name || job.cron}
+        name={job?.name || job?.cron}
       />
     </div>
   );

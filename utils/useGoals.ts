@@ -22,7 +22,7 @@ export function useGoals() {
     });
     console.log(response);
     const result = await response.json();
-    mutate(result.goals);
+    await mutate(result.goals);
   };
 
   const updateGoal = async (goal: string, id: string) => {
@@ -34,7 +34,7 @@ export function useGoals() {
       body: JSON.stringify({ name: goal }),
     });
     const result = await response.json();
-    mutate(result.goals);
+    await mutate(result.goals);
   };
 
   const deleteGoal = async (id: string) => {
@@ -45,7 +45,7 @@ export function useGoals() {
       },
     });
     const result = await response.json();
-    mutate(result.goals);
+    await mutate(result.goals);
   };
 
   return {

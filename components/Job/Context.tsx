@@ -1,5 +1,6 @@
 import {
   createContext,
+  ReactNode,
   useCallback,
   useContext,
   useEffect,
@@ -8,59 +9,76 @@ import {
 import * as workerTimers from "worker-timers";
 import { timeTillNextOccurrence } from "../../utils/cron";
 import CreateTaskModal from "../Modal/CreateTaskModal";
+import { addHabit, addJob, DbJob, DraftHabit, getJobsFromDB } from "./api";
 
-const JobContext = createContext(null);
-const defaultJobs = [
-  {
-    cron: "0 0 * * *",
-    tasks: [
-      {
-        name: "task1",
-        status: "due",
-      },
-    ],
-    status: "due",
-  },
-];
-let sound;
+type JobContextType = {
+  jobs: DbJob[],
+  updateJobs: Function;
+  setJob: Function;
+  addJob: (cron:string, name:string) => void,
+  selected: string | null;
+  setSelected: (cron: string) => void;
+  updateTask: (updates: DraftHabit, i: number) => void;
+  handleTask: (name: string, description: string) => void;
+  addTask: (name: string, description: string) => void;
+  job: DbJob | null;
+}
+
+const JobContext = createContext<JobContextType>({
+  jobs: [],
+  updateJobs() {},
+  setJob() {},
+  addJob() {},
+  selected: null,
+  setSelected() {},
+  updateTask() {},
+  handleTask() {},
+  addTask() {},
+  job: null,
+});
+
+let sound: HTMLAudioElement | null = null;
 
 export function useJobContext() {
   return useContext(JobContext);
 }
 
-export function JobContextProvider({ children }) {
-  const getJobs = () => {
-    if (typeof window === "undefined") return defaultJobs;
-    const jobs = localStorage.getItem("leptum");
-    if (jobs) {
-      return JSON.parse(jobs);
-    }
-    return defaultJobs;
+type Props = {
+  children: ReactNode;
+};
+
+export function JobContextProvider({ children }: Props) {
+  const getJobs = async () => {
+    if (typeof window === "undefined") return [];
+    const jobs = await getJobsFromDB();
+    console.log({ jobs });
+    return jobs;
   };
 
-  const [jobs, setJobs] = useState(() => {
-    if (typeof window === "undefined") return defaultJobs;
-    const jobs = getJobs()?.[0] ? getJobs() : defaultJobs;
-    return jobs;
-  });
-  const [selected, setSelected] = useState(null);
+  const [jobs, setJobs] = useState<DbJob[]>([]);
+
+  useEffect(() => {
+    getJobs().then((jobs) => setJobs(jobs));
+  }, []);
+
+  const [selected, setSelected] = useState<string | null>(null);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
 
   const job = jobs.find((job) => job.cron === selected) || jobs[0];
   const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
 
-  const setJobCallback = (jobs) => {
+  const setJobCallback = (jobs: DbJob[]) => {
     setJobs([...jobs]);
     saveJobs([...jobs]);
   };
 
-  const saveJobs = (jobs) => {
+  const saveJobs = (jobs: DbJob[]) => {
     if (typeof window === "undefined") return;
     localStorage.setItem("leptum", JSON.stringify(jobs));
   };
 
-  const updateJob = (updated) => {
-    jobs[jobIndex] = { ...(job || {}), ...updated };
+  const updateJob = (updated: DbJob) => {
+    jobs[jobIndex] = {...(job || {}), ...updated};
     setJobCallback(jobs);
   };
 
@@ -70,21 +88,21 @@ export function JobContextProvider({ children }) {
     sound = new Audio("./piece-of-cake-611.mp3");
   }, [typeof window]);
 
-  const deleteJob = (cron) => {
+  const deleteJob = (cron: string) => {
     const newJobs = jobs.filter((job) => job.cron !== cron);
     setJobCallback(newJobs);
   };
 
   // CRON
   const setupCRONJobs = () => {
-    let cronJobs = [];
+    let cronJobs: number[] = [];
     jobs.forEach((job) => {
       if (job.status === "pending") return;
 
       const cb = () => {
         job.status = "pending";
-        job.tasks.forEach((task) => {
-          task.status = "due";
+        job.habits.forEach((habit) => {
+          habit.status = "due";
         });
 
         setJobCallback(jobs);
@@ -93,7 +111,7 @@ export function JobContextProvider({ children }) {
           if (sound.readyState > 0) {
             sound.play();
           } else {
-            sound.onload = () => sound.play();
+            sound.onload = () => sound?.play();
           }
         }
       };
@@ -112,34 +130,35 @@ export function JobContextProvider({ children }) {
     return cronJobs;
   };
 
-  const destroyCRONJobs = (cronJobs) => {
+  const destroyCRONJobs = (cronJobs: number[]) => {
     cronJobs.forEach((cronJob) => {
       workerTimers.clearTimeout(cronJob);
     });
   };
 
-  // Tasks
-  const updateTask = (updates, i) => {
+  // Habits
+  const updateTask = (updates: DraftHabit, i: number) => {
     const newTask = {
-      ...(job?.tasks?.[i] || {}),
+      ...(job?.habits?.[i] || {}),
       ...updates,
     };
-    job.tasks[i] = newTask;
+    job.habits[i] = newTask;
     setJobCallback(jobs);
   };
 
-  const addTask = (name, description) => {
-    const newTask = {
+  const handleAddJob = (name: string, description: string) => {
+    addHabit({
+      jobId: job?.id,
       name,
-      status: "due",
       description,
-    };
-    job.tasks.push(newTask);
+    }).then((habit) => {
+      job.habits.push(habit);
+    });
     setJobCallback(jobs);
   };
 
-  const deleteTask = (i) => {
-    job.tasks.splice(i, 1);
+  const deleteTask = (i: number) => {
+    job.habits.splice(i, 1);
     setJobCallback(jobs);
   };
 
@@ -150,12 +169,9 @@ export function JobContextProvider({ children }) {
     };
   }, [JSON.stringify(jobs)]);
 
-  const addJobCallback = useCallback((job, name) => {
-    setJobCallback([
-      ...jobs,
-      { cron: job, name, tasks: [], status: "scheduled" },
-    ]);
-  });
+  const addJobCallback = useCallback((cron: string, name) => {
+    addJob({ cron, name, status: "pending" });
+  }, []);
 
   const openCreateTaskModal = () => setShowCreateTaskModal(true);
   const hideCreateTaskModal = () => setShowCreateTaskModal(false);
@@ -166,10 +182,10 @@ export function JobContextProvider({ children }) {
         jobs,
         setJob: setJobCallback,
         addJob: addJobCallback,
-        selected: selected || jobs[0].cron,
+        selected: selected || jobs[0]?.cron || "",
         setSelected,
         updateTask,
-        addTask,
+        addTask: handleAddJob,
         job,
         jobIndex,
         updateJob,
@@ -182,7 +198,7 @@ export function JobContextProvider({ children }) {
       <CreateTaskModal
         isOpen={showCreateTaskModal}
         onHide={hideCreateTaskModal}
-        onCreate={addTask}
+        onCreate={handleAddJob}
       />
     </JobContext.Provider>
   );

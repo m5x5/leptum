@@ -1,0 +1,229 @@
+[
+  {
+    "cron": "0 14 * * *",
+    "tasks": [
+      {
+        "name": "Eat Lunch",
+        "status": "due"
+      }
+    ],
+    "status": "pending",
+    "name": "Lunchtime"
+  },
+  {
+    "cron": "45 7-13,15-17,19 * * *",
+    "tasks": [
+      {
+        "name": "Take a break",
+        "status": "due",
+        "description": "Be more productive by doing something else for 15 minutes."
+      },
+      {
+        "name": "Sit straight",
+        "status": "due",
+        "description": "Improves your blood circulation, makes you more productive and helps you in the long term."
+      },
+      {
+        "name": "Drink water",
+        "status": "due",
+        "description": "Ensures your body has enough resources to keep you productive."
+      }
+    ],
+    "status": "pending",
+    "lastEndTime": 1630345505194,
+    "name": "Work Cycle"
+  },
+  {
+    "cron": "45 */2 * * *",
+    "tasks": [
+      {
+        "name": "Go to the toilet",
+        "status": "due"
+      },
+      {
+        "name": "Clean desk",
+        "status": "due"
+      }
+    ],
+    "status": "pending",
+    "lastEndTime": 1630346406282,
+    "name": "Quick Reset"
+  },
+  {
+    "cron": "0 20 * * *",
+    "tasks": [
+      {
+        "name": "Mise-En-Place",
+        "status": "due"
+      },
+      {
+        "name": "Read / Listen to Music or Podcast",
+        "status": "due"
+      },
+      {
+        "name": "Brush my teeth",
+        "status": "due"
+      },
+      {
+        "name": "Reflect",
+        "status": "due"
+      },
+      {
+        "name": "Charge my laptop",
+        "status": "due"
+      },
+      {
+        "name": "Plan for tomorrow",
+        "status": "due"
+      }
+    ],
+    "status": "pending",
+    "name": "Winddown"
+  },
+  {
+    "cron": "0 19 * * *",
+    "tasks": [
+      {
+        "name": "Review Flashcards",
+        "status": "due"
+      },
+      {
+        "name": "Check my E-Mail Inbox",
+        "status": "due"
+      },
+      {
+        "name": "Reply on Discord",
+        "status": "due"
+      },
+      {
+        "name": "Check WhatsApp",
+        "status": "due"
+      },
+      {
+        "name": "Turn off my mobile",
+        "status": "due"
+      },
+      {
+        "name": "Put mobile away",
+        "status": "due"
+      },
+      {
+        "name": "Turn Computer Brightness Down",
+        "status": "due"
+      },
+      {
+        "name": "Use Deepstash",
+        "status": "due"
+      },
+      {
+        "name": "Rechnungen weiterleiten",
+        "status": "due"
+      }
+    ],
+    "status": "due",
+    "lastEndTime": 1630342800708,
+    "name": "Prepare for Bed"
+  },
+  {
+    "cron": "0 6 * * 1,3,6",
+    "tasks": [
+      {
+        "name": "Shower (with Shampoo)",
+        "status": "due"
+      }
+    ],
+    "status": "due",
+    "lastEndTime": 1630344772097,
+    "name": "Weekly Order"
+  },
+  {
+    "cron": "Shower (with Shampoo)",
+    "tasks": [],
+    "status": "scheduled"
+  },
+  {
+    "cron": "0 7 * * *",
+    "tasks": [
+      {
+        "name": "Brush my teeth",
+        "status": "completed"
+      }
+    ],
+    "status": "due",
+    "name": "Morning"
+  },
+  {
+    "cron": "0 18 * * *",
+    "tasks": [
+      {
+        "name": "Dinner",
+        "status": "due"
+      }
+    ],
+    "status": "pending",
+    "name": "Dinner Time"
+  },
+  {
+    "cron": "",
+    "name": "",
+    "tasks": [],
+    "status": "pending"
+  },
+  {
+    "cron": "",
+    "name": "",
+    "tasks": [],
+    "status": "pending"
+  },
+  {
+    "cron": "",
+    "name": "",
+    "tasks": [],
+    "status": "pending"
+  },
+  {
+    "cron": "15 7 * * 2,3,5",
+    "name": "Prepare for School",
+    "tasks": [
+      {
+        "name": "Pack backpack",
+        "status": "due",
+        "description": ""
+      }
+    ],
+    "status": "due"
+  },
+  {
+    "cron": "45 */4 * * *",
+    "name": "Big Reset",
+    "tasks": [
+      {
+        "name": "Clean Sofa",
+        "status": "due",
+        "description": "Eventhough I don't want to sit there having it empty looks better."
+      },
+      {
+        "name": "Clean floor",
+        "status": "due",
+        "description": "It's the biggest surface here and you tend to clutter it, clean it to free your mind."
+      },
+      {
+        "name": "Refill Bottle",
+        "status": "due",
+        "description": "Let's you easily grab a drink, whenever you need to."
+      },
+      {
+        "name": "Do the dishes",
+        "status": "due",
+        "description": "If you still have time and there are some uncleaned dishes it's better to make them now instead of later when you're tired."
+      }
+    ],
+    "status": "pending"
+  },
+  {
+    "cron": "",
+    "name": "",
+    "tasks": [],
+    "status": "pending"
+  }
+]

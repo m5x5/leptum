@@ -21,3 +21,23 @@ model goals {
   name String
   type String @db.ObjectId
 }
+
+model Job {
+  id          String  @id @default(dbgenerated()) @map("_id") @db.ObjectId
+  cron        String
+  status      String
+  index       Int     @default(autoincrement()) @db.Int
+  name        String?
+  lastEndTime Int?    @default(0)
+  habits      Habit[]
+}
+
+model Habit {
+  id          String  @id @default(dbgenerated()) @map("_id") @db.ObjectId
+  name        String
+  jobId       String
+  job         Job?    @relation(fields: [jobId], references: [id])
+  index       Int     @default(autoincrement()) @db.Int
+  status      String  @default("due")
+  description String?
+}

@@ -18,6 +18,7 @@ const CreateJobModal = ({ isOpen, onHide }) => {
       <Modal.Body>
         <label>CRON</label>
         <input
+          title="CRON"
           type="text"
           value={cron}
           onChange={(e) => setCRON(e.target.value)}
@@ -26,6 +27,7 @@ const CreateJobModal = ({ isOpen, onHide }) => {
         <br />
         <label>Name</label>
         <input
+          title="Name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}

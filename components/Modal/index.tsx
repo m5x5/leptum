@@ -24,7 +24,14 @@ const Footer = ({ children }) => {
   return <div className="mt-4">{children}</div>;
 };
 
-const Modal = ({ children, isOpen, closeModal, className }) => {
+type ModalProps = {
+  children: React.ReactNode;
+  isOpen: boolean;
+  closeModal: () => void;
+  className?: string;
+};
+
+const Modal = ({ children, isOpen, closeModal, className }: ModalProps) => {
   return (
     <>
       <Transition appear show={isOpen} as={Fragment}>
