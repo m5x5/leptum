@@ -138,11 +138,10 @@ export function JobContextProvider({ children }: Props) {
 
   // Habits
   const updateTask = (updates: DraftHabit, i: number) => {
-    const newTask = {
+    job.habits[i] = {
       ...(job?.habits?.[i] || {}),
       ...updates,
     };
-    job.habits[i] = newTask;
     setJobCallback(jobs);
   };
 

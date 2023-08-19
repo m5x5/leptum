@@ -33,7 +33,7 @@ export type DraftHabit = {
 };
 
 export function addJob({ status, cron, lastEndTime, name }: Job) {
-  const res = fetch("/api/job", {
+  return fetch("/api/job", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -45,8 +45,6 @@ export function addJob({ status, cron, lastEndTime, name }: Job) {
       name: name || undefined,
     }),
   });
-
-  return res;
 }
 
 export async function getJobsFromDB(): Promise<DbJob[]> {

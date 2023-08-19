@@ -4,23 +4,20 @@ import prettyMilliseconds from "pretty-ms";
 
 export const getNextOccurrence = (cron) => {
   const cronTime = parser.parseExpression(cron);
-  const nextOccurrence = cronTime.next().toDate();
-  return nextOccurrence;
+  return cronTime.next().toDate();
 };
 
 export const timeTillNextOccurrence = (cron) => {
   const nextOccurrence = getNextOccurrence(cron);
-  const timeTillNextOccurrence = nextOccurrence - Date.now();
-  return timeTillNextOccurrence;
+  return nextOccurrence - Date.now();
 };
 
 export const getPrettyTimeTillNextOccurrence = (cron) => {
   const time = timeTillNextOccurrence(cron);
-  const prettyTimeTillNextOccurrence = prettyMilliseconds(time, {
+  return prettyMilliseconds(time, {
     secondsDecimalDigits: 0,
     unitCount: 2,
   });
-  return prettyTimeTillNextOccurrence;
 };
 
 export const getDescription = (cron) => {
