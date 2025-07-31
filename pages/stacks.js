@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import EditableList from "../components/EditableList";
 import ConfirmDeleteModal from "../components/Modal/Confirm/ConfirmDeleteModal";
 import CreateStackModal from "../components/Modal/CreateStackModal";
+import { remoteStorageClient } from "../lib/remoteStorage";
 
 const defaultStacks = [
   {
@@ -20,14 +21,35 @@ export default function StacksPage() {
   const [selectedStack, setSelectedStack] = useState(null);
 
   useEffect(() => {
-    const storedStacks = localStorage.getItem("leptum-stacks");
-    if (storedStacks) {
-      setStacks(JSON.parse(storedStacks));
-    }
-  }, [typeof window]);
+    const loadStacks = async () => {
+      try {
+        const loadedStacks = await remoteStorageClient.getStacks();
+        if (loadedStacks.length > 0) {
+          setStacks(loadedStacks);
+        }
+      } catch (error) {
+        console.error("Failed to load stacks:", error);
+      }
+    };
+
+    loadStacks();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem("leptum-stacks", JSON.stringify(stacks));
+    const saveStacks = async () => {
+      try {
+        // Save each stack individually with its index as ID
+        for (let i = 0; i < stacks.length; i++) {
+          await remoteStorageClient.saveStack(stacks[i], i);
+        }
+      } catch (error) {
+        console.error("Failed to save stacks:", error);
+      }
+    };
+
+    if (stacks.length > 0) {
+      saveStacks();
+    }
   }, [JSON.stringify(stacks)]);
 
   const createStack = (name) => {
@@ -38,10 +60,15 @@ export default function StacksPage() {
     setShowModal(false);
   };
 
-  const deleteStack = () => {
-    const newStacks = [...stacks];
-    newStacks.splice(selectedStack, 1);
-    setStacks(newStacks);
+  const deleteStack = async () => {
+    try {
+      await remoteStorageClient.deleteStack(selectedStack);
+      const newStacks = [...stacks];
+      newStacks.splice(selectedStack, 1);
+      setStacks(newStacks);
+    } catch (error) {
+      console.error("Failed to delete stack:", error);
+    }
   };
 
   const openDeleteModal = (index) => {

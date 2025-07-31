@@ -15,10 +15,12 @@ type Props = {
 }
 
 export default function JobListItem({ job, isValid }:Props) {
-  const { setSelected } = useJobContext();
+  const { setSelected, selected } = useJobContext();
   const [count, update] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
   if (!job.cron) return null;
+  
+  const isSelected = selected === job.cron;
 
   let descriptiveName = getDescription(job.cron) || "";
 
@@ -36,7 +38,8 @@ export default function JobListItem({ job, isValid }:Props) {
   }, [count]);
 
   const onClick = () => {
-    setSelected(job.cron);
+    // Toggle selection: if already selected, unselect it
+    setSelected(isSelected ? null : job.cron);
   };
 
   const onEdit = () => {
@@ -59,7 +62,12 @@ export default function JobListItem({ job, isValid }:Props) {
       active:bg-gray-300
       dark:active:bg-gray-600
       border
-      ${isValid === false ? "border-red-500": "border-transparent"}
+      ${isValid === false 
+        ? "border-red-500" 
+        : isSelected 
+          ? "border-blue-500 bg-blue-50 dark:bg-blue-900 dark:bg-opacity-20" 
+          : "border-transparent"
+      }
       `}
       onClick={onClick}
       onDoubleClick={onEdit}

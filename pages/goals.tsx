@@ -7,7 +7,7 @@ export default function GoalsPage() {
   const { goals, isError } = useGoals();
   const { goalTypes, isError: isErrorGoalTypes } = useGoalTypes();
 
-  const handleRemove = (index) => {};
+  const handleRemove = (name: string) => {};
 
   if (isError) return <div>Failed to load. Press F5 to retry.</div>;
   if (!goals) return <div>loading...</div>;

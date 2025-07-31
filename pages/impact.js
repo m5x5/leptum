@@ -5,6 +5,7 @@ import ActivitySelector from "../components/ActivitySelector";
 import ImpactCard from "../components/ImpactCard";
 import LineControls from "../components/LineControls";
 import SummaryChart from "../components/SummaryChart";
+import { remoteStorageClient } from "../lib/remoteStorage";
 
 const defaultState = {
   impacts: [
@@ -28,25 +29,33 @@ export default function ImpactPage() {
   const activities = state.impacts.map((impact) => impact.activity);
 
   useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    const stored = localStorage.getItem("leptum-impacts");
-    const editMode = !!localStorage.getItem("leptum-impacts-edit-mode");
-    const selected = localStorage.getItem("leptum-impacts-selected");
-    if (stored) {
-      const newState = JSON.parse(stored);
-      if (newState.impacts.length > 0) {
-        setState({ ...newState });
-        setActivityIndex(newState.impacts.length - 1);
+    const loadImpacts = async () => {
+      try {
+        const impacts = await remoteStorageClient.getImpacts();
+        console.log("impacts", impacts);
+        if (impacts.length > 0) {
+          setState({ impacts });
+          setActivityIndex(impacts.length - 1);
+        }
+      } catch (error) {
+        console.error("Failed to load impacts:", error);
       }
-    }
-    setSelectedLines(JSON.parse(selected || "[]"));
-    setEditMode(editMode);
-  }, [typeof window]);
+    };
+
+    loadImpacts();
+  }, []);
 
   useEffect(() => {
-    localStorage.setItem("leptum-impacts", JSON.stringify(state));
-  }, [JSON.stringify(state)]);
+    const saveImpacts = async () => {
+      try {
+        await remoteStorageClient.saveImpacts(state.impacts);
+      } catch (error) {
+        console.error("Failed to save impacts:", error);
+      }
+    };
+
+    saveImpacts();
+  }, [JSON.stringify(state.impacts)]);
 
   const onChange = (impact) => (e) => {
     const value = e.target.value;
@@ -79,7 +88,7 @@ export default function ImpactPage() {
   };
 
   const toggleEditMode = () => {
-    localStorage.setItem("leptum-impacts-edit-mode", editMode);
+    // Edit mode setting can be stored locally or in RemoteStorage if needed
     setEditMode(!editMode);
   };
 
@@ -93,7 +102,7 @@ export default function ImpactPage() {
   };
 
   const selectLines = (selected) => {
-    localStorage.setItem("leptum-impacts-selected", JSON.stringify(selected));
+    // Selected lines setting can be stored locally or in RemoteStorage if needed
     setSelectedLines([...selected]);
   };
 

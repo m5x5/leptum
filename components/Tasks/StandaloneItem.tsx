@@ -1,0 +1,155 @@
+import { useState } from "react";
+import { StandaloneTask } from "../../utils/useStandaloneTasks";
+import { TrashIcon, PencilIcon } from "@heroicons/react/outline";
+
+interface Props {
+  task: StandaloneTask;
+  onComplete: (taskId: string) => void;
+  onUncomplete: (taskId: string) => void;
+  onDelete: (taskId: string) => void;
+  onUpdate: (taskId: string, updates: Partial<StandaloneTask>) => void;
+}
+
+export default function StandaloneTaskItem({ 
+  task, 
+  onComplete, 
+  onUncomplete, 
+  onDelete, 
+  onUpdate 
+}: Props) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState(task.name);
+  const [editDescription, setEditDescription] = useState(task.description || '');
+
+  const handleToggleComplete = () => {
+    if (task.status === 'completed') {
+      onUncomplete(task.id);
+    } else {
+      onComplete(task.id);
+    }
+  };
+
+  const handleSaveEdit = () => {
+    onUpdate(task.id, {
+      name: editName,
+      description: editDescription
+    });
+    setIsEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditName(task.name);
+    setEditDescription(task.description || '');
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleSaveEdit();
+    } else if (e.key === 'Escape') {
+      handleCancelEdit();
+    }
+  };
+
+  return (
+    <div className={`
+      flex items-center justify-between p-3 m-2 rounded-xl border
+      ${task.status === 'completed' 
+        ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700' 
+        : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
+      }
+    `}>
+      <div className="flex items-center flex-grow">
+        <input
+          type="checkbox"
+          checked={task.status === 'completed'}
+          onChange={handleToggleComplete}
+          className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+        />
+        
+        <div className="flex-grow">
+          {isEditing ? (
+            <div className="space-y-2">
+              <input
+                type="text"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                placeholder="Task name"
+                autoFocus
+              />
+              <input
+                type="text"
+                value={editDescription}
+                onChange={(e) => setEditDescription(e.target.value)}
+                onKeyDown={handleKeyDown}
+                className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+                placeholder="Description (optional)"
+              />
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleSaveEdit}
+                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                >
+                  Save
+                </button>
+                <button
+                  onClick={handleCancelEdit}
+                  className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div>
+              <div className={`
+                text-sm font-medium
+                ${task.status === 'completed' 
+                  ? 'line-through text-gray-500 dark:text-gray-400' 
+                  : 'text-gray-900 dark:text-white'
+                }
+              `}>
+                {task.name}
+              </div>
+              {task.description && (
+                <div className={`
+                  text-xs mt-1
+                  ${task.status === 'completed' 
+                    ? 'line-through text-gray-400 dark:text-gray-500' 
+                    : 'text-gray-600 dark:text-gray-300'
+                  }
+                `}>
+                  {task.description}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center space-x-2 ml-3">
+        <button
+          onClick={() => setIsEditing(!isEditing)}
+          className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
+          title="Edit task"
+        >
+          <PencilIcon className="h-4 w-4" />
+        </button>
+        
+        <button
+          onClick={() => {
+            if (window.confirm('Are you sure you want to delete this task?')) {
+              onDelete(task.id);
+            }
+          }}
+          className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
+          title="Delete task"
+        >
+          <TrashIcon className="h-4 w-4" />
+        </button>
+      </div>
+    </div>
+  );
+} 

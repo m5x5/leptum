@@ -9,7 +9,9 @@ import {
 import * as workerTimers from "worker-timers";
 import { timeTillNextOccurrence } from "../../utils/cron";
 import CreateTaskModal from "../Modal/CreateTaskModal";
-import { addHabit, addJob, DbJob, DraftHabit, getJobsFromDB } from "./api";
+import { DbJob, DraftHabit, Habit } from "./api";
+import { remoteStorageClient } from "../../lib/remoteStorage";
+import { v4 as uuidv4 } from 'uuid';
 
 type JobContextType = {
   jobs: DbJob[],
@@ -17,11 +19,16 @@ type JobContextType = {
   setJob: Function;
   addJob: (cron:string, name:string) => void,
   selected: string | null;
-  setSelected: (cron: string) => void;
+  setSelected: (cron: string | null) => void;
   updateTask: (updates: DraftHabit, i: number) => void;
   handleTask: (name: string, description: string) => void;
   addTask: (name: string, description: string) => void;
   job: DbJob | null;
+  jobIndex: number;
+  updateJob: (updated: DbJob) => void;
+  deleteJob: (cron: string) => void;
+  deleteTask: (i: number) => void;
+  openCreateTaskModal: () => void;
 }
 
 const JobContext = createContext<JobContextType>({
@@ -35,6 +42,11 @@ const JobContext = createContext<JobContextType>({
   handleTask() {},
   addTask() {},
   job: null,
+  jobIndex: 0,
+  updateJob() {},
+  deleteJob() {},
+  deleteTask() {},
+  openCreateTaskModal() {},
 });
 
 let sound: HTMLAudioElement | null = null;
@@ -50,7 +62,7 @@ type Props = {
 export function JobContextProvider({ children }: Props) {
   const getJobs = async () => {
     if (typeof window === "undefined") return [];
-    const jobs = await getJobsFromDB();
+    const jobs = await remoteStorageClient.getJobs();
     console.log({ jobs });
     return jobs;
   };
@@ -58,27 +70,31 @@ export function JobContextProvider({ children }: Props) {
   const [jobs, setJobs] = useState<DbJob[]>([]);
 
   useEffect(() => {
-    getJobs().then((jobs) => setJobs(jobs));
+    getJobs().then((jobs) => setJobs(jobs as DbJob[]));
   }, []);
 
   const [selected, setSelected] = useState<string | null>(null);
   const [showCreateTaskModal, setShowCreateTaskModal] = useState(false);
 
-  const job = jobs.find((job) => job.cron === selected) || jobs[0];
-  const jobIndex = jobs.findIndex((job) => job.cron === selected) || 0;
+  const job = selected ? jobs.find((job) => job.cron === selected) || null : null;
+  const jobIndex = selected ? jobs.findIndex((job) => job.cron === selected) : -1;
 
   const setJobCallback = (jobs: DbJob[]) => {
     setJobs([...jobs]);
     saveJobs([...jobs]);
   };
 
-  const saveJobs = (jobs: DbJob[]) => {
+  const saveJobs = async (jobs: DbJob[]) => {
     if (typeof window === "undefined") return;
-    localStorage.setItem("leptum", JSON.stringify(jobs));
+    // Save all jobs to RemoteStorage
+    for (const job of jobs) {
+      await remoteStorageClient.saveJob(job);
+    }
   };
 
   const updateJob = (updated: DbJob) => {
-    jobs[jobIndex] = {...(job || {}), ...updated};
+    if (!job || jobIndex === -1) return;
+    jobs[jobIndex] = {...job, ...updated};
     setJobCallback(jobs);
   };
 
@@ -138,25 +154,32 @@ export function JobContextProvider({ children }: Props) {
 
   // Habits
   const updateTask = (updates: DraftHabit, i: number) => {
+    if (!job) return;
     job.habits[i] = {
-      ...(job?.habits?.[i] || {}),
+      ...(job.habits[i] || {}),
       ...updates,
     };
     setJobCallback(jobs);
   };
 
   const handleAddJob = (name: string, description: string) => {
-    addHabit({
-      jobId: job?.id,
+    if (!job?.id) return;
+    
+    const newHabit: Habit = {
+      id: uuidv4(),
       name,
-      description,
-    }).then((habit) => {
-      job.habits.push(habit);
-    });
+      description: description || '',
+      jobId: job.id,
+      index: job.habits.length,
+      status: 'due'
+    };
+    
+    job.habits.push(newHabit);
     setJobCallback(jobs);
   };
 
   const deleteTask = (i: number) => {
+    if (!job) return;
     job.habits.splice(i, 1);
     setJobCallback(jobs);
   };
@@ -168,9 +191,20 @@ export function JobContextProvider({ children }: Props) {
     };
   }, [JSON.stringify(jobs)]);
 
-  const addJobCallback = useCallback((cron: string, name) => {
-    addJob({ cron, name, status: "pending" });
-  }, []);
+  const addJobCallback = useCallback(async (cron: string, name: string) => {
+    const newJob: DbJob = {
+      id: uuidv4(),
+      cron,
+      name,
+      status: "pending",
+      index: jobs.length,
+      lastEndTime: 0,
+      habits: []
+    };
+    
+    await remoteStorageClient.saveJob(newJob);
+    setJobs(prev => [...prev, newJob]);
+  }, [jobs.length]);
 
   const openCreateTaskModal = () => setShowCreateTaskModal(true);
   const hideCreateTaskModal = () => setShowCreateTaskModal(false);
@@ -179,11 +213,13 @@ export function JobContextProvider({ children }: Props) {
     <JobContext.Provider
       value={{
         jobs,
+        updateJobs: setJobs,
         setJob: setJobCallback,
         addJob: addJobCallback,
-        selected: selected || jobs[0]?.cron || "",
+        selected,
         setSelected,
         updateTask,
+        handleTask: handleAddJob,
         addTask: handleAddJob,
         job,
         jobIndex,

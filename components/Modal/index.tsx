@@ -1,7 +1,7 @@
 import { Dialog, Transition } from "@headlessui/react";
 import { Fragment } from "react";
 
-const Title = ({ children }) => {
+const Title = ({ children }: { children: React.ReactNode }) => {
   return (
     <Dialog.Title
       as="h3"
@@ -12,7 +12,7 @@ const Title = ({ children }) => {
   );
 };
 
-const Body = ({ children }) => {
+const Body = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="mt-2">
       <p className="text-gray-400 text-md">{children}</p>
@@ -20,7 +20,7 @@ const Body = ({ children }) => {
   );
 };
 
-const Footer = ({ children }) => {
+const Footer = ({ children }: { children: React.ReactNode }) => {
   return <div className="mt-4">{children}</div>;
 };
 

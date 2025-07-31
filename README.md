@@ -1,29 +1,127 @@
-# Next.js + Tailwind CSS Example
+# Leptum - Personal Productivity Tracker
 
-This example shows how to use [Tailwind CSS](https://tailwindcss.com/) [(v2.2)](https://blog.tailwindcss.com/tailwindcss-2-2) with Next.js. It follows the steps outlined in the official [Tailwind docs](https://tailwindcss.com/docs/guides/nextjs).
+A Next.js application for tracking habits, goals, and personal metrics with **offline-first data storage** powered by [RemoteStorage.js](https://remotestorage.io/).
 
-It uses the new [`Just-in-Time Mode`](https://tailwindcss.com/docs/just-in-time-mode) for Tailwind CSS.
+## 🌟 Key Features
 
-## Preview
+- **🔒 User-Owned Data**: Your data stays with you - choose your own storage provider
+- **☁️ Cross-Device Sync**: Access your data from any device, anywhere
+- **📱 Offline-First**: Works without internet, syncs when you're back online
+- **🎯 Habit Tracking**: Create and track recurring tasks with CRON scheduling
+- **📊 Goal Management**: Set and monitor personal goals
+- **📈 Impact Logging**: Track your daily metrics and progress
+- **🏗️ Stack Management**: Organize your workflows
 
-Preview the example live on [StackBlitz](http://stackblitz.com/):
+## 🚀 RemoteStorage Integration
 
-[![Open in StackBlitz](https://developer.stackblitz.com/img/open_in_stackblitz.svg)](https://stackblitz.com/github/vercel/next.js/tree/canary/examples/with-tailwindcss)
+This app uses **RemoteStorage.js** to give you complete control over your data:
 
-## Deploy your own
+### Supported Storage Providers
+- **[5apps](https://5apps.com/)** - Free RemoteStorage hosting
+- **[Dropbox](https://dropbox.com)** - Use your existing Dropbox account  
+- **[Google Drive](https://drive.google.com)** - Store data in your Google Drive
+- **Self-hosted** - Run your own RemoteStorage server
 
-Deploy the example using [Vercel](https://vercel.com?utm_source=github&utm_medium=readme&utm_campaign=next-example):
+### How to Connect Your Storage
 
-[![Deploy with Vercel](https://vercel.com/button)](https://vercel.com/new/git/external?repository-url=https://github.com/vercel/next.js/tree/canary/examples/with-tailwindcss&project-name=with-tailwindcss&repository-name=with-tailwindcss)
+1. **Start the app** - Look for the RemoteStorage widget in the top-right corner
+2. **Click the widget** to open the connection dialog
+3. **Choose your provider**:
+   - For 5apps: Enter your username like `username@5apps.com`
+   - For Dropbox/Google: Follow the OAuth flow
+   - For self-hosted: Enter your server URL
+4. **Authorize access** - Grant permission for the app to store data
+5. **Start using** - Your data will automatically sync across devices!
 
-## How to use
+## 🛠️ Development
 
-Execute [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app) with [npm](https://docs.npmjs.com/cli/init) or [Yarn](https://yarnpkg.com/lang/en/docs/cli/create/) to bootstrap the example:
+### Prerequisites
+- Node.js 16+ and npm
+- No database required! 🎉
 
+### Setup
 ```bash
-npx create-next-app --example with-tailwindcss with-tailwindcss-app
-# or
-yarn create next-app --example with-tailwindcss with-tailwindcss-app
+# Clone the repository
+git clone <your-repo-url>
+cd leptum
+
+# Install dependencies
+npm install
+
+# Start development server
+npm run dev
 ```
 
-Deploy it to the cloud with [Vercel](https://vercel.com/new?utm_source=github&utm_medium=readme&utm_campaign=next-example) ([Documentation](https://nextjs.org/docs/deployment)).
+Visit `http://localhost:3000` to see the app.
+
+### Architecture
+
+```
+📁 lib/remoteStorage.ts    # RemoteStorage client & schemas
+📁 components/             # React components  
+📁 pages/                  # Next.js pages (no API routes needed!)
+📁 utils/                  # Utility functions & hooks
+```
+
+## 🔧 Previous vs New Storage
+
+| Feature | Before (Prisma + MongoDB) | After (RemoteStorage.js) |
+|---------|---------------------------|--------------------------|
+| **Data Ownership** | Stored on your servers | User controls their data |
+| **Backend Required** | Yes (MongoDB + API) | No backend needed |
+| **Offline Support** | Limited | Full offline-first |
+| **Cross-Device Sync** | Manual implementation | Built-in automatic sync |
+| **Privacy** | Data on your servers | Data stays with user |
+| **Maintenance** | Database + server upkeep | Zero backend maintenance |
+
+## 📋 Data Structure
+
+The app stores the following data types in RemoteStorage:
+
+- **Jobs** (`/leptum/jobs/*`) - Scheduled habits and tasks
+- **Goals** (`/leptum/goals/*`) - Personal goals and targets  
+- **Goal Types** (`/leptum/goal-types/*`) - Categories for goals
+- **Impacts** (`/leptum/impacts`) - Daily metrics and measurements
+- **Stacks** (`/leptum/stacks/*`) - Workflow organization
+
+## 🔒 Privacy & Security
+
+- **No central database** - Your data never touches our servers
+- **End-to-end control** - You choose where your data lives
+- **Open source** - Full transparency in data handling
+- **Standards-based** - Uses open RemoteStorage protocol
+
+## 🤝 Contributing
+
+This app demonstrates the power of user-owned data and offline-first applications. Contributions welcome!
+
+## 📄 License
+
+MIT License - Build something amazing! 🌟
+
+### Todonna Integration
+
+Leptum now supports syncing tasks with other apps that use the [todonna](http://remotestorage.io/spec/modules/todonna/) RemoteStorage specification. This allows you to:
+
+- **Import tasks** from other todonna-compatible apps
+- **Export your tasks** to be accessible by other apps
+- **Automatic sync** when you create, update, or delete tasks
+
+#### How it Works
+
+1. **Automatic Sync**: Every time you add, update, or delete a task, it's automatically synced to your todonna storage
+2. **Import on Load**: When the app loads, it automatically imports any new tasks from todonna
+
+#### Task Mapping
+
+Your Leptum tasks are converted to the todonna format:
+- `name` → `todo_item_text`
+- `id` → `todo_item_id`
+- `status` → `todo_item_status` (mapped: `due`→`todo`, `completed`→`done`, `pending`→`pending`)
+- `@context` → `http://remotestorage.io/spec/modules/todonna/aTodoItem`
+
+#### Usage
+
+1. Connect your RemoteStorage account
+2. Create tasks in Leptum - they're automatically synced to todonna
+3. Tasks from other todonna apps will appear automatically in your Quick Tasks section

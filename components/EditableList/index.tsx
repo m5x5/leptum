@@ -6,9 +6,13 @@ interface IProps {
   name: string;
   stored: Boolean;
   children?: JSX.Element[] | JSX.Element;
-  remove: (name: string) => void;
+  remove: (index: number) => void;
   id: string;
   items: any[];
+}
+
+interface ListItem {
+  name: string;
 }
 
 export default function EditableList({
@@ -19,9 +23,9 @@ export default function EditableList({
   id,
   items,
 }: IProps) {
-  const [list, setList] = useState([]);
+  const [list, setList] = useState<ListItem[]>([]);
 
-  const removeItem = (index) => {
+  const removeItem = (index: number) => {
     delete list[index];
     setList([...list.filter((i) => i)]);
     remove?.(index);
@@ -33,22 +37,14 @@ export default function EditableList({
 
     const item = { name };
 
-    list.push(item);
+    setList([...list, item]);
     setList([...list]);
   };
 
   if (stored && typeof window !== "undefined") {
-    // Restore list once window object is loaded
-    useEffect(() => {
-      const items = JSON.parse(localStorage.getItem("leptum-list-" + name));
-      if (items) setList(items);
-    }, [typeof window]);
-
-    // Save on list change
-    useEffect(() => {
-      localStorage.setItem("leptum-list-" + name, JSON.stringify(list));
-      console.log("Saved list", list);
-    }, [JSON.stringify(list)]);
+    // Note: EditableList now should use RemoteStorage instead of localStorage
+    // This component should be updated to use the RemoteStorage client
+    // For now, keeping local state only
   }
 
   return (

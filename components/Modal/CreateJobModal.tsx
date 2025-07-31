@@ -1,8 +1,14 @@
 import { useState } from "react";
 import Modal from ".";
 import { useJobContext } from "../Job/Context";
+import {Input} from "../ui/input";
 
-const CreateJobModal = ({ isOpen, onHide }) => {
+type Props = {
+  isOpen: boolean;
+  onHide: (value: boolean) => void;
+}
+
+const CreateJobModal = ({ isOpen, onHide }: Props) => {
   let [cron, setCRON] = useState("");
   let [name, setName] = useState("");
   const { addJob } = useJobContext();
@@ -17,21 +23,20 @@ const CreateJobModal = ({ isOpen, onHide }) => {
       <Modal.Title>Create a new Job</Modal.Title>
       <Modal.Body>
         <label>CRON</label>
-        <input
-          title="CRON"
-          type="text"
-          value={cron}
-          onChange={(e) => setCRON(e.target.value)}
+        <Input
+            title="CRON"
+            type="text"
+            value={cron}
+            onChange={(e) => setCRON(e.target.value)}
         />
         <a href="https://crontab.guru/">Create your CRON string here</a>
         <br />
         <label>Name</label>
-        <input
+        <Input
           title="Name"
           type="text"
           value={name}
           onChange={(e) => setName(e.target.value)}
-          className="mt-2"
         />
       </Modal.Body>
       <Modal.Footer>

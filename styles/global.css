@@ -1,46 +1,77 @@
-@font-face {
-  font-family: "Rye";
-  src: url("../public/Rye-Regular.ttf");
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* RemoteStorage Widget Styles */
+ 
+/* @layer base { */
+:root {
+  --background: 0 0% 100%;
+  --foreground: 222.2 84% 4.9%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 222.2 84% 4.9%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 222.2 84% 4.9%;
+
+  --primary: 222.2 47.4% 11.2%;
+  --primary-foreground: 210 40% 98%;
+
+  --secondary: 210 40% 96.1%;
+  --secondary-foreground: 222.2 47.4% 11.2%;
+
+  --muted: 210 40% 96.1%;
+  --muted-foreground: 215.4 16.3% 46.9%;
+
+  --accent: 210 40% 96.1%;
+  --accent-foreground: 222.2 47.4% 11.2%;
+
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 214.3 31.8% 91.4%;
+  --input: 214.3 31.8% 91.4%;
+  --ring: 222.2 84% 4.9%;
+
+  --radius: 0.5rem;
 }
 
-body,
-html {
-  @apply bg-gray-200 dark:bg-gray-900;
-}
+.dark {
+  --background: 222.2 84% 4.9%;
+  --foreground: 210 40% 98%;
 
-/* Ripple effect */
-.ripple {
-  background-position: center;
-  transition: background 0.3s;
-}
-.ripple:hover {
-  @apply bg-gray-500;
-  background: #374151 radial-gradient(circle, transparent 1%, #4b5563 1%)
-    center/15000%;
-}
-.ripple:active {
-  @apply bg-gray-600;
-  background-size: 100%;
-  transition: background 0s;
-}
+  --card: 222.2 84% 4.9%;
+  --card-foreground: 210 40% 98%;
 
-.btn-success {
-  @apply py-2 font-bold text-white transition bg-green-400 hover:bg-green-500 active:bg-green-600 dark:bg-green-800 hover:bg-green-700 rounded-xl;
-}
+  --popover: 222.2 84% 4.9%;
+  --popover-foreground: 210 40% 98%;
 
-.btn-secondary {
-  @apply py-2 font-bold text-white transition bg-gray-400 hover:bg-gray-500 active:bg-gray-600 dark:bg-gray-800 hover:bg-gray-700 rounded-xl;
-}
-input[type="text"] {
-  @apply flex-grow w-full p-3 leading-tight text-gray-700 bg-white border-gray-200 appearance-none dark:bg-gray-700 focus:border-blue-500 dark:text-gray-300 focus:outline-none;
-}
+  --primary: 210 40% 98%;
+  --primary-foreground: 222.2 47.4% 11.2%;
 
-.card {
-  @apply flex flex-row items-center justify-between px-3 py-2 bg-gray-700 rounded-lg;
-}
+  --secondary: 217.2 32.6% 17.5%;
+  --secondary-foreground: 210 40% 98%;
 
-label {
-  text-transform: uppercase;
-  font-size: 0.8rem;
-  font-weight: bold;
+  --muted: 217.2 32.6% 17.5%;
+  --muted-foreground: 215 20.2% 65.1%;
+
+  --accent: 217.2 32.6% 17.5%;
+  --accent-foreground: 210 40% 98%;
+
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+
+  --border: 217.2 32.6% 17.5%;
+  --input: 217.2 32.6% 17.5%;
+  --ring: 212.7 26.8% 83.9%;
+}
+/* } */
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
 }
