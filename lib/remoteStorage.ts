@@ -214,6 +214,58 @@ const TodonnaItemSchema = {
   required: ['todo_item_text', 'todo_item_status', 'todo_item_id', '@context']
 };
 
+// ActivityWatch schemas
+const ProcessedAWEventSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    bucketId: { type: 'string' },
+    bucketType: { type: 'string' },
+    timestamp: { type: 'number' },
+    duration: { type: 'number' },
+    displayName: { type: 'string' },
+    eventData: { type: 'object' },
+    color: { type: 'string' },
+    isHidden: { type: 'boolean' }
+  },
+  required: ['id', 'bucketId', 'bucketType', 'timestamp', 'duration', 'displayName', 'eventData', 'color']
+};
+
+const BucketMetadataSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    type: { type: 'string' },
+    eventCount: { type: 'number' },
+    dateRange: {
+      type: 'object',
+      properties: {
+        start: { type: 'number' },
+        end: { type: 'number' }
+      },
+      required: ['start', 'end']
+    },
+    isVisible: { type: 'boolean' }
+  },
+  required: ['id', 'type', 'eventCount', 'dateRange', 'isVisible']
+};
+
+const ActivityWatchDataSchema = {
+  type: 'object',
+  properties: {
+    events: {
+      type: 'array',
+      items: ProcessedAWEventSchema
+    },
+    importedAt: { type: 'number' },
+    buckets: {
+      type: 'array',
+      items: BucketMetadataSchema
+    }
+  },
+  required: ['events', 'importedAt', 'buckets']
+};
+
 export class RemoteStorageClient {
   private remoteStorage: any = null;
   private client: any = null;
@@ -273,6 +325,7 @@ export class RemoteStorageClient {
     this.client.declareType('WeeklyGoal', WeeklyGoalSchema);
     this.client.declareType('Routine', RoutineSchema);
     this.client.declareType('RoutineCompletionsCollection', RoutineCompletionsCollectionSchema);
+    this.client.declareType('ActivityWatchData', ActivityWatchDataSchema);
 
     // Setup todonna schema
     if (this.todonnaClient) {
@@ -792,6 +845,67 @@ export class RemoteStorageClient {
       return Object.values(weeklyGoals).filter(goal => goal);
     } catch (error) {
       console.error('Failed to get all weekly goals:', error);
+      return [];
+    }
+  }
+
+  // ActivityWatch operations
+  public async getActivityWatchData() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return null;
+
+    try {
+      const data = await this.client.getObject('activity-watch-data');
+      return data || null;
+    } catch (error) {
+      console.error('Failed to get ActivityWatch data:', error);
+      return null;
+    }
+  }
+
+  public async saveActivityWatchData(data: any) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('ActivityWatchData', 'activity-watch-data', data);
+    } catch (error) {
+      console.error('Failed to save ActivityWatch data:', error);
+    }
+  }
+
+  public async clearActivityWatchData() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.remove('activity-watch-data');
+    } catch (error) {
+      console.error('Failed to clear ActivityWatch data:', error);
+    }
+  }
+
+  public async getActivityWatchEventsInRange(start: number, end: number) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const data = await this.getActivityWatchData();
+      if (!data || !data.events) return [];
+
+      return data.events.filter((event: any) =>
+        event.timestamp >= start && event.timestamp <= end
+      );
+    } catch (error) {
+      console.error('Failed to get ActivityWatch events in range:', error);
       return [];
     }
   }

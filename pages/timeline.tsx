@@ -1,10 +1,17 @@
 import Head from "next/head";
 import { useEffect, useState } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
-import { PlusIcon, TrashIcon } from "@heroicons/react/solid";
+import { PlusIcon, TrashIcon, UploadIcon } from "@heroicons/react/solid";
 import Modal from "../components/Modal";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
+import { useActivityWatch } from "../utils/useActivityWatch";
+import ImportActivityWatchModal from "../components/Modal/ImportActivityWatchModal";
+import AWEventDetailModal from "../components/Modal/AWEventDetailModal";
+import FilterControls from "../components/Timeline/FilterControls";
+import { ActivityWatchEntry, EventGroupEntry } from "../components/Timeline/TimelineEntry";
+import { ProcessedAWEvent, EventGroup } from "../activity-watch.d";
+import { groupAdjacentEvents, DEFAULT_GROUP_GAP_MINUTES } from "../utils/activityWatch";
 
 interface Impact {
   activity: string;
@@ -41,8 +48,23 @@ export default function TimelinePage() {
     goalId: "",
   });
 
+  // ActivityWatch state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [showAWDetailModal, setShowAWDetailModal] = useState(false);
+  const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
+
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
+  const {
+    awData,
+    isLoading: awIsLoading,
+    error: awError,
+    filterSettings,
+    importData,
+    clearData: clearAWData,
+    toggleBucket,
+    updateFilterSettings,
+  } = useActivityWatch();
 
   useEffect(() => {
     const loadImpacts = async () => {
@@ -298,7 +320,23 @@ export default function TimelinePage() {
   };
 
   const groupedImpacts = groupByDate(impacts);
-  const dates = Object.keys(groupedImpacts).sort().reverse();
+
+  // Get all dates that have either manual impacts or AW events
+  const getAllDates = () => {
+    const dateSet = new Set<string>(Object.keys(groupedImpacts));
+
+    // Add dates from AW events if they exist
+    if (awData && filterSettings.showActivityWatch) {
+      awData.events.forEach((event) => {
+        const dateKey = formatDateKey(event.timestamp);
+        dateSet.add(dateKey);
+      });
+    }
+
+    return Array.from(dateSet).sort().reverse();
+  };
+
+  const dates = getAllDates();
 
   const getActivityColor = (impact: Impact) => {
     // If the activity is associated with a goal, use the goal's color
@@ -320,6 +358,71 @@ export default function TimelinePage() {
       return `${hours}h ${minutes}m`;
     }
     return `${minutes}m`;
+  };
+
+  // Handle ActivityWatch event click
+  const handleAWEventClick = (event: ProcessedAWEvent) => {
+    setSelectedAWEvent(event);
+    setShowAWDetailModal(true);
+  };
+
+  // Create manual entry from AW event
+  const handleCreateManualEntry = (event: ProcessedAWEvent) => {
+    const date = new Date(event.timestamp);
+    const dateStr = date.toISOString().split('T')[0];
+    const timeStr = date.toTimeString().slice(0, 5);
+
+    setNewActivity({
+      activity: event.displayName,
+      date: dateStr,
+      time: timeStr,
+      goalId: "",
+    });
+
+    setShowAddModal(true);
+  };
+
+  // Get filtered ActivityWatch events for a specific date
+  const getFilteredAWEventsForDate = (dateKey: string) => {
+    if (!awData || !filterSettings.showActivityWatch) {
+      console.log('getFilteredAWEventsForDate early return:', { hasAwData: !!awData, showActivityWatch: filterSettings.showActivityWatch });
+      return [];
+    }
+
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const dayStart = new Date(year, month - 1, day).getTime();
+    const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+
+    console.log('Filtering AW events for date:', dateKey, {
+      totalEvents: awData.events.length,
+      visibleBuckets: filterSettings.visibleBuckets,
+      minDuration: filterSettings.minDuration,
+      dateRange: { start: new Date(dayStart).toISOString(), end: new Date(dayEnd).toISOString() }
+    });
+
+    const filtered = awData.events.filter((event) => {
+      // Date range filter
+      if (event.timestamp < dayStart || event.timestamp > dayEnd) return false;
+
+      // Bucket visibility filter
+      const bucketVisible = filterSettings.visibleBuckets.includes(event.bucketId);
+      if (!bucketVisible) {
+        console.log('Event filtered out - bucket not visible:', event.bucketId, 'visible buckets:', filterSettings.visibleBuckets);
+        return false;
+      }
+
+      // Duration filter
+      if (event.duration < filterSettings.minDuration) return false;
+
+      // Hidden filter
+      if (event.isHidden) return false;
+
+      return true;
+    });
+
+    console.log('Filtered AW events result:', { dateKey, filteredCount: filtered.length, events: filtered });
+
+    return filtered;
   };
 
   if (!isDataLoaded) {
@@ -360,25 +463,51 @@ export default function TimelinePage() {
               Daily breakdown of your activities
             </p>
           </div>
-          <button
-            onClick={() => {
-              const now = new Date();
-              const dateStr = now.toISOString().split('T')[0];
-              const timeStr = now.toTimeString().slice(0, 5);
-              setNewActivity({
-                activity: "",
-                date: dateStr,
-                time: timeStr,
-                goalId: "",
-              });
-              setShowAddModal(true);
-            }}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
-          >
-            <PlusIcon className="w-5 h-5" />
-            Add Activity
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
+            >
+              <UploadIcon className="w-5 h-5" />
+              Import ActivityWatch
+            </button>
+            <button
+              onClick={() => {
+                const now = new Date();
+                const dateStr = now.toISOString().split('T')[0];
+                const timeStr = now.toTimeString().slice(0, 5);
+                setNewActivity({
+                  activity: "",
+                  date: dateStr,
+                  time: timeStr,
+                  goalId: "",
+                });
+                setShowAddModal(true);
+              }}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
+            >
+              <PlusIcon className="w-5 h-5" />
+              Add Activity
+            </button>
+          </div>
         </div>
+
+        {/* Filter Controls */}
+        {awData && awData.buckets.length > 0 && (
+          <FilterControls
+            filterSettings={filterSettings}
+            buckets={awData.buckets}
+            onUpdateFilters={updateFilterSettings}
+            onToggleBucket={toggleBucket}
+          />
+        )}
+
+        {/* Error Display */}
+        {awError && (
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+            <p className="text-sm text-red-500">{awError}</p>
+          </div>
+        )}
 
         {/* Add Activity Modal */}
         <Modal isOpen={showAddModal} closeModal={() => setShowAddModal(false)}>
@@ -587,10 +716,23 @@ export default function TimelinePage() {
 
         <div className="space-y-8">
           {dates.map((dateKey) => {
-            const dayImpacts = groupedImpacts[dateKey];
+            const dayImpacts = groupedImpacts[dateKey] || [];
             const daySummary = calculateDaySummary(dayImpacts, dateKey);
-            const displayDate = formatDate(dayImpacts[0].date);
-            const isTodayFlag = dayImpacts.length > 0 && isToday(dayImpacts[0].date);
+
+            // Get display date from first impact or from dateKey
+            let displayDate: string;
+            let isTodayFlag: boolean;
+
+            if (dayImpacts.length > 0) {
+              displayDate = formatDate(dayImpacts[0].date);
+              isTodayFlag = isToday(dayImpacts[0].date);
+            } else {
+              // No manual impacts, derive from dateKey
+              const [year, month, day] = dateKey.split('-').map(Number);
+              const dateTimestamp = new Date(year, month - 1, day).getTime();
+              displayDate = formatDate(dateTimestamp);
+              isTodayFlag = isToday(dateTimestamp);
+            }
 
             // Calculate what percentage of the bar should be filled vs empty (for today)
             const totalPercentageFilled = daySummary.reduce((sum, s) => sum + s.percentage, 0);
@@ -637,101 +779,236 @@ export default function TimelinePage() {
                   </div>
                 </div>
 
-                {/* Timeline */}
-                <div className="relative pl-8">
-                  <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
+                {/* Timeline - Side by Side Layout */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  {/* Left Column: Manual Activities */}
+                  {filterSettings.showManual && dayImpacts.length > 0 && (
+                    <div className="relative pl-8">
+                      <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
+                      <h3 className="text-sm font-semibold text-muted-foreground mb-4">Manual Activities</h3>
 
-                  {dayImpacts.map((impact, index) => {
-                    const isFirstItem = index === 0; // Most recent activity
-                    const isLive = isTodayFlag && isFirstItem;
+                      {dayImpacts.map((impact, index) => {
+                        const isFirstItem = index === 0;
+                        const isLive = isTodayFlag && isFirstItem;
 
-                    // Calculate duration: from this activity's start until the next activity (or now if live)
-                    let duration = null;
-                    let endTime: number;
-                    let durationMs: number;
+                        let duration = null;
+                        let endTime: number;
+                        let durationMs: number;
 
-                    if (isFirstItem) {
-                      // Most recent activity
-                      if (isTodayFlag) {
-                        // For today, duration goes until now (live counting)
-                        endTime = currentTime;
-                        duration = getDuration(impact.date, endTime);
-                        durationMs = getDurationInMs(impact.date, endTime);
-                      } else {
-                        // For past days, duration goes until end of day
-                        const dayEnd = new Date(impact.date);
-                        dayEnd.setHours(24, 0, 0, 0);
-                        endTime = dayEnd.getTime();
-                        duration = getDuration(impact.date, endTime);
-                        durationMs = getDurationInMs(impact.date, endTime);
-                      }
-                    } else {
-                      // Not the most recent - duration goes until the next activity (index - 1)
-                      const nextActivity = dayImpacts[index - 1];
-                      endTime = nextActivity.date;
-                      duration = getDuration(impact.date, endTime);
-                      durationMs = getDurationInMs(impact.date, endTime);
-                    }
+                        if (isFirstItem) {
+                          if (isTodayFlag) {
+                            endTime = currentTime;
+                            duration = getDuration(impact.date, endTime);
+                            durationMs = getDurationInMs(impact.date, endTime);
+                          } else {
+                            const dayEnd = new Date(impact.date);
+                            dayEnd.setHours(24, 0, 0, 0);
+                            endTime = dayEnd.getTime();
+                            duration = getDuration(impact.date, endTime);
+                            durationMs = getDurationInMs(impact.date, endTime);
+                          }
+                        } else {
+                          const nextActivity = dayImpacts[index - 1];
+                          endTime = nextActivity.date;
+                          duration = getDuration(impact.date, endTime);
+                          durationMs = getDurationInMs(impact.date, endTime);
+                        }
 
-                    // Calculate height based on duration (2px per minute)
-                    const durationMinutes = durationMs / (1000 * 60);
-                    const barHeight = Math.max(12, durationMinutes * 2); // Minimum 12px
+                        const durationMinutes = durationMs / (1000 * 60);
+                        const barHeight = Math.max(12, durationMinutes * 2);
+                        const isShortActivity = durationMinutes < 15;
 
-                    // Adjust padding based on duration - less padding for short activities
-                    const isShortActivity = durationMinutes < 15; // Less than 15 minutes
+                        const actualIndex = impacts.findIndex(
+                          (imp) => imp.date === impact.date && imp.activity === impact.activity
+                        );
 
-                    // Find the actual index in the full impacts array
-                    const actualIndex = impacts.findIndex(
-                      (imp) => imp.date === impact.date && imp.activity === impact.activity
+                        return (
+                          <div
+                            key={`manual-${impact.date}-${index}`}
+                            className="relative flex items-start mb-1"
+                          >
+                            <div
+                              className={`absolute left-[-1.45rem] w-3 rounded-sm ${getActivityColor(
+                                impact
+                              )} ${isLive ? 'animate-pulse' : ''}`}
+                              style={{ height: `${barHeight}px` }}
+                            ></div>
+
+                            <div
+                              className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 ${
+                                isLive ? 'border-b-primary border-b-2' : 'border-b-border'
+                              } ${isShortActivity ? 'pb-2' : 'pb-3'}`}
+                              style={{ minHeight: `${barHeight}px` }}
+                              onClick={() => openEditModal(impact, actualIndex)}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-3">
+                                  <span className={`text-sm font-mono ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                                    {formatTime(impact.date)}
+                                  </span>
+                                  <h3 className={`text-base font-semibold ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                                    {impact.activity}
+                                    {isLive && <span className="ml-2 text-xs">(Live)</span>}
+                                  </h3>
+                                </div>
+                                {duration && (
+                                  <span className={`text-sm px-3 py-1 rounded-full font-medium ${
+                                    isLive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
+                                  }`}>
+                                    {duration}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+
+                  {/* Right Column: ActivityWatch Events */}
+                  {filterSettings.showActivityWatch && (() => {
+                    // Get filtered AW events for this day (excluding AFK)
+                    const awEvents = getFilteredAWEventsForDate(dateKey).filter(
+                      e => e.bucketType !== 'afk'
                     );
+
+                    if (awEvents.length === 0) return null;
+
+                    // Group AW events
+                    const groupedAWEvents = groupAdjacentEvents(awEvents, DEFAULT_GROUP_GAP_MINUTES);
 
                     return (
-                      <div
-                        key={`${impact.date}-${index}`}
-                        className="relative flex items-start"
-                      >
-                        {/* Vertical bar representing duration */}
-                        <div
-                          className={`absolute left-[-1.45rem] w-3 rounded-sm ${getActivityColor(
-                            impact
-                          )} ${isLive ? 'animate-pulse' : ''}`}
-                          style={{ height: `${barHeight}px` }}
-                        ></div>
-
-                        <div
-                          className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 ${
-                            isLive ? 'border-b-primary border-b-2' : 'border-b-border'
-                          } ${isShortActivity ? 'pb-2' : 'pb-3'}`}
-                          style={{ minHeight: `${barHeight}px` }}
-                          onClick={() => openEditModal(impact, actualIndex)}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <span className={`text-sm font-mono ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                                {formatTime(impact.date)}
-                              </span>
-                              <h3 className={`text-base font-semibold ${isLive ? 'text-primary' : 'text-foreground'}`}>
-                                {impact.activity}
-                                {isLive && <span className="ml-2 text-xs">(Live)</span>}
-                              </h3>
-                            </div>
-                            {duration && (
-                              <span className={`text-sm px-3 py-1 rounded-full font-medium ${
-                                isLive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                              }`}>
-                                {duration}
-                              </span>
-                            )}
-                          </div>
+                      <div className="relative pl-8">
+                        <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
+                        <div className="flex items-center justify-between mb-4">
+                          <h3 className="text-sm font-semibold text-muted-foreground">ActivityWatch Events</h3>
+                          <span className="text-xs text-muted-foreground">{awEvents.length} events</span>
                         </div>
+
+                        {groupedAWEvents.reverse().map(group => {
+                          if (group.occurrences.length > 1) {
+                            const totalDurationMs = group.totalDuration * 1000;
+                            const durationMinutes = totalDurationMs / (1000 * 60);
+                            const barHeight = Math.max(12, durationMinutes * 2);
+                            const isShortActivity = durationMinutes < 15;
+
+                            return (
+                              <div key={`aw-group-${group.timeRange.start}`} className="mb-1">
+                                <EventGroupEntry
+                                  group={group}
+                                  isToday={isTodayFlag}
+                                  currentTime={currentTime}
+                                  barHeight={barHeight}
+                                  isShortActivity={isShortActivity}
+                                  formatTime={formatTime}
+                                  formatDuration={formatDuration}
+                                  onEventClick={handleAWEventClick}
+                                />
+                              </div>
+                            );
+                          } else {
+                            const event = group.occurrences[0];
+                            const durationMs = event.duration * 1000;
+                            const durationMinutes = durationMs / (1000 * 60);
+                            const barHeight = Math.max(12, durationMinutes * 2);
+                            const isShortActivity = durationMinutes < 15;
+
+                            return (
+                              <div key={`aw-${event.id}`} className="mb-1">
+                                <ActivityWatchEntry
+                                  event={event}
+                                  duration={getDuration(event.timestamp, event.timestamp + durationMs)}
+                                  barHeight={barHeight}
+                                  isShortActivity={isShortActivity}
+                                  formatTime={formatTime}
+                                  onClick={() => handleAWEventClick(event)}
+                                />
+                              </div>
+                            );
+                          }
+                        })}
                       </div>
                     );
-                  })}
+                  })()}
                 </div>
+
+                {/* AFK Status Indicator */}
+                {filterSettings.showActivityWatch && (() => {
+                  const afkEvents = getFilteredAWEventsForDate(dateKey).filter(
+                    e => e.bucketType === 'afk'
+                  );
+
+                  if (afkEvents.length === 0) return null;
+
+                  return (
+                    <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
+                      <div className="flex items-center gap-2 mb-3">
+                        <h4 className="text-sm font-semibold text-foreground">Presence Status</h4>
+                        <span className="text-xs text-muted-foreground">({afkEvents.length} status changes)</span>
+                      </div>
+                      <div className="relative h-8 bg-background rounded border border-border overflow-hidden">
+                        {afkEvents.map((event, idx) => {
+                          const [year, month, day] = dateKey.split('-').map(Number);
+                          const dayStart = new Date(year, month - 1, day).getTime();
+                          const dayDuration = 24 * 60 * 60 * 1000;
+
+                          const eventStart = event.timestamp - dayStart;
+                          const eventDuration = event.duration * 1000;
+
+                          const leftPercent = (eventStart / dayDuration) * 100;
+                          const widthPercent = (eventDuration / dayDuration) * 100;
+
+                          const isActive = event.displayName === 'Active';
+                          const bgColor = isActive ? 'bg-green-500' : 'bg-gray-400';
+
+                          return (
+                            <div
+                              key={`afk-${event.id}`}
+                              className={`absolute top-0 bottom-0 ${bgColor} opacity-80 hover:opacity-100 transition-opacity cursor-pointer`}
+                              style={{
+                                left: `${leftPercent}%`,
+                                width: `${widthPercent}%`,
+                              }}
+                              title={`${event.displayName}: ${formatTime(event.timestamp)} (${Math.floor(event.duration / 60)}m)`}
+                              onClick={() => handleAWEventClick(event)}
+                            />
+                          );
+                        })}
+                      </div>
+                      <div className="flex items-center gap-4 mt-2 text-xs">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-green-500 rounded"></div>
+                          <span className="text-muted-foreground">Active</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-gray-400 rounded"></div>
+                          <span className="text-muted-foreground">Away</span>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
               </div>
             );
           })}
         </div>
+
+        {/* Import ActivityWatch Modal */}
+        <ImportActivityWatchModal
+          isOpen={showImportModal}
+          closeModal={() => setShowImportModal(false)}
+          onImport={importData}
+        />
+
+        {/* ActivityWatch Event Detail Modal */}
+        <AWEventDetailModal
+          isOpen={showAWDetailModal}
+          closeModal={() => setShowAWDetailModal(false)}
+          event={selectedAWEvent}
+          onCreateManualEntry={handleCreateManualEntry}
+        />
       </div>
     </>
   );
