@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { StandaloneTask } from "../../utils/useStandaloneTasks";
 import { TrashIcon, PencilIcon } from "@heroicons/react/outline";
+import { PlayIcon } from "@heroicons/react/solid";
 
 interface Props {
   task: StandaloneTask;
@@ -8,14 +9,18 @@ interface Props {
   onUncomplete: (taskId: string) => void;
   onDelete: (taskId: string) => void;
   onUpdate: (taskId: string, updates: Partial<StandaloneTask>) => void;
+  onStart?: (taskName: string) => void;
+  isActive?: boolean;
 }
 
-export default function StandaloneTaskItem({ 
-  task, 
-  onComplete, 
-  onUncomplete, 
-  onDelete, 
-  onUpdate 
+export default function StandaloneTaskItem({
+  task,
+  onComplete,
+  onUncomplete,
+  onDelete,
+  onUpdate,
+  onStart,
+  isActive = false
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(task.name);
@@ -53,11 +58,9 @@ export default function StandaloneTaskItem({
 
   return (
     <div className={`
-      flex items-center justify-between p-3 m-2 rounded-xl border
-      ${task.status === 'completed' 
-        ? 'bg-gray-50 dark:bg-gray-800 border-gray-200 dark:border-gray-700' 
-        : 'bg-white dark:bg-gray-900 border-gray-200 dark:border-gray-700'
-      }
+      flex items-center justify-between p-3 rounded-lg
+      hover:bg-muted/50 transition-colors
+      ${isActive ? 'bg-primary/5 border-l-2 border-primary' : ''}
     `}>
       <div className="flex items-center flex-grow">
         <input
@@ -130,6 +133,21 @@ export default function StandaloneTaskItem({
       </div>
 
       <div className="flex items-center space-x-2 ml-3">
+        {onStart && (
+          <button
+            onClick={() => onStart(task.name)}
+            disabled={isActive}
+            className={`p-1 ${
+              isActive
+                ? 'text-primary cursor-not-allowed'
+                : 'text-gray-400 hover:text-primary dark:hover:text-primary'
+            }`}
+            title={isActive ? 'Currently active' : 'Start tracking'}
+          >
+            <PlayIcon className="h-4 w-4" />
+          </button>
+        )}
+
         <button
           onClick={() => setIsEditing(!isEditing)}
           className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
@@ -137,7 +155,7 @@ export default function StandaloneTaskItem({
         >
           <PencilIcon className="h-4 w-4" />
         </button>
-        
+
         <button
           onClick={() => {
             if (window.confirm('Are you sure you want to delete this task?')) {

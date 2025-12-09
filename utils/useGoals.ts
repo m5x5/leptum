@@ -6,6 +6,7 @@ export interface Goal {
   id: string;
   name: string;
   type: string;
+  color?: string;
 }
 
 export function useGoals() {
@@ -40,14 +41,15 @@ export function useGoals() {
     remoteStorageClient.onChange(handleChange);
   }, []);
 
-  const addGoal = async (goalName: string, type: string) => {
+  const addGoal = async (goalName: string, type: string, color?: string) => {
     try {
       const newGoal: Goal = {
         id: uuidv4(),
         name: goalName,
-        type
+        type,
+        color
       };
-      
+
       await remoteStorageClient.saveGoal(newGoal);
       setGoals(prev => [...prev, newGoal]);
     } catch (error) {
@@ -56,11 +58,15 @@ export function useGoals() {
     }
   };
 
-  const updateGoal = async (goalName: string, id: string) => {
+  const updateGoal = async (goalName: string, id: string, color?: string) => {
     try {
       const existingGoal = goals.find(g => g.id === id);
       if (existingGoal) {
-        const updatedGoal = { ...existingGoal, name: goalName };
+        const updatedGoal = {
+          ...existingGoal,
+          name: goalName,
+          ...(color !== undefined && { color })
+        };
         await remoteStorageClient.saveGoal(updatedGoal);
         setGoals(prev => prev.map(g => g.id === id ? updatedGoal : g));
       }

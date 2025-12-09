@@ -20,12 +20,12 @@ function MyApp({ Component, pageProps }: AppProps) {
     <>
       <JobContextProvider>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-          <div className="w-full h-full bg-gray-900 text-white flex md:flex-row flex-col">
+          <div className="w-full h-full bg-background text-foreground flex md:flex-row flex-col">
             {/* RemoteStorage Widget Container */}
             <div id="remotestorage-widget" className="fixed top-4 right-4 z-50"></div>
-            
+
             <NewSidebar />
-            <div className="flex-grow p-4 md:h-screen overflow-y-auto justify-center">
+            <div className="flex-grow p-4 pb-20 md:pb-4 md:h-screen overflow-y-auto justify-center">
               <div className="mx-auto md:max-w-4xl">
                 <Component {...pageProps} />
               </div>

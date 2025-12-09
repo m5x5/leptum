@@ -63,7 +63,8 @@ const ImpactSchema = {
     stress: { type: ['string', 'number'] },
     fulfillment: { type: ['string', 'number'] },
     motivation: { type: ['string', 'number'] },
-    cleanliness: { type: ['string', 'number'] }
+    cleanliness: { type: ['string', 'number'] },
+    goalId: { type: 'string' }
   },
   required: ['activity']
 };
@@ -79,10 +80,23 @@ const ImpactsCollectionSchema = {
   required: ['impacts']
 };
 
+const StackHabitSchema = {
+  type: 'object',
+  properties: {
+    name: { type: 'string' },
+    id: { type: 'string' }
+  },
+  required: ['name', 'id']
+};
+
 const StackSchema = {
   type: 'object',
   properties: {
-    name: { type: 'string' }
+    name: { type: 'string' },
+    habits: {
+      type: 'array',
+      items: StackHabitSchema
+    }
   },
   required: ['name']
 };
@@ -109,6 +123,83 @@ const StandaloneTasksCollectionSchema = {
     }
   },
   required: ['tasks']
+};
+
+const WeeklyGoalSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    weekStart: { type: 'string' }, // ISO date string (Monday of the week)
+    goals: {
+      type: 'object',
+      properties: {
+        monday: { type: 'array', items: { type: 'string' } },
+        tuesday: { type: 'array', items: { type: 'string' } },
+        wednesday: { type: 'array', items: { type: 'string' } },
+        thursday: { type: 'array', items: { type: 'string' } },
+        friday: { type: 'array', items: { type: 'string' } },
+        saturday: { type: 'array', items: { type: 'string' } },
+        sunday: { type: 'array', items: { type: 'string' } }
+      }
+    }
+  },
+  required: ['id', 'weekStart', 'goals']
+};
+
+// Unified Routine schema (combines Jobs and Stacks)
+const RoutineTaskSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    routineId: { type: 'string' },
+    index: { type: 'number' },
+    status: { type: 'string' },
+    description: { type: 'string' },
+    completedAt: { type: 'number' }
+  },
+  required: ['id', 'name', 'routineId', 'index', 'status']
+};
+
+const RoutineSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    cron: { type: 'string' }, // Optional - for scheduled routines
+    status: { type: 'string' },
+    lastEndTime: { type: 'number' },
+    index: { type: 'number' },
+    tasks: {
+      type: 'array',
+      items: RoutineTaskSchema
+    }
+  },
+  required: ['id', 'name', 'index', 'tasks']
+};
+
+// Routine Completion schema
+const RoutineCompletionSchema = {
+  type: 'object',
+  properties: {
+    routineId: { type: 'string' },
+    routineInstanceId: { type: 'string' },
+    routineName: { type: 'string' },
+    completedAt: { type: 'number' },
+    taskCount: { type: 'number' }
+  },
+  required: ['routineId', 'routineInstanceId', 'routineName', 'completedAt', 'taskCount']
+};
+
+const RoutineCompletionsCollectionSchema = {
+  type: 'object',
+  properties: {
+    completions: {
+      type: 'array',
+      items: RoutineCompletionSchema
+    }
+  },
+  required: ['completions']
 };
 
 // Todonna schema for integration with other apps
@@ -170,7 +261,7 @@ export class RemoteStorageClient {
 
   private setupSchemas() {
     if (!this.client) return;
-    
+
     this.client.declareType('Job', JobSchema);
     this.client.declareType('Goal', GoalSchema);
     this.client.declareType('GoalType', GoalTypeSchema);
@@ -179,7 +270,10 @@ export class RemoteStorageClient {
     this.client.declareType('Stack', StackSchema);
     this.client.declareType('StandaloneTask', StandaloneTaskSchema);
     this.client.declareType('StandaloneTasksCollection', StandaloneTasksCollectionSchema);
-    
+    this.client.declareType('WeeklyGoal', WeeklyGoalSchema);
+    this.client.declareType('Routine', RoutineSchema);
+    this.client.declareType('RoutineCompletionsCollection', RoutineCompletionsCollectionSchema);
+
     // Setup todonna schema
     if (this.todonnaClient) {
       this.todonnaClient.declareType('aTodoItem', TodonnaItemSchema);
@@ -385,11 +479,53 @@ export class RemoteStorageClient {
       this.initialize();
     }
     if (!this.client) return;
-    
+
     try {
       return await this.client.remove(`stacks/${index}`);
     } catch (error) {
       console.error('Failed to delete stack:', error);
+    }
+  }
+
+  // Routine operations (unified Jobs + Stacks)
+  public async getRoutines() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const routines = await this.client.getAll('routines/') || {};
+      return Object.values(routines).filter(routine => routine);
+    } catch (error) {
+      console.error('Failed to get routines:', error);
+      return [];
+    }
+  }
+
+  public async saveRoutine(routine: any) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('Routine', `routines/${routine.id}`, routine);
+    } catch (error) {
+      console.error('Failed to save routine:', error);
+    }
+  }
+
+  public async deleteRoutine(routineId: string) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.remove(`routines/${routineId}`);
+    } catch (error) {
+      console.error('Failed to delete routine:', error);
     }
   }
 
@@ -441,6 +577,41 @@ export class RemoteStorageClient {
     const tasks = await this.getStandaloneTasks();
     const filteredTasks = tasks.filter((task: any) => task.id !== taskId);
     return await this.saveStandaloneTasks(filteredTasks);
+  }
+
+  // Routine Completion operations
+  public async getRoutineCompletions() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const result = await this.client.getObject('routine-completions') || { completions: [] };
+      return result.completions || [];
+    } catch (error) {
+      console.error('Failed to get routine completions:', error);
+      return [];
+    }
+  }
+
+  public async saveRoutineCompletions(completions: any[]) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('RoutineCompletionsCollection', 'routine-completions', { completions });
+    } catch (error) {
+      console.error('Failed to save routine completions:', error);
+    }
+  }
+
+  public async addRoutineCompletion(completion: any) {
+    const completions = await this.getRoutineCompletions();
+    completions.push(completion);
+    return await this.saveRoutineCompletions(completions);
   }
 
   // Todonna integration methods
@@ -571,14 +742,57 @@ export class RemoteStorageClient {
     try {
       // First import any new todonna items
       const importedCount = await this.importFromTodonna();
-      
+
       // Then sync all local tasks to todonna
       await this.syncToTodonna();
-      
+
       return { importedCount };
     } catch (error) {
       console.error('Failed to perform bidirectional sync:', error);
       return { importedCount: 0 };
+    }
+  }
+
+  // Weekly Goal operations
+  public async getWeeklyGoal(weekStart: string) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return null;
+
+    try {
+      return await this.client.getObject(`weekly-goals/${weekStart}`);
+    } catch (error) {
+      console.error('Failed to get weekly goal:', error);
+      return null;
+    }
+  }
+
+  public async saveWeeklyGoal(weeklyGoal: any) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('WeeklyGoal', `weekly-goals/${weeklyGoal.weekStart}`, weeklyGoal);
+    } catch (error) {
+      console.error('Failed to save weekly goal:', error);
+    }
+  }
+
+  public async getAllWeeklyGoals() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const weeklyGoals = await this.client.getAll('weekly-goals/') || {};
+      return Object.values(weeklyGoals).filter(goal => goal);
+    } catch (error) {
+      console.error('Failed to get all weekly goals:', error);
+      return [];
     }
   }
 

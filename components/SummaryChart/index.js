@@ -1,4 +1,4 @@
-import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import distinctColors from "distinct-colors";
 import CustomTooltip from "./CustomTooltip";
@@ -14,7 +14,7 @@ const palette = distinctColors({
 // Material Design Colors
 
 export default function SummaryChart({ impacts, selectedLines }) {
-  impacts = impacts.map((impact, i) => {
+  const chartData = impacts.map((impact, i) => {
     const newImpact = {};
     selectedLines.forEach((type) => {
       let value = getNumberFromString(impact[type]);
@@ -28,15 +28,34 @@ export default function SummaryChart({ impacts, selectedLines }) {
       newImpact[type] = value;
     });
     newImpact.activity = impact.activity;
+    newImpact.date = impact.date || Date.now();
+    newImpact.timestamp = new Date(impact.date || Date.now()).getTime();
     return newImpact;
   });
 
+  const formatXAxis = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   return (
     <ResponsiveContainer width="100%" height="auto" aspect={1.7}>
-      <LineChart data={impacts} className={"h-40"}>
+      <LineChart data={chartData} className={"h-40"}>
+        <XAxis
+          dataKey="timestamp"
+          type="number"
+          domain={['dataMin', 'dataMax']}
+          tickFormatter={formatXAxis}
+          stroke="hsl(var(--muted-foreground))"
+        />
+        <YAxis
+          stroke="hsl(var(--muted-foreground))"
+          domain={[0, 100]}
+        />
         <Tooltip content={<CustomTooltip />} />
         {selectedLines.map((type, i) => (
           <Line
+            key={type}
             type="monotone"
             dataKey={type}
             fill="none"

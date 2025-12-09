@@ -75,3 +75,38 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Range slider styling */
+input[type="range"].slider {
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+input[type="range"].slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+}
+
+input[type="range"].slider::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: hsl(var(--primary));
+  cursor: pointer;
+  border: none;
+}
+
+input[type="range"].slider::-webkit-slider-track {
+  background: hsl(var(--muted));
+  border-radius: 5px;
+}
+
+input[type="range"].slider::-moz-range-track {
+  background: hsl(var(--muted));
+  border-radius: 5px;
+}

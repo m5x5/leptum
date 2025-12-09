@@ -9,6 +9,8 @@ export interface StandaloneTask {
   status: 'due' | 'completed' | 'pending';
   createdAt: number;
   completedAt?: number;
+  routineId?: string;
+  routineInstanceId?: string; // Unique ID for a specific routine trigger instance
 }
 
 export function useStandaloneTasks() {
@@ -100,6 +102,41 @@ export function useStandaloneTasks() {
     }
   }, []);
 
+  // Check if all tasks for a routine instance are completed
+  const checkRoutineCompletion = useCallback(async (routineInstanceId: string, routineId?: string) => {
+    try {
+      const allTasks = await remoteStorageClient.getStandaloneTasks();
+      const routineTasks = allTasks.filter((t: StandaloneTask) => t.routineInstanceId === routineInstanceId);
+
+      if (routineTasks.length === 0) return;
+
+      // Check if all tasks are completed
+      const allCompleted = routineTasks.every((t: StandaloneTask) => t.status === 'completed');
+
+      if (allCompleted && routineId) {
+        // Get routine name
+        const routines = await remoteStorageClient.getRoutines();
+        const routine = routines.find((r: any) => r.id === routineId);
+
+        if (routine) {
+          // Save the completion
+          const completion = {
+            routineId,
+            routineInstanceId,
+            routineName: (routine as any).name as string,
+            completedAt: Date.now(),
+            taskCount: routineTasks.length
+          };
+
+          await remoteStorageClient.addRoutineCompletion(completion);
+          console.log('Routine completed:', (routine as any).name);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to check routine completion:', error);
+    }
+  }, []);
+
   // Mark task as completed
   const completeTask = useCallback(async (taskId: string) => {
     const updates = {
@@ -107,13 +144,18 @@ export function useStandaloneTasks() {
       completedAt: Date.now()
     };
     await updateTask(taskId, updates);
-  }, [updateTask]);
+
+    // Check if this completes a routine
+    const task = tasks.find(t => t.id === taskId);
+    if (task && task.routineInstanceId) {
+      await checkRoutineCompletion(task.routineInstanceId, task.routineId);
+    }
+  }, [updateTask, tasks, checkRoutineCompletion]);
 
   // Mark task as incomplete
   const uncompleteTask = useCallback(async (taskId: string) => {
     const updates = {
       status: 'due' as const,
-      completedAt: undefined
     };
     await updateTask(taskId, updates);
   }, [updateTask]);

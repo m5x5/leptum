@@ -5,7 +5,7 @@ const Title = ({ children }: { children: React.ReactNode }) => {
   return (
     <Dialog.Title
       as="h3"
-      className="text-2xl font-medium leading-6 text-gray-200"
+      className="text-2xl font-medium leading-6 text-foreground"
     >
       {children}
     </Dialog.Title>
@@ -15,7 +15,7 @@ const Title = ({ children }: { children: React.ReactNode }) => {
 const Body = ({ children }: { children: React.ReactNode }) => {
   return (
     <div className="mt-2">
-      <p className="text-gray-400 text-md">{children}</p>
+      <p className="text-muted-foreground text-md">{children}</p>
     </div>
   );
 };
@@ -51,7 +51,7 @@ const Modal = ({ children, isOpen, closeModal, className }: ModalProps) => {
               leaveTo="opacity-0"
               entered="opacity-25"
             >
-              <Dialog.Overlay className="fixed inset-0 bg-black opacity-25" />
+              <Dialog.Overlay className="fixed inset-0 bg-background/80 backdrop-blur-sm" />
             </Transition.Child>
 
             {/* This element is to trick the browser into centering the modal contents. */}
@@ -70,7 +70,7 @@ const Modal = ({ children, isOpen, closeModal, className }: ModalProps) => {
               leaveFrom="opacity-100 scale-100"
               leaveTo="opacity-0 scale-95"
             >
-              <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-gray-800 shadow-xl rounded-xl">
+              <div className="inline-block w-full max-w-md p-6 my-8 overflow-hidden text-left align-middle transition-all transform bg-card border border-border shadow-xl rounded-xl">
                 {children}
               </div>
             </Transition.Child>

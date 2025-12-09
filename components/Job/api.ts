@@ -23,6 +23,7 @@ export type Habit = {
   index: number;
   status: string;
   description?: string;
+  completedAt?: number;
 };
 
 export type DraftHabit = {
@@ -30,6 +31,36 @@ export type DraftHabit = {
   jobId: string;
   status?: string;
   description?: string;
+  completedAt?: number;
+};
+
+// Unified Routine type (combines Jobs and Stacks)
+export type Routine = {
+  id: string;
+  name: string;
+  cron?: string; // Optional - if provided, routine is scheduled
+  status?: string;
+  lastEndTime?: number;
+  index: number;
+  tasks: RoutineTask[];
+};
+
+export type RoutineTask = {
+  id: string;
+  name: string;
+  routineId: string;
+  index: number;
+  status: string;
+  description?: string;
+  completedAt?: number;
+};
+
+export type DraftRoutineTask = {
+  name: string;
+  routineId: string;
+  status?: string;
+  description?: string;
+  completedAt?: number;
 };
 
 // These functions are now handled by RemoteStorage client

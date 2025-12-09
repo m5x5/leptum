@@ -23,10 +23,10 @@ export default function LineControls({ onChange = () => {}, selected = [] }) {
   const getClasses = (type) => {
     const isSelected = selected.includes(type);
     let classes =
-      "w-100 text-gray-300 p-2 cursor-pointer rounded-lg bg-gray-800 ";
+      "w-100 text-foreground p-2 cursor-pointer rounded-lg bg-card border border-border ";
 
     if (isSelected) {
-      classes += "border-2 border-gray-600";
+      classes += "border-2 border-primary";
     }
 
     return classes;

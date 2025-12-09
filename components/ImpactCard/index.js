@@ -5,6 +5,8 @@ import {
   ResponsiveContainer,
   Tooltip,
   ReferenceLine,
+  XAxis,
+  YAxis,
 } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import CustomTooltip from "./CustomTooltip";
@@ -33,13 +35,23 @@ export default function ImpactCard({
     return {
       activity,
       value,
+      timestamp: new Date(impacts[index]?.date || Date.now()).getTime(),
     };
   });
 
+  const currentTimestamp = impacts[activityIndex]?.date
+    ? new Date(impacts[activityIndex].date).getTime()
+    : Date.now();
+
+  const formatXAxis = (timestamp) => {
+    const date = new Date(timestamp);
+    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+  };
+
   return (
-    <div className="text-left p-5 bg-gray-800 rounded-md">
+    <div className="text-left p-5 bg-card border border-border rounded-md">
       <div className="bg-green-700"></div>
-      <p className="text-2xl">{impact}</p>
+      <p className="text-2xl text-foreground">{impact}</p>
       <ResponsiveContainer aspect={1.5} className="mt-3" height="auto">
         <ComposedChart data={data}>
           <defs>
@@ -48,13 +60,26 @@ export default function ImpactCard({
               <stop offset="99%" stopColor="transparent" stopOpacity={100} />
             </linearGradient>
           </defs>
+          <XAxis
+            dataKey="timestamp"
+            type="number"
+            domain={['dataMin', 'dataMax']}
+            tickFormatter={formatXAxis}
+            stroke="hsl(var(--muted-foreground))"
+            hide={true}
+          />
+          <YAxis
+            domain={[0, 100]}
+            stroke="hsl(var(--muted-foreground))"
+            hide={true}
+          />
           <Line
             type="monotone"
             strokeLinecap="round"
             strokeWidth={3}
             style={{ strokeDasharray: "0.4 0.4" }}
             dataKey="value"
-            stroke="#ffffff"
+            stroke="hsl(var(--foreground))"
             dot={false}
             legendType="none"
           />
@@ -66,16 +91,15 @@ export default function ImpactCard({
             strokeWidth={3}
             fillOpacity={1}
           />
-          <Tooltip className="bg-gray-600" content={<CustomTooltip />} />
-          <ReferenceLine x={activityIndex} stroke="#D81B60" strokeWidth={3} />
+          <Tooltip content={<CustomTooltip />} />
+          <ReferenceLine x={currentTimestamp} stroke="#D81B60" strokeWidth={3} />
         </ComposedChart>
       </ResponsiveContainer>
       {editMode && (
         <input
           type="text"
-          className="w-full"
           placeholder="%"
-          className="rounded-md w-full py-2 px-3 bg-gray-700 mt-5"
+          className="rounded-md w-full py-2 px-3 bg-muted text-foreground mt-5"
           onChange={onChange}
           value={impacts[activityIndex]?.[impact] || ""}
         />

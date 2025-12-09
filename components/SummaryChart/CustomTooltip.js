@@ -4,8 +4,8 @@ export default function CustomTooltip({ active, payload }) {
   if (!(active && payload && payload.length)) return null;
 
   return (
-    <div className="bg-gray-800 p-4 rounded-lg">
-      <div className="text-lg">{payload[0].payload.activity}</div>
+    <div className="bg-card border border-border p-4 rounded-lg">
+      <div className="text-lg text-foreground">{payload[0].payload.activity}</div>
       <div className="tooltip-content">
         <ul>
           {payload
@@ -20,7 +20,7 @@ export default function CustomTooltip({ active, payload }) {
                   style={{ backgroundColor: item.stroke }}
                   className="h-5 w-5 inline-block rounded-lg m-1"
                 ></span>
-                <span className="">
+                <span className="text-foreground">
                   {capitalize(item.dataKey)}: {item.value}
                 </span>
               </li>
