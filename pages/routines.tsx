@@ -7,6 +7,7 @@ import Modal from "../components/Modal";
 import { getDescription, getPrettyTimeTillNextOccurrence } from "../utils/cron";
 import { useRoutineCompletions } from "../utils/useRoutineCompletions";
 import EChartsHeatmap from "../components/RoutineHeatmap/EChartsHeatmap";
+import { useGoals } from "../utils/useGoals";
 
 export default function RoutinesPage() {
   const [routines, setRoutines] = useState<(Routine| any)[]>([]);
@@ -17,11 +18,13 @@ export default function RoutinesPage() {
   const [formData, setFormData] = useState({
     name: "",
     cron: "",
+    goalId: "",
     tasks: [] as string[],
     newTask: ""
   });
 
   const { completions } = useRoutineCompletions();
+  const { goals } = useGoals();
 
   useEffect(() => {
     loadRoutines();
@@ -112,6 +115,7 @@ export default function RoutinesPage() {
       cron: formData.cron || undefined,
       status: formData.cron ? "pending" : undefined,
       index: routines.length,
+      goalId: formData.goalId || undefined,
       tasks: formData.tasks.map((taskName, index) => ({
         id: `task-${Date.now()}-${index}`,
         name: taskName,
@@ -124,7 +128,7 @@ export default function RoutinesPage() {
     await remoteStorageClient.saveRoutine(newRoutine);
     setRoutines([...routines, newRoutine]);
     setShowCreateModal(false);
-    setFormData({ name: "", cron: "", tasks: [], newTask: "" });
+    setFormData({ name: "", cron: "", goalId: "", tasks: [], newTask: "" });
   };
 
   const updateRoutine = async () => {
@@ -134,6 +138,7 @@ export default function RoutinesPage() {
       ...selectedRoutine,
       name: formData.name,
       cron: formData.cron || undefined,
+      goalId: formData.goalId || undefined,
       tasks: formData.tasks.map((taskName, index) => {
         const existingTask = selectedRoutine.tasks.find(t => t.name === taskName);
         return existingTask || {
@@ -150,7 +155,7 @@ export default function RoutinesPage() {
     setRoutines(routines.map(r => r.id === updatedRoutine.id ? updatedRoutine : r));
     setShowEditModal(false);
     setSelectedRoutine(null);
-    setFormData({ name: "", cron: "", tasks: [], newTask: "" });
+    setFormData({ name: "", cron: "", goalId: "", tasks: [], newTask: "" });
   };
 
   const deleteRoutine = async () => {
@@ -164,7 +169,7 @@ export default function RoutinesPage() {
   };
 
   const openCreateModal = () => {
-    setFormData({ name: "", cron: "", tasks: [], newTask: "" });
+    setFormData({ name: "", cron: "", goalId: "", tasks: [], newTask: "" });
     setShowCreateModal(true);
   };
 
@@ -173,6 +178,7 @@ export default function RoutinesPage() {
     setFormData({
       name: routine.name,
       cron: routine.cron || "",
+      goalId: routine.goalId || "",
       tasks: routine.tasks.map(t => t.name),
       newTask: ""
     });
@@ -346,6 +352,24 @@ export default function RoutinesPage() {
                     {getDescription(formData.cron) || "Invalid CRON expression"}
                   </p>
                 )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Goal (optional)
+                </label>
+                <select
+                  value={formData.goalId}
+                  onChange={(e) => setFormData({ ...formData, goalId: e.target.value })}
+                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+                >
+                  <option value="">No goal</option>
+                  {goals.map((goal) => (
+                    <option key={goal.id} value={goal.id}>
+                      {goal.name}
+                    </option>
+                  ))}
+                </select>
               </div>
 
               <div>

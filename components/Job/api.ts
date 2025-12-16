@@ -42,6 +42,7 @@ export type Routine = {
   status?: string;
   lastEndTime?: number;
   index: number;
+  goalId?: string; // Optional - associated goal for this routine
   tasks: RoutineTask[];
 };
 

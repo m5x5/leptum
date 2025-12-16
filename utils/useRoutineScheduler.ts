@@ -91,7 +91,8 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
             status: 'due' as const,
             createdAt: Date.now(),
             routineId: routine.id,
-            routineInstanceId
+            routineInstanceId,
+            ...(routine.goalId && { goalId: routine.goalId })
           };
 
           await remoteStorageClient.addStandaloneTask(newTask);

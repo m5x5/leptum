@@ -1,9 +1,16 @@
 import Head from "next/head";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import GoalList from "../components/Goals/List";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
-import { useWeeklyGoals } from "../utils/useWeeklyGoals";
+import { useWeeklyGoals, WeeklyGoalItem } from "../utils/useWeeklyGoals";
+import { useWeeklyGoalTimeTracking } from "../utils/useWeeklyGoalTimeTracking";
+import { WeeklyGoalTimeTracking } from "../components/WeeklyGoals/TimeTracking";
+import { DayCard } from "../components/WeeklyGoals/DayCard";
+import { AddWeeklyGoalModal } from "../components/Modal/AddWeeklyGoalModal";
+import { MigrationBanner } from "../components/WeeklyGoals/MigrationBanner";
+import { getDayOfWeek } from "../utils/timeCalculations";
+import { remoteStorageClient } from "../lib/remoteStorage";
 import { PlusIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon } from "@heroicons/react/solid";
 
 const DAYS = [
@@ -35,6 +42,10 @@ export default function GoalsPage() {
 
   const [editingGoal, setEditingGoal] = useState<{ day: string; index: number } | null>(null);
   const [editText, setEditText] = useState("");
+  const [addGoalModalOpen, setAddGoalModalOpen] = useState(false);
+  const [selectedDay, setSelectedDay] = useState<typeof DAYS[number]['key'] | null>(null);
+
+  const { goalTimeBreakdowns } = useWeeklyGoalTimeTracking(currentWeekStart, goals);
 
   const handleRemove = (name: string) => {};
 
@@ -73,9 +84,42 @@ export default function GoalsPage() {
   };
 
   const handleAddGoal = (day: typeof DAYS[number]['key']) => {
-    const goalText = prompt(`What goal do you want to add for ${day}?`);
-    if (!goalText) return;
-    addGoal(day, goalText);
+    setSelectedDay(day);
+    setAddGoalModalOpen(true);
+  };
+
+  const handleAddGoalItem = (goalItem: WeeklyGoalItem) => {
+    if (!selectedDay) return;
+    addGoal(selectedDay, goalItem);
+    setSelectedDay(null);
+  };
+
+  const handleMigrateWeeklyGoal = async (migratedWeeklyGoal: any) => {
+    try {
+      await remoteStorageClient.saveWeeklyGoal(migratedWeeklyGoal);
+      window.location.reload();
+    } catch (error) {
+      console.error('Failed to migrate weekly goal:', error);
+      alert('Failed to migrate weekly goal');
+    }
+  };
+
+  const getDayTimeBreakdown = (day: typeof DAYS[number]['key']) => {
+    const breakdown: { [goalId: string]: number } = {};
+    goalTimeBreakdowns.forEach(gtb => {
+      const minutes = gtb.dailyBreakdown[day];
+      if (minutes > 0) {
+        breakdown[gtb.goalId] = minutes;
+      }
+    });
+    return breakdown;
+  };
+
+  const getCurrentGoalIds = (day: typeof DAYS[number]['key']) => {
+    if (!weeklyGoal) return [];
+    return weeklyGoal.goals[day]
+      .filter((item): item is WeeklyGoalItem => typeof item !== 'string')
+      .map(item => item.goalId);
   };
 
   const handleEditGoal = (day: typeof DAYS[number]['key'], index: number, currentText: string) => {
@@ -181,6 +225,14 @@ export default function GoalsPage() {
           {weeklyLoading && <div>loading weekly goals...</div>}
           {!weeklyLoading && !weeklyError && weeklyGoal && (
             <>
+              {/* Migration Banner */}
+              <MigrationBanner
+                weeklyGoal={weeklyGoal}
+                availableGoals={goals}
+                onMigrate={handleMigrateWeeklyGoal}
+              />
+
+              {/* Week Navigation */}
               <div className="mb-6">
                 <div className="flex justify-between items-center mb-4">
                   <div className="flex items-center gap-2">
@@ -213,57 +265,41 @@ export default function GoalsPage() {
                 </div>
               </div>
 
+              {/* Weekly Time Summary */}
+              <WeeklyGoalTimeTracking
+                weekStart={currentWeekStart}
+                weeklyGoal={weeklyGoal}
+                goals={goals}
+              />
+
+              {/* Day Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
                 {DAYS.map(({ key, label }) => (
-                  <div key={key} className="p-4 bg-card border border-border rounded-lg">
-                    <div className="flex flex-row justify-between items-center mb-3">
-                      <h2 className="text-lg text-foreground font-medium">{label}</h2>
-                      <PlusIcon
-                        className="w-5 cursor-pointer text-muted-foreground hover:text-primary transition"
-                        onClick={() => handleAddGoal(key)}
-                      />
-                    </div>
-
-                    <div className="flex flex-col gap-2">
-                      {weeklyGoal.goals[key].map((goal, index) => (
-                        <div
-                          key={index}
-                          className="group flex items-start gap-2 p-2 bg-background border border-border rounded hover:border-primary transition"
-                        >
-                          {editingGoal?.day === key && editingGoal?.index === index ? (
-                            <input
-                              type="text"
-                              value={editText}
-                              onChange={(e) => setEditText(e.target.value)}
-                              onKeyDown={handleKeyPress}
-                              onBlur={handleSaveEdit}
-                              autoFocus
-                              className="flex-1 bg-transparent text-foreground outline-none"
-                            />
-                          ) : (
-                            <>
-                              <span
-                                className="flex-1 text-sm text-foreground cursor-pointer"
-                                onClick={() => handleEditGoal(key, index, goal)}
-                              >
-                                {goal}
-                              </span>
-                              <TrashIcon
-                                className="w-4 h-4 text-muted-foreground hover:text-red-500 cursor-pointer opacity-0 group-hover:opacity-100 transition"
-                                onClick={() => removeGoal(key, index)}
-                              />
-                            </>
-                          )}
-                        </div>
-                      ))}
-
-                      {weeklyGoal.goals[key].length === 0 && (
-                        <p className="text-sm text-muted-foreground">No goals yet.</p>
-                      )}
-                    </div>
-                  </div>
+                  <DayCard
+                    key={key}
+                    day={key}
+                    dayLabel={label}
+                    goalItems={weeklyGoal.goals[key]}
+                    availableGoals={goals}
+                    timeBreakdown={getDayTimeBreakdown(key)}
+                    onAddGoal={() => handleAddGoal(key)}
+                    onRemoveGoal={(index) => removeGoal(key, index)}
+                  />
                 ))}
               </div>
+
+              {/* Add Goal Modal */}
+              <AddWeeklyGoalModal
+                isOpen={addGoalModalOpen}
+                onClose={() => {
+                  setAddGoalModalOpen(false);
+                  setSelectedDay(null);
+                }}
+                onAdd={handleAddGoalItem}
+                availableGoals={goals}
+                goalTypes={goalTypes}
+                currentGoalIds={selectedDay ? getCurrentGoalIds(selectedDay) : []}
+              />
             </>
           )}
         </>

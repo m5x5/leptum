@@ -1,6 +1,7 @@
 import { ProcessedAWEvent, EventGroup } from '../../activity-watch.d';
-import { ClockIcon, ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/solid';
+import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/solid';
 import { useState } from 'react';
+import { TimeBlock, getBlockActivityBreakdown, isLoginWindowOnlyBlock } from '../../utils/timeBlocks';
 
 interface ActivityWatchEntryProps {
   event: ProcessedAWEvent;
@@ -9,6 +10,7 @@ interface ActivityWatchEntryProps {
   isShortActivity: boolean;
   formatTime: (timestamp: number) => string;
   onClick: () => void;
+  onCreateManual?: () => void;
 }
 
 /**
@@ -21,32 +23,30 @@ export function ActivityWatchEntry({
   isShortActivity,
   formatTime,
   onClick,
+  onCreateManual,
 }: ActivityWatchEntryProps) {
+  const [showActions, setShowActions] = useState(false);
+
   return (
-    <div className="relative flex items-start">
-      {/* Dashed border bar (left side) */}
+    <div
+      className="relative flex items-start group"
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
+      {/* Bar (left side) */}
       <div
-        className={`absolute left-[-1.45rem] w-3 rounded-sm ${event.color} border-2 border-dashed border-background`}
+        className={`absolute left-[-1.45rem] w-3 rounded-sm ${event.color} border-background`}
         style={{ height: `${barHeight}px` }}
       />
 
       <div
-        className={`bg-card border-b border-dashed border-border hover:shadow-md transition-shadow cursor-pointer flex-1 ${
+        className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 ${
           isShortActivity ? 'pb-2' : 'pb-3'
         }`}
         style={{ minHeight: `${barHeight}px` }}
-        onClick={onClick}
       >
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between" onClick={onClick}>
           <div className="flex items-center gap-3">
-            {/* AW Badge */}
-            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded font-medium">
-              AW
-            </span>
-
-            {/* Clock Icon */}
-            <ClockIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-
             {/* Time */}
             <span className="text-sm font-mono text-muted-foreground">
               {formatTime(event.timestamp)}
@@ -70,6 +70,21 @@ export function ActivityWatchEntry({
             </span>
           )}
         </div>
+
+        {/* Quick Actions */}
+        {showActions && onCreateManual && (
+          <div className="mt-2 flex gap-2">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateManual();
+              }}
+              className="text-xs px-3 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors font-medium"
+            >
+              + Create Manual Entry
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -84,6 +99,7 @@ interface EventGroupEntryProps {
   formatTime: (timestamp: number) => string;
   formatDuration: (ms: number) => string;
   onEventClick: (event: ProcessedAWEvent) => void;
+  onCreateManual?: (event: ProcessedAWEvent) => void;
 }
 
 /**
@@ -98,8 +114,10 @@ export function EventGroupEntry({
   formatTime,
   formatDuration,
   onEventClick,
+  onCreateManual,
 }: EventGroupEntryProps) {
   const [isExpanded, setIsExpanded] = useState(group.isExpanded || false);
+  const [showActions, setShowActions] = useState(false);
 
   const occurrenceCount = group.occurrences.length;
   const totalDurationMs = group.totalDuration * 1000;
@@ -110,15 +128,19 @@ export function EventGroupEntry({
   const isLive = isToday && lastEventEnd > currentTime - 60000; // Within last minute
 
   return (
-    <div className="relative flex items-start">
-      {/* Grouped bar (left side) - dashed and thicker */}
+    <div
+      className="relative flex items-start group"
+      onMouseEnter={() => setShowActions(true)}
+      onMouseLeave={() => setShowActions(false)}
+    >
+      {/* Grouped bar (left side) */}
       <div
-        className={`absolute left-[-1.45rem] w-3 rounded-sm ${group.color} border-2 border-dashed border-background opacity-80`}
+        className={`absolute left-[-1.45rem] w-3 rounded-sm ${group.color}`}
         style={{ height: `${barHeight}px` }}
       />
 
       <div
-        className={`bg-card border-b border-dashed border-border flex-1 ${
+        className={`bg-card border-b hover:shadow-md transition-shadow flex-1 ${
           isShortActivity ? 'pb-2' : 'pb-3'
         }`}
         style={{ minHeight: `${barHeight}px` }}
@@ -136,14 +158,6 @@ export function EventGroupEntry({
               <ChevronRightIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
             )}
 
-            {/* AW Badge */}
-            <span className="text-xs px-2 py-0.5 bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400 rounded font-medium">
-              AW
-            </span>
-
-            {/* Clock Icon */}
-            <ClockIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
-
             {/* Time Range */}
             <span className="text-sm font-mono text-muted-foreground">
               {formatTime(group.timeRange.start)}
@@ -154,20 +168,34 @@ export function EventGroupEntry({
               {group.displayName}
             </h3>
 
-            {/* Occurrence Count Badge */}
-            <span className="text-xs px-2 py-0.5 bg-accent/20 text-accent-foreground rounded">
-              {occurrenceCount} {occurrenceCount === 1 ? 'occurrence' : 'occurrences'}
-            </span>
+            {/* Occurrence Count Badge (only if multiple) */}
+            {occurrenceCount > 1 && (
+              <span className="text-xs px-2 py-0.5 bg-accent/20 text-accent-foreground rounded">
+                {occurrenceCount} occurrences
+              </span>
+            )}
 
             {isLive && (
               <span className="text-xs text-primary">(Live)</span>
             )}
           </div>
 
-          {/* Total Duration */}
-          <span className="text-sm px-3 py-1 rounded-full bg-muted text-muted-foreground font-medium">
-            {formatDuration(totalDurationMs)}
-          </span>
+          {/* Create Manual Entry Button (for single occurrence) or Duration */}
+          {occurrenceCount === 1 && onCreateManual ? (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateManual(group.occurrences[0]);
+              }}
+              className="text-xs px-3 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors font-medium ml-2"
+            >
+              + Create Manual Entry
+            </button>
+          ) : (
+            <span className="text-sm px-3 py-1 rounded-full bg-muted text-muted-foreground font-medium">
+              {formatDuration(totalDurationMs)}
+            </span>
+          )}
         </div>
 
         {/* Expanded Event List */}
@@ -178,11 +206,7 @@ export function EventGroupEntry({
               return (
                 <div
                   key={event.id}
-                  className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded hover:bg-muted/50 cursor-pointer transition-colors"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEventClick(event);
-                  }}
+                  className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded hover:bg-muted/50 transition-colors group/item"
                 >
                   <div className="flex items-center gap-3">
                     <span className="text-xs text-muted-foreground font-mono">
@@ -195,14 +219,220 @@ export function EventGroupEntry({
                       {event.bucketType}
                     </span>
                   </div>
-                  <span className="text-xs text-muted-foreground">
-                    {formatDuration(eventDuration)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {formatDuration(eventDuration)}
+                    </span>
+                    {onCreateManual && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onCreateManual(event);
+                        }}
+                        className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors opacity-0 group-hover/item:opacity-100"
+                      >
+                        + Manual
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+interface TimeBlockEntryProps {
+  block: TimeBlock;
+  formatTime: (timestamp: number) => string;
+  formatDuration: (ms: number) => string;
+  onEventClick: (event: ProcessedAWEvent) => void;
+  onCreateManual?: (event: ProcessedAWEvent) => void;
+}
+
+/**
+ * Component for rendering time blocks with dominant activity
+ */
+export function TimeBlockEntry({
+  block,
+  formatTime,
+  formatDuration,
+  onEventClick,
+  onCreateManual,
+}: TimeBlockEntryProps) {
+  const [isExpanded, setIsExpanded] = useState(false);
+
+  const dominantEvent = block.dominantActivity;
+  const blockDurationMinutes = (block.endTime - block.startTime) / (1000 * 60);
+  const barHeight = Math.max(12, blockDurationMinutes * 2);
+
+  // Format time range for the block
+  const timeRange = `${formatTime(block.startTime)} - ${formatTime(block.endTime)}`;
+
+  // Check if this is a loginwindow-only block (inactive computer)
+  const isLoginWindowOnly = isLoginWindowOnlyBlock(block);
+
+  // Get breakdown of all activities in this block
+  const breakdown = getBlockActivityBreakdown(block);
+  const hasMultipleActivities = breakdown.length > 1;
+
+  // If loginwindow-only, render empty block
+  if (isLoginWindowOnly) {
+    return (
+      <div className="relative flex items-start">
+        {/* Empty/gray bar for inactive time */}
+        <div
+          className="absolute left-[-1.45rem] w-3 rounded-sm bg-muted/50"
+          style={{ height: `${barHeight}px` }}
+        />
+
+        <div className="bg-card border-b flex-1">
+          <div
+            className="flex items-center justify-between p-2"
+            style={{ minHeight: `${barHeight}px` }}
+          >
+            <div className="flex items-center gap-3 flex-1">
+              {/* Time Range */}
+              <span className="text-sm font-mono text-muted-foreground/60 whitespace-nowrap">
+                {timeRange}
+              </span>
+
+              {/* Empty state indicator */}
+              <span className="text-sm text-muted-foreground/40 italic">
+                (Inactive)
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="relative flex items-start group">
+      {/* Color bar for dominant activity */}
+      <div
+        className={`absolute mr-2 w-1 rounded-sm ${dominantEvent.color}`}
+        style={{ height: `${barHeight}px` }}
+      />
+
+      <div className="bg-card border-b border-dashed border-border hover:shadow-md transition-shadow flex-1">
+        {/* Block Header */}
+        <div
+          className={`flex items-center justify-between cursor-pointer p-2 ${
+            hasMultipleActivities ? 'hover:bg-muted/30' : ''
+          }`}
+          onClick={() => hasMultipleActivities && setIsExpanded(!isExpanded)}
+          style={{ minHeight: `${barHeight}px` }}
+        >
+          <div className="flex items-center gap-3 flex-1">
+            {/* Expand icon (if multiple activities) */}
+            {hasMultipleActivities && (
+              isExpanded ? (
+                <ChevronDownIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              ) : (
+                <ChevronRightIcon className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+              )
+            )}
+
+            {/* Time Range */}
+            <span className="text-sm font-mono text-muted-foreground whitespace-nowrap">
+              {timeRange}
+            </span>
+
+            {/* Dominant Activity Name */}
+            <h3 className="text-base font-semibold text-foreground truncate">
+              {dominantEvent.displayName}
+            </h3>
+
+            {/* Multiple activities indicator */}
+            {hasMultipleActivities && (
+              <span className="text-xs px-2 py-0.5 bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400 rounded">
+                +{breakdown.length - 1} more
+              </span>
+            )}
+          </div>
+
+          {/* Create Manual Entry Button (for single activity blocks) */}
+          {!hasMultipleActivities && onCreateManual && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onCreateManual(dominantEvent);
+              }}
+              className="text-xs px-3 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors font-medium ml-2"
+            >
+              + Create Manual Entry
+            </button>
+          )}
+        </div>
+
+        {/* Expanded Details - shown inline, doesn't cover manual activities */}
+        {isExpanded && hasMultipleActivities && (
+          <div className="px-2 pb-2">
+            <div className="ml-6 mt-2 space-y-1 border-l-2 border-border pl-4">
+              <div className="text-xs font-semibold text-muted-foreground mb-2">
+                Activities in this {blockDurationMinutes}min block:
+              </div>
+              {breakdown.map(({ event, duration, percentage }, idx) => (
+                <div
+                  key={`${event.id}-${idx}`}
+                  className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded hover:bg-muted/50 transition-colors group/item"
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    {/* Activity indicator bar */}
+                    <div
+                      className={`w-1 h-8 rounded ${event.color} flex-shrink-0`}
+                    />
+
+                    {/* Activity details */}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-foreground truncate">
+                          {event.displayName}
+                        </span>
+                        <span className="text-xs px-1.5 py-0.5 bg-background text-muted-foreground rounded flex-shrink-0">
+                          {event.bucketType}
+                        </span>
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        Started: {formatTime(event.timestamp)} • {formatDuration(duration)}
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 transition-opacity flex-shrink-0">
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onEventClick(event);
+                        }}
+                        className="text-xs px-2 py-1 bg-secondary/50 text-secondary-foreground rounded hover:bg-secondary transition-colors"
+                      >
+                        Details
+                      </button>
+                      {onCreateManual && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onCreateManual(event);
+                          }}
+                          className="text-xs px-2 py-1 bg-primary/10 text-primary rounded hover:bg-primary/20 transition-colors"
+                        >
+                          + Manual
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
       </div>
     </div>
   );

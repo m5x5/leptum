@@ -9,9 +9,13 @@ import { useActivityWatch } from "../utils/useActivityWatch";
 import ImportActivityWatchModal from "../components/Modal/ImportActivityWatchModal";
 import AWEventDetailModal from "../components/Modal/AWEventDetailModal";
 import FilterControls from "../components/Timeline/FilterControls";
-import { ActivityWatchEntry, EventGroupEntry } from "../components/Timeline/TimelineEntry";
+import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry } from "../components/Timeline/TimelineEntry";
 import { ProcessedAWEvent, EventGroup } from "../activity-watch.d";
 import { groupAdjacentEvents, DEFAULT_GROUP_GAP_MINUTES } from "../utils/activityWatch";
+import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, DEFAULT_BLOCK_SIZE_MINUTES } from "../utils/timeBlocks";
+import ActivityForm from "../components/Timeline/ActivityForm";
+import { LiveActivityDuration } from "../components/Timeline/LiveActivityDuration";
+import { LiveSummaryBar } from "../components/Timeline/LiveSummaryBar";
 
 interface Impact {
   activity: string;
@@ -40,18 +44,26 @@ export default function TimelinePage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingImpact, setEditingImpact] = useState<Impact | null>(null);
   const [editingIndex, setEditingIndex] = useState<number>(-1);
-  const [currentTime, setCurrentTime] = useState(Date.now());
-  const [newActivity, setNewActivity] = useState({
-    activity: "",
-    date: "",
-    time: "",
-    goalId: "",
-  });
+  const [editFormData, setEditFormData] = useState<{
+    activity: string;
+    date: string;
+    time: string;
+    goalId: string;
+  } | null>(null);
+  const [addFormInitialData, setAddFormInitialData] = useState<{
+    activity: string;
+    date: string;
+    time: string;
+    goalId: string;
+  } | null>(null);
 
   // ActivityWatch state
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAWDetailModal, setShowAWDetailModal] = useState(false);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
+
+  // Pagination state
+  const [daysToShow, setDaysToShow] = useState(2);
 
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
@@ -84,14 +96,6 @@ export default function TimelinePage() {
     loadImpacts();
   }, []);
 
-  // Update current time every second for live activity counter
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
-
   const saveImpacts = async (newImpacts: Impact[]) => {
     try {
       await remoteStorageClient.saveImpacts(newImpacts);
@@ -102,29 +106,24 @@ export default function TimelinePage() {
     }
   };
 
-  const addNewActivity = () => {
-    if (!newActivity.activity || !newActivity.date || !newActivity.time) {
-      alert("Please fill in all fields");
-      return;
-    }
-
-    const dateTimeString = `${newActivity.date}T${newActivity.time}`;
+  const addNewActivity = (formData: { activity: string; date: string; time: string; goalId: string }) => {
+    const dateTimeString = `${formData.date}T${formData.time}`;
     const timestamp = new Date(dateTimeString).getTime();
 
     const newImpact: Impact = {
-      activity: newActivity.activity,
+      activity: formData.activity,
       date: timestamp,
     };
 
-    if (newActivity.goalId) {
-      newImpact.goalId = newActivity.goalId;
+    if (formData.goalId) {
+      newImpact.goalId = formData.goalId;
     }
 
     const updatedImpacts = [...impacts, newImpact];
     saveImpacts(updatedImpacts);
 
     setShowAddModal(false);
-    setNewActivity({ activity: "", date: "", time: "", goalId: "" });
+    setAddFormInitialData(null);
   };
 
   const openEditModal = (impact: Impact, index: number) => {
@@ -135,7 +134,7 @@ export default function TimelinePage() {
     const dateStr = date.toISOString().split('T')[0];
     const timeStr = date.toTimeString().slice(0, 5);
 
-    setNewActivity({
+    setEditFormData({
       activity: impact.activity,
       date: dateStr,
       time: timeStr,
@@ -145,21 +144,16 @@ export default function TimelinePage() {
     setShowEditModal(true);
   };
 
-  const saveEditedActivity = () => {
-    if (!newActivity.activity || !newActivity.date || !newActivity.time) {
-      alert("Please fill in all fields");
-      return;
-    }
-
-    const dateTimeString = `${newActivity.date}T${newActivity.time}`;
+  const saveEditedActivity = (formData: { activity: string; date: string; time: string; goalId: string }) => {
+    const dateTimeString = `${formData.date}T${formData.time}`;
     const timestamp = new Date(dateTimeString).getTime();
 
     const updatedImpacts = [...impacts];
     updatedImpacts[editingIndex] = {
       ...updatedImpacts[editingIndex],
-      activity: newActivity.activity,
+      activity: formData.activity,
       date: timestamp,
-      goalId: newActivity.goalId || undefined,
+      goalId: formData.goalId || undefined,
     };
 
     saveImpacts(updatedImpacts);
@@ -167,7 +161,7 @@ export default function TimelinePage() {
     setShowEditModal(false);
     setEditingImpact(null);
     setEditingIndex(-1);
-    setNewActivity({ activity: "", date: "", time: "", goalId: "" });
+    setEditFormData(null);
   };
 
   const deleteActivity = () => {
@@ -181,7 +175,7 @@ export default function TimelinePage() {
     setShowEditModal(false);
     setEditingImpact(null);
     setEditingIndex(-1);
-    setNewActivity({ activity: "", date: "", time: "", goalId: "" });
+    setEditFormData(null);
   };
 
   const formatTime = (timestamp: number) => {
@@ -255,34 +249,22 @@ export default function TimelinePage() {
     );
   };
 
-  const calculateDaySummary = (dayImpacts: Impact[], dateKey: string): ActivitySummary[] => {
+  // Static calculation for past days only (not today)
+  const calculateDaySummary = (dayImpacts: Impact[]): ActivitySummary[] => {
     const activityDurations: { [key: string]: number } = {};
-    let totalDayDuration = 0;
-
-    const isTodayFlag = dayImpacts.length > 0 && isToday(dayImpacts[0].date);
 
     // dayImpacts are sorted in descending order (most recent first)
-    // So we need to reverse our thinking: each activity's duration goes from its timestamp
-    // until the next activity's timestamp (or now, for the most recent one)
-
     for (let i = dayImpacts.length - 1; i >= 0; i--) {
       const current = dayImpacts[i];
-
       let endTime: number;
 
       if (i === 0) {
-        // This is the most recent activity
-        if (isTodayFlag) {
-          // For today's most recent activity, duration goes until now
-          endTime = currentTime;
-        } else {
-          // For past days, duration goes until end of day
-          const dayEnd = new Date(current.date);
-          dayEnd.setHours(24, 0, 0, 0);
-          endTime = dayEnd.getTime();
-        }
+        // For past days, duration goes until end of day
+        const dayEnd = new Date(current.date);
+        dayEnd.setHours(24, 0, 0, 0);
+        endTime = dayEnd.getTime();
       } else {
-        // Duration goes until the next activity (which is at index i-1 since array is descending)
+        // Duration goes until the next activity
         endTime = dayImpacts[i - 1].date;
       }
 
@@ -292,16 +274,14 @@ export default function TimelinePage() {
         activityDurations[current.activity] = 0;
       }
       activityDurations[current.activity] += duration;
-      totalDayDuration += duration;
     }
 
-    // Always use 24 hours (86400000 ms) for percentage calculation
+    // Always use 24 hours for percentage calculation
     const fullDayInMs = 24 * 60 * 60 * 1000;
 
     // Convert to summary array with percentages
     const summaries: ActivitySummary[] = Object.entries(activityDurations).map(
       ([activity, duration]) => {
-        // Find the first impact with this activity name to get its color and start time
         const impact = dayImpacts.find(i => i.activity === activity);
         return {
           activity,
@@ -336,7 +316,9 @@ export default function TimelinePage() {
     return Array.from(dateSet).sort().reverse();
   };
 
-  const dates = getAllDates();
+  const allDates = getAllDates();
+  const dates = allDates.slice(0, daysToShow);
+  const hasMoreDays = allDates.length > daysToShow;
 
   const getActivityColor = (impact: Impact) => {
     // If the activity is associated with a goal, use the goal's color
@@ -360,6 +342,19 @@ export default function TimelinePage() {
     return `${minutes}m`;
   };
 
+  // Round timestamp to nearest 15-minute boundary
+  const roundToNearest15Minutes = (timestamp: number): number => {
+    const date = new Date(timestamp);
+    const minutes = date.getMinutes();
+    const roundedMinutes = Math.round(minutes / 15) * 15;
+
+    date.setMinutes(roundedMinutes);
+    date.setSeconds(0);
+    date.setMilliseconds(0);
+
+    return date.getTime();
+  };
+
   // Handle ActivityWatch event click
   const handleAWEventClick = (event: ProcessedAWEvent) => {
     setSelectedAWEvent(event);
@@ -368,11 +363,13 @@ export default function TimelinePage() {
 
   // Create manual entry from AW event
   const handleCreateManualEntry = (event: ProcessedAWEvent) => {
-    const date = new Date(event.timestamp);
+    // Round the timestamp to nearest 15 minutes
+    const roundedTimestamp = roundToNearest15Minutes(event.timestamp);
+    const date = new Date(roundedTimestamp);
     const dateStr = date.toISOString().split('T')[0];
     const timeStr = date.toTimeString().slice(0, 5);
 
-    setNewActivity({
+    setAddFormInitialData({
       activity: event.displayName,
       date: dateStr,
       time: timeStr,
@@ -385,7 +382,6 @@ export default function TimelinePage() {
   // Get filtered ActivityWatch events for a specific date
   const getFilteredAWEventsForDate = (dateKey: string) => {
     if (!awData || !filterSettings.showActivityWatch) {
-      console.log('getFilteredAWEventsForDate early return:', { hasAwData: !!awData, showActivityWatch: filterSettings.showActivityWatch });
       return [];
     }
 
@@ -393,23 +389,12 @@ export default function TimelinePage() {
     const dayStart = new Date(year, month - 1, day).getTime();
     const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 
-    console.log('Filtering AW events for date:', dateKey, {
-      totalEvents: awData.events.length,
-      visibleBuckets: filterSettings.visibleBuckets,
-      minDuration: filterSettings.minDuration,
-      dateRange: { start: new Date(dayStart).toISOString(), end: new Date(dayEnd).toISOString() }
-    });
-
-    const filtered = awData.events.filter((event) => {
+    return awData.events.filter((event) => {
       // Date range filter
       if (event.timestamp < dayStart || event.timestamp > dayEnd) return false;
 
       // Bucket visibility filter
-      const bucketVisible = filterSettings.visibleBuckets.includes(event.bucketId);
-      if (!bucketVisible) {
-        console.log('Event filtered out - bucket not visible:', event.bucketId, 'visible buckets:', filterSettings.visibleBuckets);
-        return false;
-      }
+      if (!filterSettings.visibleBuckets.includes(event.bucketId)) return false;
 
       // Duration filter
       if (event.duration < filterSettings.minDuration) return false;
@@ -419,10 +404,6 @@ export default function TimelinePage() {
 
       return true;
     });
-
-    console.log('Filtered AW events result:', { dateKey, filteredCount: filtered.length, events: filtered });
-
-    return filtered;
   };
 
   if (!isDataLoaded) {
@@ -473,10 +454,12 @@ export default function TimelinePage() {
             </button>
             <button
               onClick={() => {
-                const now = new Date();
+                // Round current time to nearest 15 minutes
+                const roundedTimestamp = roundToNearest15Minutes(Date.now());
+                const now = new Date(roundedTimestamp);
                 const dateStr = now.toISOString().split('T')[0];
                 const timeStr = now.toTimeString().slice(0, 5);
-                setNewActivity({
+                setAddFormInitialData({
                   activity: "",
                   date: dateStr,
                   time: timeStr,
@@ -510,214 +493,52 @@ export default function TimelinePage() {
         )}
 
         {/* Add Activity Modal */}
-        <Modal isOpen={showAddModal} closeModal={() => setShowAddModal(false)}>
+        <Modal isOpen={showAddModal} closeModal={() => {
+          setShowAddModal(false);
+          setAddFormInitialData(null);
+        }}>
           <Modal.Title>Add Missing Activity</Modal.Title>
           <Modal.Body>
-            <div className="space-y-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Activity Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="What were you doing?"
-                  className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
-                  value={newActivity.activity}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, activity: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
-                  value={newActivity.date}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, date: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Start Time
-                </label>
-                <input
-                  type="time"
-                  className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
-                  value={newActivity.time}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, time: e.target.value })
-                  }
-                />
-              </div>
-
-              {/* Goal Selection */}
-              {goals && goals.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Related Goal (optional)
-                  </label>
-                  <select
-                    className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
-                    value={newActivity.goalId}
-                    onChange={(e) =>
-                      setNewActivity({ ...newActivity, goalId: e.target.value })
-                    }
-                  >
-                    <option value="">No goal</option>
-                    {goalTypes && goalTypes.map((goalType) => {
-                      const typeGoals = goals.filter((g) => g.type === goalType.id);
-                      if (typeGoals.length === 0) return null;
-                      return (
-                        <optgroup key={goalType.id} label={goalType.name}>
-                          {typeGoals.map((goal) => (
-                            <option key={goal.id} value={goal.id}>
-                              {goal.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                </div>
-              )}
-
-              <p className="text-sm text-muted-foreground">
-                The end time will be automatically determined by the next activity you logged.
-              </p>
-            </div>
+            {addFormInitialData && (
+              <ActivityForm
+                initialData={addFormInitialData}
+                onSubmit={addNewActivity}
+                onCancel={() => {
+                  setShowAddModal(false);
+                  setAddFormInitialData(null);
+                }}
+                submitLabel="Add Activity"
+              />
+            )}
           </Modal.Body>
-          <Modal.Footer>
-            <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowAddModal(false)}
-                className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={addNewActivity}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-              >
-                Add Activity
-              </button>
-            </div>
-          </Modal.Footer>
         </Modal>
 
         {/* Edit Activity Modal */}
-        <Modal isOpen={showEditModal} closeModal={() => setShowEditModal(false)}>
+        <Modal isOpen={showEditModal} closeModal={() => {
+          setShowEditModal(false);
+          setEditFormData(null);
+        }}>
           <Modal.Title>Edit Activity</Modal.Title>
           <Modal.Body>
-            <div className="space-y-4 mt-4">
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Activity Name
-                </label>
-                <input
-                  type="text"
-                  placeholder="What were you doing?"
-                  className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
-                  value={newActivity.activity}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, activity: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Start Date
-                </label>
-                <input
-                  type="date"
-                  className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
-                  value={newActivity.date}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, date: e.target.value })
-                  }
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Start Time
-                </label>
-                <input
-                  type="time"
-                  className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
-                  value={newActivity.time}
-                  onChange={(e) =>
-                    setNewActivity({ ...newActivity, time: e.target.value })
-                  }
-                />
-              </div>
-
-              {/* Goal Selection */}
-              {goals && goals.length > 0 && (
-                <div>
-                  <label className="block text-sm font-medium text-foreground mb-2">
-                    Related Goal (optional)
-                  </label>
-                  <select
-                    className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
-                    value={newActivity.goalId}
-                    onChange={(e) =>
-                      setNewActivity({ ...newActivity, goalId: e.target.value })
-                    }
-                  >
-                    <option value="">No goal</option>
-                    {goalTypes && goalTypes.map((goalType) => {
-                      const typeGoals = goals.filter((g) => g.type === goalType.id);
-                      if (typeGoals.length === 0) return null;
-                      return (
-                        <optgroup key={goalType.id} label={goalType.name}>
-                          {typeGoals.map((goal) => (
-                            <option key={goal.id} value={goal.id}>
-                              {goal.name}
-                            </option>
-                          ))}
-                        </optgroup>
-                      );
-                    })}
-                  </select>
-                </div>
-              )}
-            </div>
+            {editFormData && (
+              <ActivityForm
+                initialData={editFormData}
+                onSubmit={saveEditedActivity}
+                onCancel={() => {
+                  setShowEditModal(false);
+                  setEditFormData(null);
+                }}
+                submitLabel="Save Changes"
+                showDelete={true}
+                onDelete={deleteActivity}
+              />
+            )}
           </Modal.Body>
-          <Modal.Footer>
-            <div className="flex gap-2 justify-between">
-              <button
-                onClick={deleteActivity}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
-              >
-                <TrashIcon className="w-4 h-4" />
-                Delete
-              </button>
-              <div className="flex gap-2">
-                <button
-                  onClick={() => setShowEditModal(false)}
-                  className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={saveEditedActivity}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-                >
-                  Save Changes
-                </button>
-              </div>
-            </div>
-          </Modal.Footer>
         </Modal>
 
         <div className="space-y-8">
           {dates.map((dateKey) => {
             const dayImpacts = groupedImpacts[dateKey] || [];
-            const daySummary = calculateDaySummary(dayImpacts, dateKey);
 
             // Get display date from first impact or from dateKey
             let displayDate: string;
@@ -734,10 +555,6 @@ export default function TimelinePage() {
               isTodayFlag = isToday(dateTimestamp);
             }
 
-            // Calculate what percentage of the bar should be filled vs empty (for today)
-            const totalPercentageFilled = daySummary.reduce((sum, s) => sum + s.percentage, 0);
-            const emptyPercentage = isTodayFlag ? Math.max(0, 100 - totalPercentageFilled) : 0;
-
             return (
               <div key={dateKey} className="space-y-4">
                 <div className="sticky top-0 bg-background/95 backdrop-blur z-10 pb-3 border-b border-border">
@@ -751,183 +568,307 @@ export default function TimelinePage() {
                   </h2>
 
                   {/* Daily Summary Bar */}
-                  <div className="flex h-8 rounded-lg overflow-hidden border border-border">
-                    {daySummary.map((summary, idx) => (
-                      <div
-                        key={`${summary.activity}-${idx}`}
-                        className={`${summary.color} flex items-center justify-center text-xs text-white font-medium border-r border-background/30`}
-                        style={{
-                          width: `${summary.percentage}%`,
-                          borderRightWidth: idx === daySummary.length - 1 && emptyPercentage === 0 ? '0' : '2px'
-                        }}
-                        title={`${summary.activity}: ${summary.percentage.toFixed(1)}%`}
-                      >
-                        {summary.percentage > 8 && (
-                          <span className="px-1">
-                            {summary.percentage.toFixed(0)}%
-                          </span>
-                        )}
-                      </div>
-                    ))}
-                    {emptyPercentage > 0 && (
-                      <div
-                        className="bg-muted/30 flex items-center justify-center"
-                        style={{ width: `${emptyPercentage}%` }}
-                        title="Future time"
-                      ></div>
-                    )}
-                  </div>
+                  {isTodayFlag && dayImpacts.length > 0 ? (
+                    <LiveSummaryBar
+                      dayImpacts={dayImpacts}
+                      isTodayFlag={isTodayFlag}
+                      getDurationInMs={getDurationInMs}
+                      getActivityColor={getActivityColor}
+                    />
+                  ) : dayImpacts.length > 0 ? (
+                    // Static summary for past days
+                    (() => {
+                      const daySummary = calculateDaySummary(dayImpacts);
+                      const totalPercentageFilled = daySummary.reduce((sum, s) => sum + s.percentage, 0);
+
+                      return (
+                        <div className="flex h-8 rounded-lg overflow-hidden border border-border">
+                          {daySummary.map((summary, idx) => (
+                            <div
+                              key={`${summary.activity}-${idx}`}
+                              className={`${summary.color} flex items-center justify-center text-xs text-white font-medium border-r border-background/30`}
+                              style={{
+                                width: `${summary.percentage}%`,
+                                borderRightWidth: idx === daySummary.length - 1 ? '0' : '2px'
+                              }}
+                              title={`${summary.activity}: ${summary.percentage.toFixed(1)}%`}
+                            >
+                              {summary.percentage > 8 && (
+                                <span className="px-1">
+                                  {summary.percentage.toFixed(0)}%
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()
+                  ) : null}
                 </div>
 
-                {/* Timeline - Side by Side Layout */}
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                  {/* Left Column: Manual Activities */}
-                  {filterSettings.showManual && dayImpacts.length > 0 && (
-                    <div className="relative pl-8">
-                      <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
-                      <h3 className="text-sm font-semibold text-muted-foreground mb-4">Manual Activities</h3>
+                {/* Timeline - Side by Side Layout with Time Alignment */}
+                <div className="relative">
+                  {/* Get day start time for positioning */}
+                  {(() => {
+                    const [year, month, day] = dateKey.split('-').map(Number);
+                    const dayStart = new Date(year, month - 1, day).getTime();
+                    const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 
-                      {dayImpacts.map((impact, index) => {
-                        const isFirstItem = index === 0;
-                        const isLive = isTodayFlag && isFirstItem;
+                    // Get AW events for this day
+                    const allAWEvents = getFilteredAWEventsForDate(dateKey);
+                    const awEvents = allAWEvents.filter(e => e.bucketType !== 'afkstatus');
+                    const afkEvents = allAWEvents.filter(e => e.bucketType === 'afkstatus');
 
-                        let duration = null;
-                        let endTime: number;
-                        let durationMs: number;
-
-                        if (isFirstItem) {
-                          if (isTodayFlag) {
-                            endTime = currentTime;
-                            duration = getDuration(impact.date, endTime);
-                            durationMs = getDurationInMs(impact.date, endTime);
-                          } else {
-                            const dayEnd = new Date(impact.date);
-                            dayEnd.setHours(24, 0, 0, 0);
-                            endTime = dayEnd.getTime();
-                            duration = getDuration(impact.date, endTime);
-                            durationMs = getDurationInMs(impact.date, endTime);
-                          }
-                        } else {
-                          const nextActivity = dayImpacts[index - 1];
-                          endTime = nextActivity.date;
-                          duration = getDuration(impact.date, endTime);
-                          durationMs = getDurationInMs(impact.date, endTime);
-                        }
-
-                        const durationMinutes = durationMs / (1000 * 60);
-                        const barHeight = Math.max(12, durationMinutes * 2);
-                        const isShortActivity = durationMinutes < 15;
-
-                        const actualIndex = impacts.findIndex(
-                          (imp) => imp.date === impact.date && imp.activity === impact.activity
-                        );
-
-                        return (
-                          <div
-                            key={`manual-${impact.date}-${index}`}
-                            className="relative flex items-start mb-1"
-                          >
-                            <div
-                              className={`absolute left-[-1.45rem] w-3 rounded-sm ${getActivityColor(
-                                impact
-                              )} ${isLive ? 'animate-pulse' : ''}`}
-                              style={{ height: `${barHeight}px` }}
-                            ></div>
-
-                            <div
-                              className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 ${
-                                isLive ? 'border-b-primary border-b-2' : 'border-b-border'
-                              } ${isShortActivity ? 'pb-2' : 'pb-3'}`}
-                              style={{ minHeight: `${barHeight}px` }}
-                              onClick={() => openEditModal(impact, actualIndex)}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div className="flex items-center gap-3">
-                                  <span className={`text-sm font-mono ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                                    {formatTime(impact.date)}
-                                  </span>
-                                  <h3 className={`text-base font-semibold ${isLive ? 'text-primary' : 'text-foreground'}`}>
-                                    {impact.activity}
-                                    {isLive && <span className="ml-2 text-xs">(Live)</span>}
-                                  </h3>
-                                </div>
-                                {duration && (
-                                  <span className={`text-sm px-3 py-1 rounded-full font-medium ${
-                                    isLive ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'
-                                  }`}>
-                                    {duration}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-
-                  {/* Right Column: ActivityWatch Events */}
-                  {filterSettings.showActivityWatch && (() => {
-                    // Get filtered AW events for this day (excluding AFK)
-                    const awEvents = getFilteredAWEventsForDate(dateKey).filter(
-                      e => e.bucketType !== 'afk'
-                    );
-
-                    if (awEvents.length === 0) return null;
-
-                    // Group AW events
-                    const groupedAWEvents = groupAdjacentEvents(awEvents, DEFAULT_GROUP_GAP_MINUTES);
+                    // Create 15-minute time blocks, then merge consecutive blocks with same activity
+                    let timeBlocks: any[] = [];
+                    if (awEvents.length > 0) {
+                      // First chunk into 15-minute blocks (loginwindow is handled in dominant activity selection)
+                      // We include ALL events here, including loginwindow
+                      const chunks = chunkEventsIntoTimeBlocks(awEvents, DEFAULT_BLOCK_SIZE_MINUTES);
+                      // Then merge consecutive blocks with same dominant activity
+                      // This will also merge consecutive loginwindow-only blocks
+                      timeBlocks = mergeConsecutiveBlocks(chunks);
+                    }
 
                     return (
-                      <div className="relative pl-8">
-                        <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
-                        <div className="flex items-center justify-between mb-4">
-                          <h3 className="text-sm font-semibold text-muted-foreground">ActivityWatch Events</h3>
-                          <span className="text-xs text-muted-foreground">{awEvents.length} events</span>
-                        </div>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        {/* Left Column: Manual Activities */}
+                        {filterSettings.showManual && dayImpacts.length > 0 && (
+                          <div className="relative pl-8" style={{ minHeight: '200px' }}>
+                            <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
+                            <h3 className="text-sm font-semibold text-muted-foreground mb-4">Manual Activities</h3>
 
-                        {groupedAWEvents.reverse().map(group => {
-                          if (group.occurrences.length > 1) {
-                            const totalDurationMs = group.totalDuration * 1000;
-                            const durationMinutes = totalDurationMs / (1000 * 60);
-                            const barHeight = Math.max(12, durationMinutes * 2);
-                            const isShortActivity = durationMinutes < 15;
+                            {dayImpacts.map((impact, index) => {
+                              const isFirstItem = index === 0;
+                              const isLive = isTodayFlag && isFirstItem;
 
-                            return (
-                              <div key={`aw-group-${group.timeRange.start}`} className="mb-1">
-                                <EventGroupEntry
-                                  group={group}
-                                  isToday={isTodayFlag}
-                                  currentTime={currentTime}
-                                  barHeight={barHeight}
-                                  isShortActivity={isShortActivity}
-                                  formatTime={formatTime}
-                                  formatDuration={formatDuration}
-                                  onEventClick={handleAWEventClick}
-                                />
-                              </div>
-                            );
-                          } else {
-                            const event = group.occurrences[0];
-                            const durationMs = event.duration * 1000;
-                            const durationMinutes = durationMs / (1000 * 60);
-                            const barHeight = Math.max(12, durationMinutes * 2);
-                            const isShortActivity = durationMinutes < 15;
+                              let duration = null;
+                              let endTime: number;
+                              let durationMs: number;
 
-                            return (
-                              <div key={`aw-${event.id}`} className="mb-1">
-                                <ActivityWatchEntry
-                                  event={event}
-                                  duration={getDuration(event.timestamp, event.timestamp + durationMs)}
-                                  barHeight={barHeight}
-                                  isShortActivity={isShortActivity}
-                                  formatTime={formatTime}
-                                  onClick={() => handleAWEventClick(event)}
-                                />
-                              </div>
-                            );
-                          }
-                        })}
+                              if (isFirstItem && !isTodayFlag) {
+                                // For past days, calculate static duration
+                                const dayEnd = new Date(impact.date);
+                                dayEnd.setHours(24, 0, 0, 0);
+                                endTime = dayEnd.getTime();
+                                duration = getDuration(impact.date, endTime);
+                                durationMs = getDurationInMs(impact.date, endTime);
+                              } else if (!isFirstItem) {
+                                const nextActivity = dayImpacts[index - 1];
+                                endTime = nextActivity.date;
+                                duration = getDuration(impact.date, endTime);
+                                durationMs = getDurationInMs(impact.date, endTime);
+                              } else {
+                                // For live activities, we'll use LiveActivityDuration component
+                                // Calculate a temporary duration for bar height
+                                durationMs = Date.now() - impact.date;
+                              }
+
+                              const durationMinutes = durationMs / (1000 * 60);
+                              const barHeight = Math.max(12, durationMinutes * 2);
+                              const isShortActivity = durationMinutes < 15;
+
+                              const actualIndex = impacts.findIndex(
+                                (imp) => imp.date === impact.date && imp.activity === impact.activity
+                              );
+
+                              return (
+                                <div
+                                  key={`manual-${impact.date}-${index}`}
+                                  className="relative flex items-start mb-1"
+                                >
+                                  <div
+                                    className={`absolute left-[-1.45rem] w-3 rounded-sm ${getActivityColor(
+                                      impact
+                                    )} ${isLive ? 'animate-pulse' : ''}`}
+                                    style={{ height: `${barHeight}px` }}
+                                  ></div>
+
+                                  <div
+                                    className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 ${
+                                      isLive ? 'border-b-primary border-b-2' : 'border-b-border'
+                                    } ${isShortActivity ? 'pb-2' : 'pb-3'}`}
+                                    style={{ minHeight: `${barHeight}px` }}
+                                    onClick={() => openEditModal(impact, actualIndex)}
+                                  >
+                                    <div className="flex items-center justify-between">
+                                      <div className="flex items-center gap-3">
+                                        <span className={`text-sm font-mono ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                                          {formatTime(impact.date)}
+                                        </span>
+                                        <h3 className={`text-base font-semibold ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                                          {impact.activity}
+                                          {isLive && <span className="ml-2 text-xs">(Live)</span>}
+                                        </h3>
+                                      </div>
+                                      {isLive ? (
+                                        <LiveActivityDuration
+                                          startTime={impact.date}
+                                          formatDuration={getDuration}
+                                        />
+                                      ) : duration && (
+                                        <span className="text-sm px-3 py-1 rounded-full font-medium bg-muted text-muted-foreground">
+                                          {duration}
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            </div>
+                          )}
+
+                        {/* Right Column: ActivityWatch Events (Time Blocks) - Time Aligned */}
+                        {filterSettings.showActivityWatch && timeBlocks.length > 0 && (
+                          <div className="relative pl-8" style={{ minHeight: '200px' }}>
+                            {/* Vertical AFK Presence Bar */}
+                            {afkEvents.length > 0 && (() => {
+                              // Calculate the total height we'll need based on time range
+                              const firstManualTime = dayImpacts.length > 0 ? dayImpacts[0].date : dayStart;
+                              const lastManualTime = dayImpacts.length > 0 ? dayImpacts[dayImpacts.length - 1].date : dayEnd;
+                              const timeRangeMs = firstManualTime - lastManualTime;
+                              const totalHeightPx = (timeRangeMs / (1000 * 60)) * 2; // 2px per minute
+
+                              // Process AFK events into 15-minute blocks
+                              const blockSize = 15 * 60 * 1000; // 15 minutes in ms
+                              const afkBlocks = new Map<number, boolean>(); // blockStartTime -> isActive
+
+                              afkEvents.forEach(event => {
+                                const isActive = event.displayName === 'Active' || event.eventData.status === 'not-afk';
+                                const eventStart = event.timestamp;
+                                const eventEnd = eventStart + (event.duration * 1000);
+
+                                // Find all 15-minute blocks this event overlaps with
+                                const firstBlockStart = Math.floor(eventStart / blockSize) * blockSize;
+                                const lastBlockStart = Math.floor(eventEnd / blockSize) * blockSize;
+
+                                for (let blockStart = firstBlockStart; blockStart <= lastBlockStart; blockStart += blockSize) {
+                                  const blockEnd = blockStart + blockSize;
+
+                                  // Calculate overlap between event and block
+                                  const overlapStart = Math.max(eventStart, blockStart);
+                                  const overlapEnd = Math.min(eventEnd, blockEnd);
+                                  const overlapDuration = overlapEnd - overlapStart;
+
+                                  if (overlapDuration > 0) {
+                                    // If this block is already marked as active, keep it active
+                                    // Otherwise, mark it based on current event
+                                    const currentStatus = afkBlocks.get(blockStart);
+                                    if (currentStatus === true || (currentStatus === undefined && isActive)) {
+                                      afkBlocks.set(blockStart, isActive);
+                                    }
+                                  }
+                                }
+                              });
+
+                              // Convert blocks to renderable segments
+                              const sortedBlocks = Array.from(afkBlocks.entries())
+                                .sort((a, b) => a[0] - b[0])
+                                .filter(([_, isActive]) => isActive); // Only show active blocks
+
+                              return (
+                                <div
+                                  className="absolute left-[0.5rem] w-2 rounded"
+                                  style={{
+                                    top: '3rem', // Below header
+                                    height: `${totalHeightPx}px`,
+                                    backgroundColor: '#e5e7eb' // Default gray
+                                  }}
+                                >
+                                  {/* Render active 15-minute blocks */}
+                                  {sortedBlocks.map(([blockStart, isActive], idx) => {
+                                    const blockEnd = blockStart + blockSize;
+
+                                    // Calculate position from top of day
+                                    const offsetFromTop = firstManualTime - blockStart;
+                                    const topPx = (offsetFromTop / (1000 * 60)) * 2;
+                                    const heightPx = (blockSize / (1000 * 60)) * 2; // Always 30px (15 min * 2px)
+
+                                    return (
+                                      <div
+                                        key={`afk-block-${blockStart}-${idx}`}
+                                        className="absolute w-full bg-green-500 rounded"
+                                        style={{
+                                          top: `${topPx}px`,
+                                          height: `${heightPx}px`,
+                                        }}
+                                        title={`Active: ${formatTime(blockStart)} - ${formatTime(blockEnd)}`}
+                                      />
+                                    );
+                                  })}
+                                </div>
+                              );
+                            })()}
+
+                            <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
+                            <h3 className="text-sm font-semibold text-muted-foreground mb-4">
+                              ActivityWatch Events
+                              <span className="ml-2 text-xs font-normal">
+                                {timeBlocks.length} blocks • {awEvents.length} events
+                              </span>
+                            </h3>
+
+                            {/* Calculate positions based on time - reverse order (newest first) */}
+                            {(() => {
+                              // Sort blocks in descending order (newest first) to match manual activities
+                              const sortedBlocks = [...timeBlocks].sort((a, b) => b.startTime - a.startTime);
+
+                              return sortedBlocks.map((block, idx) => {
+                                // Calculate spacing from previous block
+                                let marginTop = 0;
+
+                                if (idx === 0) {
+                                  // For first block (newest), align with manual activities timeline
+                                  if (dayImpacts.length > 0) {
+                                    const newestManualTime = dayImpacts[0].date;
+                                    const newestBlockTime = sortedBlocks[0].startTime;
+
+                                    // Calculate offset - positive if block starts after manual activity
+                                    const offsetMs = newestBlockTime - newestManualTime;
+                                    const offsetMinutes = offsetMs / (1000 * 60);
+
+                                    // Only add positive offset (when AW block is later than manual activity)
+                                    if (offsetMinutes > 0) {
+                                      marginTop = offsetMinutes * 2; // 2px per minute
+                                    }
+                                  }
+                                } else {
+                                  const prevBlock = sortedBlocks[idx - 1];
+                                  // Calculate gap between blocks
+                                  // prevBlock is newer (above), block is older (current)
+                                  // Gap is from when previous block started to when current block ended
+                                  const gapStartTime = prevBlock.startTime; // Start of newer block (visual bottom)
+                                  const gapEndTime = block.endTime; // End of older block (visual top)
+                                  const timeGapMs = gapStartTime - gapEndTime;
+
+                                  if (timeGapMs > 0) {
+                                    const timeGapMinutes = timeGapMs / (1000 * 60);
+                                    marginTop = timeGapMinutes * 2; // 2px per minute
+                                  }
+                                }
+
+                                return (
+                                  <div
+                                    key={`block-${block.startTime}-${idx}`}
+                                    style={{
+                                      marginTop: `${marginTop}px`,
+                                      marginBottom: '4px',
+                                    }}
+                                  >
+                                    <TimeBlockEntry
+                                      block={block}
+                                      formatTime={formatTime}
+                                      formatDuration={formatDuration}
+                                      onEventClick={handleAWEventClick}
+                                      onCreateManual={handleCreateManualEntry}
+                                    />
+                                  </div>
+                                );
+                              });
+                            })()}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}
@@ -936,42 +877,76 @@ export default function TimelinePage() {
                 {/* AFK Status Indicator */}
                 {filterSettings.showActivityWatch && (() => {
                   const afkEvents = getFilteredAWEventsForDate(dateKey).filter(
-                    e => e.bucketType === 'afk'
+                    e => e.bucketType === 'afkstatus'
                   );
 
                   if (afkEvents.length === 0) return null;
 
+                  // Process AFK events into 15-minute blocks
+                  const [year, month, day] = dateKey.split('-').map(Number);
+                  const dayStart = new Date(year, month - 1, day).getTime();
+                  const dayDuration = 24 * 60 * 60 * 1000;
+                  const blockSize = 15 * 60 * 1000; // 15 minutes in ms
+
+                  // Create map of 15-minute blocks
+                  const afkBlocks = new Map<number, boolean>(); // blockStartTime -> isActive
+
+                  afkEvents.forEach(event => {
+                    const isActive = event.displayName === 'Active' || event.eventData.status === 'not-afk';
+                    const eventStart = event.timestamp;
+                    const eventEnd = eventStart + (event.duration * 1000);
+
+                    // Find all 15-minute blocks this event overlaps with
+                    const firstBlockStart = Math.floor(eventStart / blockSize) * blockSize;
+                    const lastBlockStart = Math.floor(eventEnd / blockSize) * blockSize;
+
+                    for (let blockStart = firstBlockStart; blockStart <= lastBlockStart; blockStart += blockSize) {
+                      const blockEnd = blockStart + blockSize;
+
+                      // Calculate overlap between event and block
+                      const overlapStart = Math.max(eventStart, blockStart);
+                      const overlapEnd = Math.min(eventEnd, blockEnd);
+                      const overlapDuration = overlapEnd - overlapStart;
+
+                      if (overlapDuration > 0) {
+                        // Mark block as active if any part of it was active
+                        const currentStatus = afkBlocks.get(blockStart);
+                        if (currentStatus !== false && isActive) {
+                          afkBlocks.set(blockStart, true);
+                        } else if (currentStatus === undefined) {
+                          afkBlocks.set(blockStart, isActive);
+                        }
+                      }
+                    }
+                  });
+
+                  // Convert blocks to array for rendering
+                  const sortedBlocks = Array.from(afkBlocks.entries()).sort((a, b) => a[0] - b[0]);
+
                   return (
                     <div className="mt-6 p-4 bg-muted/30 rounded-lg border border-border">
                       <div className="flex items-center gap-2 mb-3">
-                        <h4 className="text-sm font-semibold text-foreground">Presence Status</h4>
-                        <span className="text-xs text-muted-foreground">({afkEvents.length} status changes)</span>
+                        <h4 className="text-sm font-semibold text-foreground">Presence Status (15-min blocks)</h4>
+                        <span className="text-xs text-muted-foreground">({sortedBlocks.length} blocks)</span>
                       </div>
                       <div className="relative h-8 bg-background rounded border border-border overflow-hidden">
-                        {afkEvents.map((event, idx) => {
-                          const [year, month, day] = dateKey.split('-').map(Number);
-                          const dayStart = new Date(year, month - 1, day).getTime();
-                          const dayDuration = 24 * 60 * 60 * 1000;
+                        {sortedBlocks.map(([blockStart, isActive], idx) => {
+                          const blockOffset = blockStart - dayStart;
+                          const leftPercent = (blockOffset / dayDuration) * 100;
+                          const widthPercent = (blockSize / dayDuration) * 100;
 
-                          const eventStart = event.timestamp - dayStart;
-                          const eventDuration = event.duration * 1000;
-
-                          const leftPercent = (eventStart / dayDuration) * 100;
-                          const widthPercent = (eventDuration / dayDuration) * 100;
-
-                          const isActive = event.displayName === 'Active';
                           const bgColor = isActive ? 'bg-green-500' : 'bg-gray-400';
+                          const blockEnd = blockStart + blockSize;
 
                           return (
                             <div
-                              key={`afk-${event.id}`}
-                              className={`absolute top-0 bottom-0 ${bgColor} opacity-80 hover:opacity-100 transition-opacity cursor-pointer`}
+                              key={`afk-block-${blockStart}-${idx}`}
+                              className={`absolute top-0 bottom-0 ${bgColor} opacity-80 hover:opacity-100 transition-opacity`}
                               style={{
                                 left: `${leftPercent}%`,
                                 width: `${widthPercent}%`,
                               }}
-                              title={`${event.displayName}: ${formatTime(event.timestamp)} (${Math.floor(event.duration / 60)}m)`}
-                              onClick={() => handleAWEventClick(event)}
+                              title={`${isActive ? 'Active' : 'Away'}: ${formatTime(blockStart)} - ${formatTime(blockEnd)}`}
                             />
                           );
                         })}
@@ -994,6 +969,21 @@ export default function TimelinePage() {
             );
           })}
         </div>
+
+        {/* Load More Button */}
+        {hasMoreDays && (
+          <div className="flex justify-center mt-8 mb-4">
+            <button
+              onClick={() => setDaysToShow(prev => prev + 5)}
+              className="px-6 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg font-semibold transition-colors flex items-center gap-2"
+            >
+              Load Next 5 Days
+              <span className="text-xs text-muted-foreground">
+                ({allDates.length - daysToShow} remaining)
+              </span>
+            </button>
+          </div>
+        )}
 
         {/* Import ActivityWatch Modal */}
         <ImportActivityWatchModal

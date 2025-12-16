@@ -109,7 +109,8 @@ const StandaloneTaskSchema = {
     description: { type: 'string' },
     status: { type: 'string' },
     createdAt: { type: 'number' },
-    completedAt: { type: 'number' }
+    completedAt: { type: 'number' },
+    goalId: { type: 'string' }
   },
   required: ['id', 'name', 'status', 'createdAt']
 };
@@ -125,23 +126,36 @@ const StandaloneTasksCollectionSchema = {
   required: ['tasks']
 };
 
+const WeeklyGoalItemSchema = {
+  type: 'object',
+  properties: {
+    goalId: { type: 'string' },
+    targetMinutes: { type: 'number' },
+    note: { type: 'string' }
+  },
+  required: ['goalId']
+};
+
 const WeeklyGoalSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
     weekStart: { type: 'string' }, // ISO date string (Monday of the week)
+    version: { type: 'number' }, // 1 = old text format, 2 = new goalId format
     goals: {
       type: 'object',
       properties: {
-        monday: { type: 'array', items: { type: 'string' } },
-        tuesday: { type: 'array', items: { type: 'string' } },
-        wednesday: { type: 'array', items: { type: 'string' } },
-        thursday: { type: 'array', items: { type: 'string' } },
-        friday: { type: 'array', items: { type: 'string' } },
-        saturday: { type: 'array', items: { type: 'string' } },
-        sunday: { type: 'array', items: { type: 'string' } }
+        // Each day can contain either strings (v1) or WeeklyGoalItem objects (v2)
+        monday: { type: 'array' },
+        tuesday: { type: 'array' },
+        wednesday: { type: 'array' },
+        thursday: { type: 'array' },
+        friday: { type: 'array' },
+        saturday: { type: 'array' },
+        sunday: { type: 'array' }
       }
-    }
+    },
+    legacyGoals: { type: 'object' } // Backup of text-based goals
   },
   required: ['id', 'weekStart', 'goals']
 };
@@ -170,6 +184,7 @@ const RoutineSchema = {
     status: { type: 'string' },
     lastEndTime: { type: 'number' },
     index: { type: 'number' },
+    goalId: { type: 'string' }, // Optional - associated goal
     tasks: {
       type: 'array',
       items: RoutineTaskSchema

@@ -2,18 +2,26 @@ import { useEffect, useState } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { v4 as uuidv4 } from 'uuid';
 
+export interface WeeklyGoalItem {
+  goalId: string;           // Reference to Goal.id
+  targetMinutes?: number;   // Optional time target
+  note?: string;            // Optional note
+}
+
 export interface WeeklyGoal {
   id: string;
   weekStart: string; // ISO date string (Monday of the week)
+  version?: number; // 1 = old text format, 2 = new goalId format
   goals: {
-    monday: string[];
-    tuesday: string[];
-    wednesday: string[];
-    thursday: string[];
-    friday: string[];
-    saturday: string[];
-    sunday: string[];
+    monday: (string | WeeklyGoalItem)[];
+    tuesday: (string | WeeklyGoalItem)[];
+    wednesday: (string | WeeklyGoalItem)[];
+    thursday: (string | WeeklyGoalItem)[];
+    friday: (string | WeeklyGoalItem)[];
+    saturday: (string | WeeklyGoalItem)[];
+    sunday: (string | WeeklyGoalItem)[];
   };
+  legacyGoals?: any; // Backup of text-based goals
 }
 
 // Helper function to get the Monday of the current week
@@ -78,15 +86,19 @@ export function useWeeklyGoals() {
     }
   };
 
-  const addGoal = async (day: keyof WeeklyGoal['goals'], goalText: string) => {
+  const addGoal = async (
+    day: keyof WeeklyGoal['goals'],
+    goalData: string | WeeklyGoalItem
+  ) => {
     if (!weeklyGoal) return;
 
     try {
       const updatedGoal = {
         ...weeklyGoal,
+        version: typeof goalData === 'string' ? weeklyGoal.version : 2,
         goals: {
           ...weeklyGoal.goals,
-          [day]: [...weeklyGoal.goals[day], goalText]
+          [day]: [...weeklyGoal.goals[day], goalData]
         }
       };
 
@@ -121,12 +133,23 @@ export function useWeeklyGoals() {
     }
   };
 
-  const updateGoal = async (day: keyof WeeklyGoal['goals'], index: number, newText: string) => {
+  const updateGoal = async (
+    day: keyof WeeklyGoal['goals'],
+    index: number,
+    newData: string | WeeklyGoalItem | Partial<WeeklyGoalItem>
+  ) => {
     if (!weeklyGoal) return;
 
     try {
       const updatedGoals = [...weeklyGoal.goals[day]];
-      updatedGoals[index] = newText;
+      const currentItem = updatedGoals[index];
+
+      // If current item is a WeeklyGoalItem and newData is a partial update
+      if (typeof currentItem !== 'string' && typeof newData === 'object' && !('goalId' in newData && newData.goalId)) {
+        updatedGoals[index] = { ...currentItem, ...newData };
+      } else {
+        updatedGoals[index] = newData as string | WeeklyGoalItem;
+      }
 
       const updatedGoal = {
         ...weeklyGoal,

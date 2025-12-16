@@ -136,7 +136,7 @@ export function getDisplayName(event: Event, bucketType: string): string {
       }
       return 'Browser';
 
-    case 'afk':
+    case 'afkstatus':
       // Show AFK status
       return data.status === 'afk' ? 'Away from Keyboard' : 'Active';
 
@@ -153,7 +153,7 @@ export function getDisplayName(event: Event, bucketType: string): string {
  */
 export function assignColor(displayName: string, bucketType: string): string {
   // Special handling for AFK
-  if (bucketType === 'afk') {
+  if (bucketType === 'afkstatus') {
     return SPECIAL_COLORS.afk;
   }
 

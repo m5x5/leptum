@@ -11,6 +11,7 @@ export interface StandaloneTask {
   completedAt?: number;
   routineId?: string;
   routineInstanceId?: string; // Unique ID for a specific routine trigger instance
+  goalId?: string; // Optional - associated goal for this task
 }
 
 export function useStandaloneTasks() {
