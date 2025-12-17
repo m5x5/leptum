@@ -64,12 +64,28 @@ export default function TimelinePage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAWDetailModal, setShowAWDetailModal] = useState(false);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
-  
+
   // State for collapsible detailed activities in timeline
   const [expandedBlockStart, setExpandedBlockStart] = useState<number | null>(null);
-  
+
   // State for inline adding in gaps
   const [editingGapStart, setEditingGapStart] = useState<number | null>(null);
+
+  // State for summary bar hover
+  const [summaryBarHover, setSummaryBarHover] = useState<{
+    dateKey: string;
+    percent: number;
+    activity: string;
+    time: string;
+  } | null>(null);
+
+  // State for presence bar hover
+  const [presenceBarHover, setPresenceBarHover] = useState<{
+    dateKey: string;
+    percent: number;
+    status: string;
+    time: string;
+  } | null>(null);
 
   // Effect to close detail views when clicking outside
   useEffect(() => {
@@ -667,27 +683,105 @@ export default function TimelinePage() {
                         });
                       }
 
+                      // Calculate current time position (only for today when viewing past day's bar)
+                      const now = Date.now();
+                      const currentTimePercent = (now >= dayStart && now <= dayEnd)
+                        ? ((now - dayStart) / fullDayInMs) * 100
+                        : null;
+
+                      // Handle mouse move for hover tooltip
+                      const handleMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const x = e.clientX - rect.left;
+                        const percent = (x / rect.width) * 100;
+
+                        const timeAtPosition = dayStart + ((percent / 100) * fullDayInMs);
+
+                        // Find which activity this time falls into
+                        let activityAtPosition = "No activity";
+                        for (let i = dayImpacts.length - 1; i >= 0; i--) {
+                          const current = dayImpacts[i];
+                          let endTime: number;
+
+                          if (i === 0) {
+                            endTime = dayEnd;
+                          } else {
+                            endTime = dayImpacts[i - 1].date;
+                          }
+
+                          if (timeAtPosition >= current.date && timeAtPosition <= endTime) {
+                            activityAtPosition = current.activity;
+                            break;
+                          }
+                        }
+
+                        setSummaryBarHover({
+                          dateKey,
+                          percent,
+                          activity: activityAtPosition,
+                          time: formatTime(timeAtPosition),
+                        });
+                      };
+
+                      const handleMouseLeave = () => {
+                        setSummaryBarHover(null);
+                      };
+
+                      const isHovering = summaryBarHover?.dateKey === dateKey;
+                      const hoverPercent = isHovering ? summaryBarHover?.percent : null;
+
                       return (
-                        <div className="relative h-8 rounded-lg overflow-hidden border border-border bg-muted/20">
-                          {segments.map((segment, idx) => (
+                        <div className="relative">
+                          <div
+                            className="relative h-8 rounded-lg overflow-hidden border border-border bg-muted/20"
+                            onMouseMove={handleMouseMove}
+                            onMouseLeave={handleMouseLeave}
+                          >
+                            {segments.map((segment, idx) => (
+                              <div
+                                key={`${segment.activity}-${idx}`}
+                                className={`${segment.color} absolute top-0 bottom-0 flex items-center justify-center text-xs text-white font-medium ${
+                                  idx < segments.length - 1 ? 'border-r border-background/50' : ''
+                                }`}
+                                style={{
+                                  left: `${segment.startPercent}%`,
+                                  width: `${segment.widthPercent}%`,
+                                }}
+                                title={`${segment.activity}: ${formatTime(segment.startTime)} - ${formatTime(segment.endTime)}`}
+                              >
+                                {segment.widthPercent > 8 && (
+                                  <span className="px-1 truncate">
+                                    {segment.activity}
+                                  </span>
+                                )}
+                              </div>
+                            ))}
+                            {/* Current time indicator - red line (only shows if current time falls within this day) */}
+                            {currentTimePercent !== null && (
+                              <div
+                                className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+                                style={{ left: `${currentTimePercent}%` }}
+                                title={`Current time: ${formatTime(now)}`}
+                              />
+                            )}
+                            {/* Hover indicator line */}
+                            {hoverPercent !== null && (
+                              <div
+                                className="absolute top-0 bottom-0 w-px bg-foreground/40 z-20 pointer-events-none"
+                                style={{ left: `${hoverPercent}%` }}
+                              />
+                            )}
+                          </div>
+                          {/* Hover tooltip */}
+                          {isHovering && summaryBarHover && (
                             <div
-                              key={`${segment.activity}-${idx}`}
-                              className={`${segment.color} absolute top-0 bottom-0 flex items-center justify-center text-xs text-white font-medium ${
-                                idx < segments.length - 1 ? 'border-r border-background/50' : ''
-                              }`}
-                              style={{
-                                left: `${segment.startPercent}%`,
-                                width: `${segment.widthPercent}%`,
-                              }}
-                              title={`${segment.activity}: ${formatTime(segment.startTime)} - ${formatTime(segment.endTime)}`}
+                              className="absolute top-full mt-1 -translate-x-1/2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-30 pointer-events-none"
+                              style={{ left: `${summaryBarHover.percent}%` }}
                             >
-                              {segment.widthPercent > 8 && (
-                                <span className="px-1 truncate">
-                                  {segment.activity}
-                                </span>
-                              )}
+                              <div className="font-semibold">{summaryBarHover.activity}</div>
+                              <div className="text-muted-foreground">{summaryBarHover.time}</div>
                             </div>
-                          ))}
+                          )}
                         </div>
                       );
                     })()
@@ -698,7 +792,7 @@ export default function TimelinePage() {
                     // Get AW events for this day to calculate presence
                     const allAWEvents = getFilteredAWEventsForDate(dateKey);
                     const afkEvents = allAWEvents.filter(e => e.bucketType === 'afkstatus');
-                    
+
                     if (afkEvents.length === 0) return null;
 
                     // Calculate presence for 15-min blocks
@@ -707,15 +801,15 @@ export default function TimelinePage() {
                     const [year, month, day] = dateKey.split('-').map(Number);
                     const dayStart = new Date(year, month - 1, day).getTime();
                     const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
-                    
+
                     afkEvents.forEach(event => {
                       const isActive = event.displayName === 'Active' || event.eventData?.status === 'not-afk';
                       const eventStart = event.timestamp;
                       const eventEnd = eventStart + (event.duration * 1000);
-                      
+
                       const firstBlockStart = Math.floor(eventStart / blockSize) * blockSize;
                       const lastBlockStart = Math.floor(eventEnd / blockSize) * blockSize;
-                      
+
                       for (let blockStart = firstBlockStart; blockStart <= lastBlockStart; blockStart += blockSize) {
                         const blockEnd = blockStart + blockSize;
                         const overlapStart = Math.max(eventStart, blockStart);
@@ -739,6 +833,38 @@ export default function TimelinePage() {
                       });
                     }
 
+                    // Calculate current time position (only for today)
+                    const currentTimePercent = isTodayFlag
+                      ? ((Date.now() - dayStart) / (dayEnd - dayStart)) * 100
+                      : null;
+
+                    // Handle mouse move for hover tooltip
+                    const handlePresenceMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const x = e.clientX - rect.left;
+                      const percent = (x / rect.width) * 100;
+
+                      const timeAtPosition = dayStart + ((percent / 100) * (dayEnd - dayStart));
+
+                      // Find the status at this position
+                      const blockStart = Math.floor(timeAtPosition / blockSize) * blockSize;
+                      const isActive = afkMap.get(blockStart) === true;
+
+                      setPresenceBarHover({
+                        dateKey,
+                        percent,
+                        status: isActive ? 'Active' : 'Away',
+                        time: formatTime(timeAtPosition),
+                      });
+                    };
+
+                    const handlePresenceMouseLeave = () => {
+                      setPresenceBarHover(null);
+                    };
+
+                    const isPresenceHovering = presenceBarHover?.dateKey === dateKey;
+                    const presenceHoverPercent = isPresenceHovering ? presenceBarHover?.percent : null;
+
                     return (
                       <div className="mt-2">
                         <div className="flex items-center gap-2 mb-1">
@@ -754,14 +880,45 @@ export default function TimelinePage() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex h-2 rounded overflow-hidden border border-border">
-                          {blocks.map((block, idx) => (
+                        <div className="relative">
+                          <div
+                            className="relative flex h-2 rounded overflow-hidden border border-border"
+                            onMouseMove={handlePresenceMouseMove}
+                            onMouseLeave={handlePresenceMouseLeave}
+                          >
+                            {blocks.map((block, idx) => (
+                              <div
+                                key={idx}
+                                className={`flex-1 ${block.isActive ? 'bg-green-500' : 'bg-gray-600'}`}
+                                title={`${formatTime(block.time)}: ${block.isActive ? 'Active' : 'Away'}`}
+                              />
+                            ))}
+                            {/* Current time indicator - red line */}
+                            {currentTimePercent !== null && currentTimePercent >= 0 && currentTimePercent <= 100 && (
+                              <div
+                                className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+                                style={{ left: `${currentTimePercent}%` }}
+                                title={`Current time: ${formatTime(Date.now())}`}
+                              />
+                            )}
+                            {/* Hover indicator line */}
+                            {presenceHoverPercent !== null && (
+                              <div
+                                className="absolute top-0 bottom-0 w-px bg-foreground/60 z-20 pointer-events-none"
+                                style={{ left: `${presenceHoverPercent}%` }}
+                              />
+                            )}
+                          </div>
+                          {/* Hover tooltip */}
+                          {isPresenceHovering && presenceBarHover && (
                             <div
-                              key={idx}
-                              className={`flex-1 ${block.isActive ? 'bg-green-500' : 'bg-gray-600'}`}
-                              title={`${formatTime(block.time)}: ${block.isActive ? 'Active' : 'Away'}`}
-                            />
-                          ))}
+                              className="absolute top-full mt-1 -translate-x-1/2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-30 pointer-events-none"
+                              style={{ left: `${presenceBarHover.percent}%` }}
+                            >
+                              <div className="font-semibold">{presenceBarHover.status}</div>
+                              <div className="text-muted-foreground">{presenceBarHover.time}</div>
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -994,81 +1151,16 @@ export default function TimelinePage() {
                             
                             {/* Render GapBlocks for the top (empty space after last/newest activity) */}
                             {(() => {
-                              // If there are activities, create gaps from the newest activity up to dayEnd/now
+                              // If there are activities, the newest one extends to now/end-of-day, so no top gaps needed
                               // dayImpacts is sorted Newest First, so the FIRST item is the NEWEST
-                              if (dayImpacts.length === 0) {
-                                // No activities, so no top gap needed (the bottom gaps will fill the entire day)
+                              // For today: newest activity extends to "now" (either live or calculated duration)
+                              // For past days: newest activity extends to end of day (midnight)
+                              if (dayImpacts.length > 0) {
                                 return null;
                               }
-                              
-                              const newestActivity = dayImpacts[0];
-                              const isLive = isTodayFlag && dayImpacts.length === 1;
-                              
-                              // Determine where gaps should start (after the newest activity)
-                              let gapStartTime: number;
-                              let gapCeiling: number;
-                              
-                              if (isLive) {
-                                // For live activity, no gap after it (it extends to now)
-                                return null;
-                              } else if (isTodayFlag) {
-                                // For today with multiple activities, gap starts from the newest activity
-                                gapStartTime = newestActivity.date;
-                                gapCeiling = roundToNearest15Minutes(Date.now());
-                              } else {
-                                // For past days, gap starts from the newest activity to end of day
-                                gapStartTime = newestActivity.date;
-                                gapCeiling = dayEnd;
-                              }
-                              
-                              // Don't create gaps if there's no space
-                              if (gapCeiling <= gapStartTime) {
-                                return null;
-                              }
-                              
-                              const topGaps: JSX.Element[] = [];
-                              let current = gapCeiling;
-                              
-                              // Fill DOWN from ceiling to gapStartTime in 15-min chunks
-                              while (current > gapStartTime) {
-                                const chunkStart = Math.max(gapStartTime, current - (15 * 60 * 1000));
-                                const chunkEnd = current;
-                                
-                                if (chunkEnd > chunkStart) {
-                                  // Check if this gap is being edited
-                                  if (editingGapStart === chunkStart) {
-                                    topGaps.push(
-                                      <DraftTimelineEntry
-                                        key={`draft-top-${chunkStart}`}
-                                        startTime={chunkStart}
-                                        endTime={gapCeiling}
-                                        formatTime={formatTime}
-                                        onCancel={() => setEditingGapStart(null)}
-                                        onSubmit={handleInlineSubmit}
-                                      />
-                                    );
-                                  } else if (editingGapStart !== null && chunkStart > editingGapStart && chunkStart < gapCeiling) {
-                                    // Skip gaps that are occluded by the draft
-                                  } else {
-                                    topGaps.push(
-                                      <GapBlock
-                                        key={`gap-top-${chunkStart}`}
-                                        startTime={chunkStart}
-                                        endTime={chunkEnd}
-                                        formatTime={formatTime}
-                                        onClick={(e) => {
-                                          e?.stopPropagation();
-                                          setEditingGapStart(chunkStart);
-                                        }}
-                                      />
-                                    );
-                                  }
-                                }
-                                
-                                current = chunkStart;
-                              }
-                              
-                              return topGaps;
+
+                              // If no activities, the bottom gap rendering will fill the entire day
+                              return null;
                             })()}
                             
                             {/* Render GapBlocks for the morning (empty space before first activity) */}
