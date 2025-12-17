@@ -21,6 +21,7 @@ export default function Home() {
     uncompleteTask: uncompleteStandaloneTask,
     reload: reloadTasks
   } = useStandaloneTasks();
+  console.log("standaloneTasks", standaloneTasks);
 
   // Enable routine scheduler to automatically create tasks from scheduled routines
   useRoutineScheduler(() => {
@@ -255,6 +256,12 @@ export default function Home() {
                   </p>
                   <p className="text-xs text-muted-foreground">elapsed</p>
                 </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-muted-foreground">Online Presence</span>
+                  <span className="text-sm font-semibold text-primary">
+                    {formatDuration(onlinePresence)}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -265,7 +272,7 @@ export default function Home() {
           <div className="lg:col-span-2 space-y-6">
             {/* Active Tasks */}
             <div>
-              <div className="flex w-full items-center gap-4 mb-4">
+              <div className="flex w-full items-center gap-4 mb-4 justify-between">
                 <h2 className="text-2xl font-bold text-foreground">Your Tasks</h2>
                 {/* Add Task Section */}
                 <div>
@@ -349,7 +356,7 @@ export default function Home() {
                   className="flex items-center justify-between w-full text-left mb-4 px-2 py-2 rounded-lg hover:bg-muted transition-colors"
                 >
                   <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
-                    📋 Past Activity
+                    Past Activity
                     <span className="text-sm bg-muted px-2 py-1 rounded-full">
                       {pastTasks.length}
                     </span>
@@ -419,7 +426,7 @@ export default function Home() {
                       )}
                       <button
                         onClick={() => openStartTaskModal(routine.name)}
-                        className="mt-3 w-full px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center justify-center gap-2"
+                        className="mt-3 w-full px-3 py-1.5 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold text-sm flex items-center justify-center gap-2"
                       >
                         <PlayIcon className="h-4 w-4" />
                         Start Routine
@@ -453,10 +460,10 @@ export default function Home() {
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Completed</span>
                   <span className="text-sm font-semibold text-green-600">
-                    {standaloneTasks.filter(t => t.status === 'completed').length}
+                    {standaloneTasks.filter(t => t.status === 'completed' && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString()).length}
                   </span>
                 </div>
-                <div className="flex justify-between pt-2 border-t border-border">
+                <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Total Time Tracked</span>
                   <span className="text-sm font-semibold text-primary">
                     {formatDuration(todayTotalTime)}

@@ -151,24 +151,8 @@ export default function EChartsHeatmap({ completions, routineId, months = 12 }: 
     };
   }, [completions, routineId, months, isDark, isMobile]);
 
-  const totalCompletions = completions.filter(c => !routineId || c.routineId === routineId).length;
-  const uniqueDays = new Set(
-    completions
-      .filter(c => !routineId || c.routineId === routineId)
-      .map(c => new Date(c.completedAt).toISOString().split('T')[0])
-  ).size;
-
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-foreground">Completion History</h3>
-          <p className="text-sm text-muted-foreground">
-            {totalCompletions} completions over {uniqueDays} days
-          </p>
-        </div>
-      </div>
-
       <ReactECharts
         option={option}
         style={{ height: '140px', width: '100%' }}

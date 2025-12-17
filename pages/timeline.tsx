@@ -604,6 +604,7 @@ export default function TimelinePage() {
                       );
                     })()
                   ) : null}
+
                 </div>
 
                 {/* Timeline - Side by Side Layout with Time Alignment */}
@@ -961,6 +962,48 @@ export default function TimelinePage() {
                           <span className="text-muted-foreground">Away</span>
                         </div>
                       </div>
+
+                      {/* Online Presence Card */}
+                      {(() => {
+                     const allAWEvents = getFilteredAWEventsForDate(dateKey);
+                     const afkEvents = allAWEvents.filter(e => e.bucketType === 'afkstatus');
+                     
+                     if (afkEvents.length === 0) return null;
+
+                     // Calculate total active time
+                     let totalActiveTime = 0;
+
+                     afkEvents.forEach(event => {
+                       const isActive = event.displayName === 'Active' || event.eventData.status === 'not-afk';
+                       if (!isActive) return;
+
+                       const eventStart = event.timestamp;
+                       const eventEnd = eventStart + (event.duration * 1000);
+
+                       // Find all 15-minute blocks this event overlaps with (to match visual bar logic)
+                       // Or we could just sum raw duration? The user asked for "Online Presence" which usually matches the bar.
+                       // Let's sum raw duration for accuracy, but respecting the day boundaries.
+                       
+                       const [y, m, d] = dateKey.split('-').map(Number);
+                       const dayStart = new Date(y, m - 1, d).getTime();
+                       const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+
+                       const effectiveStart = Math.max(eventStart, dayStart);
+                       const effectiveEnd = Math.min(eventEnd, dayEnd);
+                       
+                       if (effectiveEnd > effectiveStart) {
+                         totalActiveTime += (effectiveEnd - effectiveStart);
+                       }
+                     });
+
+                     return (
+                       <div className="mt-2 flex">
+                         <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md border border-green-500/20">
+                           <span className="text-sm font-medium">Online Presence: {formatDuration(totalActiveTime)}</span>
+                         </div>
+                       </div>
+                     );
+                  })()}
                     </div>
                   );
                 })()}

@@ -227,12 +227,7 @@ export default function RoutinesPage() {
           </button>
         </div>
 
-        {/* Routine Completion Heatmap */}
-        {completions.length > 0 && (
-          <div className="mb-8 p-6 bg-card border border-border rounded-lg">
-            <EChartsHeatmap completions={completions} months={12} />
-          </div>
-        )}
+
 
         {/* Scheduled Routines */}
         {scheduledRoutines.length > 0 && (
@@ -254,9 +249,20 @@ export default function RoutinesPage() {
                       {getPrettyTimeTillNextOccurrence(routine.cron!)}
                     </span>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-2">
+                  <p className="text-sm text-muted-foreground mb-4">
                     {getDescription(routine.cron!)}
                   </p>
+                  
+                  {completions.some(c => c.routineId === routine.id) && (
+                    <div className="mb-4">
+                      <EChartsHeatmap 
+                        completions={completions} 
+                        routineId={routine.id} 
+                        months={12} 
+                      />
+                    </div>
+                  )}
+
                   {routine.tasks.length > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <CheckCircleIcon className="h-4 w-4" />
@@ -282,7 +288,18 @@ export default function RoutinesPage() {
                   className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
                   onClick={() => openEditModal(routine)}
                 >
-                  <h3 className="text-lg font-semibold text-foreground mb-2">{routine.name}</h3>
+                  <h3 className="text-lg font-semibold text-foreground mb-4">{routine.name}</h3>
+                  
+                  {completions.some(c => c.routineId === routine.id) && (
+                    <div className="mb-4">
+                      <EChartsHeatmap 
+                        completions={completions} 
+                        routineId={routine.id} 
+                        months={12} 
+                      />
+                    </div>
+                  )}
+
                   {routine.tasks.length > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <CheckCircleIcon className="h-4 w-4" />
