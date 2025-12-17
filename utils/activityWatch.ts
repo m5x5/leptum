@@ -1,3 +1,4 @@
+
 import {
   Welcome,
   Bucket,
@@ -366,6 +367,36 @@ export function getImportPreview(
     dateRange,
     bucketTypes,
   };
+}
+
+/**
+ * Filter strict duplicate events
+ * Returns unique events and the count of duplicates removed
+ */
+export function filterDuplicateEvents(events: ProcessedAWEvent[]): { uniqueEvents: ProcessedAWEvent[], duplicateCount: number } {
+  const seenStr = new Set<string>();
+  const uniqueEvents: ProcessedAWEvent[] = [];
+  let duplicateCount = 0;
+
+  events.forEach(event => {
+    // Create a key for uniqueness. 
+    // We consider it a duplicate if it has:
+    // - Same timestamp
+    // - Same duration (or very close?)
+    // - Same display name
+    // - Same bucket type (to differentiate source)
+    // Note: We ignore ID completely since it's generated randomly
+    const key = `${event.timestamp}-${Math.round(event.duration)}-${event.displayName}-${event.bucketType}`;
+    
+    if (seenStr.has(key)) {
+      duplicateCount++;
+    } else {
+      seenStr.add(key);
+      uniqueEvents.push(event);
+    }
+  });
+
+  return { uniqueEvents, duplicateCount };
 }
 
 /**

@@ -37,7 +37,7 @@ const Modal = ({ children, isOpen, closeModal, className }: ModalProps) => {
       <Transition appear show={isOpen} as={Fragment}>
         <Dialog
           as="div"
-          className={"fixed inset-0 z-10 overflow-y-auto " + className}
+          className={"fixed inset-0 z-50 overflow-y-auto " + className}
           onClose={closeModal}
         >
           <div className="min-h-screen px-4 text-center">

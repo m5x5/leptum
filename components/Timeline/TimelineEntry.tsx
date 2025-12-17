@@ -2,6 +2,46 @@ import { ProcessedAWEvent, EventGroup } from '../../activity-watch.d';
 import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/solid';
 import { useState } from 'react';
 import { TimeBlock, getBlockActivityBreakdown, isLoginWindowOnlyBlock } from '../../utils/timeBlocks';
+import { useMemo } from 'react';
+
+// Helper component for Presence/AFK strip
+function PresenceBar({ 
+  startTime, 
+  endTime, 
+  isPresenceActive 
+}: { 
+  startTime: number; 
+  endTime: number; 
+  isPresenceActive: (time: number) => boolean 
+}) {
+  const segments = useMemo(() => {
+    const segs = [];
+    const blockSize = 15 * 60 * 1000;
+    // Align start to 15-min grid for consistent lookup
+    // But since blocks are aligned, we can just iterate
+    for (let t = startTime; t < endTime; t += blockSize) {
+      segs.push({
+        time: t,
+        isActive: isPresenceActive(t),
+        height: Math.min(blockSize, endTime - t) / (1000 * 60) * 2 // 2px per minute scaling
+      });
+    }
+    return segs;
+  }, [startTime, endTime, isPresenceActive]);
+
+  return (
+    <div className="absolute left-[-1.9rem] w-1.5 flex flex-col z-10" style={{ top: 0, bottom: 0 }}>
+      {segments.map((seg, i) => (
+        <div
+          key={i}
+          className={`w-full ${seg.isActive ? 'bg-green-500' : 'bg-gray-200'} border-b border-background/50 last:border-0`}
+          style={{ height: `${seg.height}px`, flexShrink: 0 }}
+          title={seg.isActive ? 'Active' : 'Away'}
+        />
+      ))}
+    </div>
+  );
+}
 
 interface ActivityWatchEntryProps {
   event: ProcessedAWEvent;
@@ -35,30 +75,30 @@ export function ActivityWatchEntry({
     >
       {/* Bar (left side) */}
       <div
-        className={`absolute left-[-1.45rem] w-3 rounded-sm ${event.color} border-background`}
+        className={`absolute left-[-1.45rem] w-1 ${event.color} border-background`}
         style={{ height: `${barHeight}px` }}
       />
 
       <div
-        className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 ${
+        className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 min-w-0 ${
           isShortActivity ? 'pb-2' : 'pb-3'
         }`}
         style={{ minHeight: `${barHeight}px` }}
       >
         <div className="flex items-center justify-between" onClick={onClick}>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* Time */}
-            <span className="text-sm font-mono text-muted-foreground">
+            <span className="text-sm font-mono text-muted-foreground whitespace-nowrap shrink-0">
               {formatTime(event.timestamp)}
             </span>
 
             {/* Display Name */}
-            <h3 className="text-base font-semibold text-foreground">
+            <h3 className="text-base font-semibold text-foreground truncate">
               {event.displayName}
             </h3>
 
             {/* Bucket Type Badge */}
-            <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded">
+            <span className="text-xs px-2 py-0.5 bg-muted text-muted-foreground rounded whitespace-nowrap shrink-0">
               {event.bucketType}
             </span>
           </div>
@@ -95,10 +135,8 @@ interface EventGroupEntryProps {
   isToday: boolean;
   currentTime: number;
   barHeight: number;
-  isShortActivity: boolean;
   formatTime: (timestamp: number) => string;
   formatDuration: (ms: number) => string;
-  onEventClick: (event: ProcessedAWEvent) => void;
   onCreateManual?: (event: ProcessedAWEvent) => void;
 }
 
@@ -110,14 +148,11 @@ export function EventGroupEntry({
   isToday,
   currentTime,
   barHeight,
-  isShortActivity,
   formatTime,
   formatDuration,
-  onEventClick,
   onCreateManual,
 }: EventGroupEntryProps) {
   const [isExpanded, setIsExpanded] = useState(group.isExpanded || false);
-  const [showActions, setShowActions] = useState(false);
 
   const occurrenceCount = group.occurrences.length;
   const totalDurationMs = group.totalDuration * 1000;
@@ -130,16 +165,14 @@ export function EventGroupEntry({
   return (
     <div
       className="relative flex items-start group"
-      onMouseEnter={() => setShowActions(true)}
-      onMouseLeave={() => setShowActions(false)}
     >
       {/* Grouped bar (left side) */}
       <div
-        className={`absolute left-[-1.45rem] w-3 rounded-sm ${group.color}`}
+        className={`absolute left-[-1.45rem] w-3 ${group.color}`}
         style={{ height: `${barHeight}px` }}
       />
 
-      <div className="bg-card border-b hover:shadow-md transition-shadow flex-1">
+      <div className="bg-card border-b hover:shadow-md transition-shadow flex-1 min-w-0">
         {/* Group Header */}
         <div
           role="button"
@@ -157,26 +190,26 @@ export function EventGroupEntry({
           }}
           style={{ minHeight: `${barHeight}px` }}
         >
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* Time Range */}
-            <span className="text-sm font-mono text-muted-foreground">
+            <span className="text-sm font-mono text-muted-foreground whitespace-nowrap shrink-0">
               {formatTime(group.timeRange.start)}
             </span>
 
             {/* Display Name */}
-            <h3 className="text-base font-semibold text-foreground">
+            <h3 className="text-base font-semibold text-foreground truncate">
               {group.displayName}
             </h3>
 
             {/* Occurrence Count Badge (only if multiple) */}
             {occurrenceCount > 1 && (
-              <span className="text-xs px-2 py-0.5 bg-accent/20 text-accent-foreground rounded">
+              <span className="text-xs px-2 py-0.5 bg-accent/20 text-accent-foreground rounded whitespace-nowrap shrink-0">
                 {occurrenceCount} occurrences
               </span>
             )}
 
             {isLive && (
-              <span className="text-xs text-primary">(Live)</span>
+              <span className="text-xs text-primary whitespace-nowrap shrink-0">(Live)</span>
             )}
           </div>
 
@@ -214,14 +247,24 @@ export function EventGroupEntry({
                   key={event.id}
                   className="flex items-center justify-between text-sm p-2 bg-muted/30 rounded hover:bg-muted/50 transition-colors group/item focus-within:bg-muted/50"
                 >
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground font-mono" aria-hidden="true">
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <span className="text-xs text-muted-foreground font-mono shrink-0" aria-hidden="true">
                       #{idx + 1}
                     </span>
-                    <span className="text-xs text-muted-foreground font-mono" aria-label={`At ${formatTime(event.timestamp)}`}>
-                      {formatTime(event.timestamp)}
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="text-xs text-muted-foreground font-mono whitespace-nowrap shrink-0" aria-label={`At ${formatTime(event.timestamp)}`}>
+                        {formatTime(event.timestamp)}
+                      </span>
+                      {event.eventData?.app && (
+                        <span className="text-xs text-muted-foreground/80 whitespace-nowrap shrink-0 border-r border-border/50 pr-2 mr-1">
+                          {event.eventData.app}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-sm font-medium text-foreground truncate flex-1 min-w-0" title={event.eventData?.title || event.displayName}>
+                      {event.eventData?.title || event.displayName}
                     </span>
-                    <span className="text-xs px-2 py-0.5 bg-background rounded" aria-label={`Type: ${event.bucketType}`}>
+                    <span className="text-xs px-2 py-0.5 bg-background rounded shrink-0" aria-label={`Type: ${event.bucketType}`}>
                       {event.bucketType}
                     </span>
                   </div>
@@ -258,6 +301,9 @@ interface TimeBlockEntryProps {
   formatDuration: (ms: number) => string;
   onEventClick: (event: ProcessedAWEvent) => void;
   onCreateManual?: (event: ProcessedAWEvent) => void;
+  isExpanded?: boolean;
+  onToggleExpand?: () => void;
+  isPresenceActive?: (timestamp: number) => boolean;
 }
 
 /**
@@ -269,8 +315,24 @@ export function TimeBlockEntry({
   formatDuration,
   onEventClick,
   onCreateManual,
+  isExpanded = false,
+  onToggleExpand,
+  isPresenceActive,
 }: TimeBlockEntryProps) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  // Fallback for independent usage if onToggleExpand is not provided
+  const [internalExpanded, setInternalExpanded] = useState(false);
+  
+  // Use controlled state if handler provided, otherwise internal
+  const expanded = onToggleExpand ? isExpanded : internalExpanded;
+  
+  const handleToggle = (e: React.MouseEvent | React.KeyboardEvent) => {
+    e.stopPropagation(); // Prevent ensuring document click handler checks
+    if (onToggleExpand) {
+      onToggleExpand();
+    } else {
+      setInternalExpanded(!internalExpanded);
+    }
+  };
 
   const dominantEvent = block.dominantActivity;
   const blockDurationMinutes = (block.endTime - block.startTime) / (1000 * 60);
@@ -292,7 +354,7 @@ export function TimeBlockEntry({
       <div className="relative flex items-start">
         {/* Empty/gray bar for inactive time */}
         <div
-          className="absolute left-[-1.45rem] w-3 rounded-sm bg-muted/50"
+          className="absolute left-[-1.45rem] w-2 bg-muted/50"
           style={{ height: `${barHeight}px` }}
         />
 
@@ -320,40 +382,47 @@ export function TimeBlockEntry({
 
   return (
     <div className="relative flex items-start group">
+      {isPresenceActive && (
+        <PresenceBar 
+          startTime={block.startTime} 
+          endTime={block.endTime} 
+          isPresenceActive={isPresenceActive} 
+        />
+      )}
       {/* Color bar for dominant activity */}
       <div
-        className={`absolute mr-2 w-1 rounded-sm ${dominantEvent.color}`}
+        className={`absolute w-1 ${dominantEvent.color}`}
         style={{ height: `${barHeight}px` }}
       />
 
-      <div className="bg-card border-b border-dashed border-border hover:shadow-md transition-shadow flex-1">
+      <div className="bg-card border-b border-dashed border-border hover:shadow-md transition-shadow flex-1 min-w-0 pl-1">
         {/* Block Header */}
         <div
           role="button"
           tabIndex={0}
-          aria-expanded={isExpanded}
+          aria-expanded={expanded}
           aria-controls={`block-details-${block.startTime}`}
           aria-label={`${hasMultipleActivities ? 'Toggle details for' : 'Details for'} ${dominantEvent.displayName} at ${timeRange}`}
-          className={`flex items-start justify-between cursor-pointer p-2 relative outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset ${
+          className={`flex items-start justify-between cursor-pointer px-2 py-1 relative outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset ${
             hasMultipleActivities ? 'hover:bg-muted/30' : ''
           }`}
-          onClick={() => hasMultipleActivities && setIsExpanded(!isExpanded)}
+          onClick={(e) => hasMultipleActivities && handleToggle(e)}
           onKeyDown={(e) => {
             if (hasMultipleActivities && (e.key === 'Enter' || e.key === ' ')) {
               e.preventDefault();
-              setIsExpanded(!isExpanded);
+              handleToggle(e);
             }
           }}
           style={{ minHeight: `${barHeight}px` }}
         >
-          <div className="flex items-center gap-3 flex-1">
+          <div className="flex items-center gap-3 flex-1 min-w-0">
             {/* Time Range */}
-            <span className="text-sm font-mono text-muted-foreground whitespace-nowrap">
+            <span className="text-sm font-mono text-muted-foreground whitespace-nowrap shrink-0">
               {timeRange}
             </span>
 
             {/* Dominant Activity Name */}
-            <h3 className="text-base font-semibold text-foreground truncate">
+            <h3 className="text-sm font-semibold text-foreground truncate">
               {dominantEvent.displayName}
             </h3>
           </div>
@@ -374,12 +443,13 @@ export function TimeBlockEntry({
         </div>
 
         {/* Expanded Details - Layer View */}
-        {isExpanded && hasMultipleActivities && (
+        {expanded && hasMultipleActivities && (
           <div 
             id={`block-details-${block.startTime}`}
-            className="pb-2 absolute top-full left-6 z-20 bg-popover rounded-lg shadow-lg border border-border mt-1 min-w-[300px]"
+            className="pb-2 absolute top-full left-6 z-20 bg-popover rounded-lg shadow-lg border border-border mt-1 min-w-[300px] max-w-[90vw] sm:max-w-md"
             role="region"
             aria-label="Activity breakdown"
+            onClick={(e) => e.stopPropagation()} // Prevent close on click inside
           >
             <div className="p-3 space-y-1">
               <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">
@@ -388,7 +458,11 @@ export function TimeBlockEntry({
               {breakdown.map(({ event, duration, percentage }, idx) => (
                 <div
                   key={`${event.id}-${idx}`}
-                  className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50 transition-colors group/item focus-within:bg-muted/50"
+                  className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50 transition-colors group/item focus-within:bg-muted/50 cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEventClick(event);
+                  }}
                 >
                   <div className="flex items-center gap-3 flex-1 min-w-0">
                     {/* Activity indicator bar */}
@@ -400,30 +474,29 @@ export function TimeBlockEntry({
                     {/* Activity details */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="text-sm font-medium text-foreground truncate">
-                          {event.displayName}
+                        <span className="text-sm font-medium text-foreground truncate flex-1 min-w-0" title={event.eventData?.title || event.displayName}>
+                          {event.eventData?.title || event.displayName}
                         </span>
-                        <span className="text-xs px-1.5 py-0.5 bg-muted text-muted-foreground rounded flex-shrink-0" aria-label={`Type: ${event.bucketType}`}>
+                        <span className="text-xs px-1.5 py-0.5 bg-muted text-muted-foreground rounded whitespace-nowrap shrink-0" aria-label={`Type: ${event.bucketType}`}>
                           {event.bucketType}
                         </span>
                       </div>
-                      <div className="text-xs text-muted-foreground">
-                        <span aria-label={`Started at ${formatTime(event.timestamp)}`}>{formatTime(event.timestamp)}</span> • <span aria-label={`Duration ${formatDuration(duration)}`}>{formatDuration(duration)}</span>
+                      <div className="text-xs text-muted-foreground flex items-center gap-1">
+                        <span aria-label={`Started at ${formatTime(event.timestamp)}`}>{formatTime(event.timestamp)}</span>
+                        <span>•</span>
+                        {event.eventData?.app && (
+                          <>
+                            <span className="font-medium text-muted-foreground/80">{event.eventData.app}</span>
+                            <span>•</span>
+                          </>
+                        )}
+                        <span aria-label={`Duration ${formatDuration(duration)}`}>{formatDuration(duration)}</span>
                       </div>
                     </div>
 
                     {/* Action buttons */}
                     <div className="flex gap-1 opacity-0 group-hover/item:opacity-100 group-focus-within/item:opacity-100 transition-opacity flex-shrink-0">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onEventClick(event);
-                        }}
-                        className="text-xs px-2 py-1 bg-secondary/50 text-secondary-foreground rounded hover:bg-secondary transition-colors focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-1 outline-none"
-                        aria-label={`View details for ${event.displayName}`}
-                      >
-                        Details
-                      </button>
+
                       {onCreateManual && (
                         <button
                           onClick={(e) => {
@@ -445,6 +518,72 @@ export function TimeBlockEntry({
         )}
 
       </div>
+    </div>
+  );
+}
+
+interface GapBlockProps {
+  startTime: number;
+  endTime: number;
+  formatTime: (timestamp: number) => string;
+  onClick?: () => void;
+  children?: React.ReactNode;
+  isPresenceActive?: (timestamp: number) => boolean;
+}
+
+/**
+ * Component for rendering empty time gaps
+ */
+export function GapBlock({
+  startTime,
+  endTime,
+  formatTime,
+  onClick,
+  children,
+  isPresenceActive,
+}: GapBlockProps) {
+  const durationMinutes = (endTime - startTime) / (1000 * 60);
+  const barHeight = Math.max(12, durationMinutes * 2);
+  const timeRange = `${formatTime(startTime)} - ${formatTime(endTime)}`;
+
+  return (
+    <div className="relative flex items-start group">
+      {isPresenceActive && (
+        <PresenceBar 
+          startTime={startTime} 
+          endTime={endTime} 
+          isPresenceActive={isPresenceActive} 
+        />
+      )}
+      {/* Dashed line indicator */}
+      <div 
+        className="absolute left-[-1.45rem] w-3 flex flex-col items-center justify-center opacity-30"
+        style={{ height: `${barHeight}px` }}
+      >
+        <div className="w-0.5 h-full border-l-2 border-dashed border-muted-foreground/50" />
+      </div>
+
+      <div 
+        className={`flex-1 border-b border-dashed border-border/50 bg-background/30 transition-colors ${onClick ? 'cursor-pointer hover:bg-accent/5 group-hover:border-primary/30' : ''}`}
+        style={{ minHeight: `${barHeight}px` }}
+        onClick={onClick}
+        role={onClick ? "button" : undefined}
+        aria-label={onClick ? `Empty slot: ${timeRange}. Click to add activity.` : `Empty slot: ${timeRange}`}
+      >
+        <div 
+          className={`flex items-center justify-between px-2 h-full ${onClick ? 'opacity-0 group-hover:opacity-100 transition-opacity' : 'opacity-50'}`}
+        >
+          <span className="text-xs font-mono text-muted-foreground/50">
+            {timeRange}
+          </span>
+          {onClick && (
+            <span className="text-xs text-primary/70 font-medium">
+              + Add Activity
+            </span>
+          )}
+        </div>
+      </div>
+      {children}
     </div>
   );
 }

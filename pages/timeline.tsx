@@ -9,11 +9,14 @@ import { useActivityWatch } from "../utils/useActivityWatch";
 import ImportActivityWatchModal from "../components/Modal/ImportActivityWatchModal";
 import AWEventDetailModal from "../components/Modal/AWEventDetailModal";
 import FilterControls from "../components/Timeline/FilterControls";
-import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry } from "../components/Timeline/TimelineEntry";
+      import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry, GapBlock } from "../components/Timeline/TimelineEntry";
+
 import { ProcessedAWEvent, EventGroup } from "../activity-watch.d";
 import { groupAdjacentEvents, DEFAULT_GROUP_GAP_MINUTES } from "../utils/activityWatch";
-import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, DEFAULT_BLOCK_SIZE_MINUTES } from "../utils/timeBlocks";
+      import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES } from "../utils/timeBlocks";
+
 import ActivityForm from "../components/Timeline/ActivityForm";
+import DraftTimelineEntry from "../components/Timeline/DraftTimelineEntry";
 import { LiveActivityDuration } from "../components/Timeline/LiveActivityDuration";
 import { LiveSummaryBar } from "../components/Timeline/LiveSummaryBar";
 
@@ -61,6 +64,27 @@ export default function TimelinePage() {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showAWDetailModal, setShowAWDetailModal] = useState(false);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
+  
+  // State for collapsible detailed activities in timeline
+  const [expandedBlockStart, setExpandedBlockStart] = useState<number | null>(null);
+  
+  // State for inline adding in gaps
+  const [editingGapStart, setEditingGapStart] = useState<number | null>(null);
+
+  // Effect to close detail views when clicking outside
+  useEffect(() => {
+    const handleDocumentClick = () => {
+      setExpandedBlockStart(null);
+    };
+    
+    // Add listener
+    document.addEventListener('click', handleDocumentClick);
+    
+    // Cleanup
+    return () => {
+      document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
 
   // Pagination state
   const [daysToShow, setDaysToShow] = useState(2);
@@ -124,6 +148,23 @@ export default function TimelinePage() {
 
     setShowAddModal(false);
     setAddFormInitialData(null);
+  };
+
+  const handleInlineSubmit = (data: { activity: string; goalId: string }) => {
+    if (!editingGapStart) return;
+    
+    const date = new Date(editingGapStart);
+    const dateStr = date.toISOString().split('T')[0];
+    const timeStr = date.toTimeString().slice(0, 5);
+    
+    addNewActivity({
+      activity: data.activity,
+      date: dateStr,
+      time: timeStr,
+      goalId: data.goalId
+    });
+    
+    setEditingGapStart(null);
   };
 
   const openEditModal = (impact: Impact, index: number) => {
@@ -620,6 +661,39 @@ export default function TimelinePage() {
                     const awEvents = allAWEvents.filter(e => e.bucketType !== 'afkstatus');
                     const afkEvents = allAWEvents.filter(e => e.bucketType === 'afkstatus');
 
+                    // Pre-calculate AFK status for 15-min blocks
+                    const afkMap = new Map<number, boolean>();
+                    const blockSize = 15 * 60 * 1000;
+                    
+                    if (afkEvents.length > 0) {
+                      afkEvents.forEach(event => {
+                        const isActive = event.displayName === 'Active' || event.eventData.status === 'not-afk';
+                        const eventStart = event.timestamp;
+                        const eventEnd = eventStart + (event.duration * 1000);
+                        
+                        const firstBlockStart = Math.floor(eventStart / blockSize) * blockSize;
+                        const lastBlockStart = Math.floor(eventEnd / blockSize) * blockSize;
+                        
+                        for (let blockStart = firstBlockStart; blockStart <= lastBlockStart; blockStart += blockSize) {
+                           const blockEnd = blockStart + blockSize;
+                           const overlapStart = Math.max(eventStart, blockStart);
+                           const overlapEnd = Math.min(eventEnd, blockEnd);
+                           if (overlapEnd > overlapStart) {
+                             const currentStatus = afkMap.get(blockStart);
+                             if (currentStatus === true || (currentStatus === undefined && isActive)) {
+                               afkMap.set(blockStart, isActive);
+                             }
+                           }
+                        }
+                      });
+                    }
+
+                    const checkPresence = (time: number) => {
+                       // Align to block start
+                       const blockStart = Math.floor(time / blockSize) * blockSize;
+                       return afkMap.get(blockStart) === true;
+                    };
+
                     // Create 15-minute time blocks, then merge consecutive blocks with same activity
                     let timeBlocks: any[] = [];
                     if (awEvents.length > 0) {
@@ -634,7 +708,7 @@ export default function TimelinePage() {
                     return (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         {/* Left Column: Manual Activities */}
-                        {filterSettings.showManual && dayImpacts.length > 0 && (
+                        {filterSettings.showManual && (
                           <div className="relative pl-8" style={{ minHeight: '200px' }}>
                             <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
                             <h3 className="text-sm font-semibold text-muted-foreground mb-4">Manual Activities</h3>
@@ -674,33 +748,62 @@ export default function TimelinePage() {
                               );
 
                               return (
-                                <div
-                                  key={`manual-${impact.date}-${index}`}
-                                  className="relative flex items-start mb-1"
-                                >
+                                 <div
+                                   key={`manual-${impact.date}-${index}`}
+                                   className="relative flex items-start group/manual-entry"
+                                 >
                                   <div
-                                    className={`absolute left-[-1.45rem] w-3 rounded-sm ${getActivityColor(
+                                    className={`absolute left-[-1.45rem] w-1 ${getActivityColor(
                                       impact
                                     )} ${isLive ? 'animate-pulse' : ''}`}
                                     style={{ height: `${barHeight}px` }}
                                   ></div>
 
+                                  {/* Add Activity Button (Visible on Hover) */}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      // Calculate start time for new activity:
+                                      // If it's a past activity, it ends at 'endTime'.
+                                      // If it's the current/live activity, inserting 'after' it effectively means
+                                      // ending the current one now and starting a new one.
+                                      // Or if live, maybe we just default to 'now'.
+                                      const newStartTime = isLive ? Date.now() : endTime;
+                                      
+                                      const date = new Date(newStartTime);
+                                      const dateStr = date.toISOString().split('T')[0];
+                                      const timeStr = date.toTimeString().slice(0, 5);
+                                      
+                                      setAddFormInitialData({
+                                        activity: "",
+                                        date: dateStr,
+                                        time: timeStr,
+                                        goalId: "",
+                                      });
+                                      setShowAddModal(true);
+                                    }}
+                                    className="absolute left-[-2.2rem] bottom-[-0.6rem] z-20 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover/manual-entry:opacity-100 transition-opacity hover:scale-110 shadow-sm border border-border"
+                                    title={`Add activity after ${impact.activity}`}
+                                  >
+                                    <span className="text-xs font-bold leading-none">+</span>
+                                  </button>
+
                                   <div
-                                    className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 ${
+                                    className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 min-w-0 ${
                                       isLive ? 'border-b-primary border-b-2' : 'border-b-border'
                                     } ${isShortActivity ? 'pb-2' : 'pb-3'}`}
                                     style={{ minHeight: `${barHeight}px` }}
                                     onClick={() => openEditModal(impact, actualIndex)}
                                   >
                                     <div className="flex items-center justify-between">
-                                      <div className="flex items-center gap-3">
-                                        <span className={`text-sm font-mono ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
+                                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                                        <span className={`text-sm font-mono whitespace-nowrap shrink-0 ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                                           {formatTime(impact.date)}
                                         </span>
-                                        <h3 className={`text-base font-semibold ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                                        <h3 className={`text-base font-semibold truncate ${isLive ? 'text-primary' : 'text-foreground'}`}>
                                           {impact.activity}
-                                          {isLive && <span className="ml-2 text-xs">(Live)</span>}
                                         </h3>
+                                        {isLive && <span className="text-xs text-primary whitespace-nowrap shrink-0">(Live)</span>}
                                       </div>
                                       {isLive ? (
                                         <LiveActivityDuration
@@ -717,6 +820,83 @@ export default function TimelinePage() {
                                 </div>
                               );
                             })}
+                            
+                            {/* Render GapBlocks for the morning (empty space before first activity) */}
+                            {(() => {
+                              // Identify the start time of the earliest activity (or now/end of day if no activities)
+                              // dayImpacts is sorted Newest First, so the LAST item is the EARLIEST.
+                              let current: number;
+                              
+                              if (dayImpacts.length > 0) {
+                                current = dayImpacts[dayImpacts.length - 1].date;
+                              } else {
+                                // If no activities, start from Now (if today) or End of Day (if past)
+                                // But if it's today, we might want to round Now to nearest 15?
+                                // Let's use current time uncapped? or rounded?
+                                // GapBlock handles arbitrary times?
+                                // GapBlock uses (endTime - startTime) for height.
+                                // Let's use strict 15-min alignment if possible for neatness, but here we are filling precise gap.
+                                current = isTodayFlag ? Date.now() : dayEnd;
+                              }
+                              
+                              const gapCeiling = current;
+                              
+                              const gaps: JSX.Element[] = [];
+                              
+                              // We fill DOWN to dayStart
+                              while (current > dayStart) {
+                                // Create 15-min chunks, but clamp to dayStart
+                                // Since we go backwards:
+                                // End = current
+                                // Start = Max(dayStart, current - 15min)
+                                
+                                const chunkStart = Math.max(dayStart, current - (15 * 60 * 1000));
+                                const chunkEnd = current;
+                                
+                                if (chunkEnd > chunkStart) {
+                                  // Logic to handle "Expanding Draft"
+                                  // If we are editing a gap that is part of this sequence, we want the Draft entry
+                                  // to visually fill the space from its start UP TO the gapCeiling (the next activity or now).
+                                  // This means we should SKIP rendering any gaps that are "above" the edited one (between edit and ceiling).
+                                  
+                                  const isOccludedByDraft = editingGapStart !== null && 
+                                                           chunkStart > editingGapStart && 
+                                                           chunkStart < gapCeiling;
+
+                                  if (isOccludedByDraft) {
+                                    // Do nothing, this gap is covered by the expanded draft below it
+                                  } 
+                                  else if (editingGapStart === chunkStart) {
+                                    // This is the gap being edited. Render Draft expanding up to ceiling.
+                                    gaps.push(
+                                      <DraftTimelineEntry
+                                        key={`draft-${chunkStart}`}
+                                        startTime={chunkStart}
+                                        endTime={gapCeiling} // Expand to fill the whole gap
+                                        formatTime={formatTime}
+                                        onCancel={() => setEditingGapStart(null)}
+                                        onSubmit={handleInlineSubmit}
+                                      />
+                                    );
+                                  } else {
+                                    // Normal gap
+                                    gaps.push(
+                                      <GapBlock
+                                        key={`gap-morning-${chunkStart}`}
+                                        startTime={chunkStart}
+                                        endTime={chunkEnd}
+                                        formatTime={formatTime}
+                                        onClick={() => setEditingGapStart(chunkStart)}
+                                      />
+                                    );
+                                  }
+                                }
+                                
+                                current = chunkStart;
+                              }
+                              
+                              return gaps;
+                            })()}
                             </div>
                           )}
 
@@ -724,83 +904,7 @@ export default function TimelinePage() {
                         {filterSettings.showActivityWatch && timeBlocks.length > 0 && (
                           <div className="relative pl-8" style={{ minHeight: '200px' }}>
                             {/* Vertical AFK Presence Bar */}
-                            {afkEvents.length > 0 && (() => {
-                              // Calculate the total height we'll need based on time range
-                              const firstManualTime = dayImpacts.length > 0 ? dayImpacts[0].date : dayStart;
-                              const lastManualTime = dayImpacts.length > 0 ? dayImpacts[dayImpacts.length - 1].date : dayEnd;
-                              const timeRangeMs = firstManualTime - lastManualTime;
-                              const totalHeightPx = (timeRangeMs / (1000 * 60)) * 2; // 2px per minute
 
-                              // Process AFK events into 15-minute blocks
-                              const blockSize = 15 * 60 * 1000; // 15 minutes in ms
-                              const afkBlocks = new Map<number, boolean>(); // blockStartTime -> isActive
-
-                              afkEvents.forEach(event => {
-                                const isActive = event.displayName === 'Active' || event.eventData.status === 'not-afk';
-                                const eventStart = event.timestamp;
-                                const eventEnd = eventStart + (event.duration * 1000);
-
-                                // Find all 15-minute blocks this event overlaps with
-                                const firstBlockStart = Math.floor(eventStart / blockSize) * blockSize;
-                                const lastBlockStart = Math.floor(eventEnd / blockSize) * blockSize;
-
-                                for (let blockStart = firstBlockStart; blockStart <= lastBlockStart; blockStart += blockSize) {
-                                  const blockEnd = blockStart + blockSize;
-
-                                  // Calculate overlap between event and block
-                                  const overlapStart = Math.max(eventStart, blockStart);
-                                  const overlapEnd = Math.min(eventEnd, blockEnd);
-                                  const overlapDuration = overlapEnd - overlapStart;
-
-                                  if (overlapDuration > 0) {
-                                    // If this block is already marked as active, keep it active
-                                    // Otherwise, mark it based on current event
-                                    const currentStatus = afkBlocks.get(blockStart);
-                                    if (currentStatus === true || (currentStatus === undefined && isActive)) {
-                                      afkBlocks.set(blockStart, isActive);
-                                    }
-                                  }
-                                }
-                              });
-
-                              // Convert blocks to renderable segments
-                              const sortedBlocks = Array.from(afkBlocks.entries())
-                                .sort((a, b) => a[0] - b[0])
-                                .filter(([_, isActive]) => isActive); // Only show active blocks
-
-                              return (
-                                <div
-                                  className="absolute left-[0.5rem] w-2 rounded"
-                                  style={{
-                                    top: '3rem', // Below header
-                                    height: `${totalHeightPx}px`,
-                                    backgroundColor: '#e5e7eb' // Default gray
-                                  }}
-                                >
-                                  {/* Render active 15-minute blocks */}
-                                  {sortedBlocks.map(([blockStart, isActive], idx) => {
-                                    const blockEnd = blockStart + blockSize;
-
-                                    // Calculate position from top of day
-                                    const offsetFromTop = firstManualTime - blockStart;
-                                    const topPx = (offsetFromTop / (1000 * 60)) * 2;
-                                    const heightPx = (blockSize / (1000 * 60)) * 2; // Always 30px (15 min * 2px)
-
-                                    return (
-                                      <div
-                                        key={`afk-block-${blockStart}-${idx}`}
-                                        className="absolute w-full bg-green-500 rounded"
-                                        style={{
-                                          top: `${topPx}px`,
-                                          height: `${heightPx}px`,
-                                        }}
-                                        title={`Active: ${formatTime(blockStart)} - ${formatTime(blockEnd)}`}
-                                      />
-                                    );
-                                  })}
-                                </div>
-                              );
-                            })()}
 
                             <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
                             <h3 className="text-sm font-semibold text-muted-foreground mb-4">
@@ -810,64 +914,157 @@ export default function TimelinePage() {
                               </span>
                             </h3>
 
-                            {/* Calculate positions based on time - reverse order (newest first) */}
+                            {/* ActivityWatch Events (Time Blocks) - Time Aligned */}
                             {(() => {
                               // Sort blocks in descending order (newest first) to match manual activities
                               const sortedBlocks = [...timeBlocks].sort((a, b) => b.startTime - a.startTime);
+                              
+                              if (sortedBlocks.length === 0) {
+                                // If no AW events, fill the whole day with gaps
+                                const dayTop = isTodayFlag ? roundToNearest15Minutes(Date.now()) : dayEnd;
+                                const gaps: JSX.Element[] = [];
+                                let current = dayTop;
+                                while (current > dayStart) {
+                                  const chunkStart = Math.max(dayStart, current - (15 * 60 * 1000));
+                                  const chunkEnd = current;
+                                  gaps.push(
+                                    <GapBlock
+                                      key={`gap-empty-${chunkStart}`}
+                                      startTime={chunkStart}
+                                      endTime={chunkEnd}
+                                      formatTime={formatTime}
+                                      isPresenceActive={checkPresence}
+                                    />
+                                  );
+                                  current = chunkStart;
+                                }
+                                return gaps;
+                              }
 
-                              return sortedBlocks.map((block, idx) => {
-                                // Calculate spacing from previous block
-                                let marginTop = 0;
+                              const blockElements = sortedBlocks.map((block, idx) => {
+                                  const gapElements: JSX.Element[] = [];
 
-                                if (idx === 0) {
-                                  // For first block (newest), align with manual activities timeline
-                                  if (dayImpacts.length > 0) {
-                                    const newestManualTime = dayImpacts[0].date;
-                                    const newestBlockTime = sortedBlocks[0].startTime;
-
-                                    // Calculate offset - positive if block starts after manual activity
-                                    const offsetMs = newestBlockTime - newestManualTime;
-                                    const offsetMinutes = offsetMs / (1000 * 60);
-
-                                    // Only add positive offset (when AW block is later than manual activity)
-                                    if (offsetMinutes > 0) {
-                                      marginTop = offsetMinutes * 2; // 2px per minute
+                                  if (idx === 0) {
+                                    // For first block (newest), fill gap from Top of Day down to this block
+                                    const dayTop = isTodayFlag ? roundToNearest15Minutes(Date.now()) : dayEnd;
+                                    const gapTop = dayTop;
+                                    const gapBottom = block.endTime;
+                                    
+                                    let current = gapTop;
+                                    while (current > gapBottom) {
+                                      const chunkStart = Math.max(gapBottom, current - (15 * 60 * 1000));
+                                      const chunkEnd = current;
+                                      
+                                      gapElements.push(
+                                        <GapBlock
+                                          key={`gap-top-${chunkStart}`}
+                                          startTime={chunkStart}
+                                          endTime={chunkEnd}
+                                          formatTime={formatTime}
+                                          isPresenceActive={checkPresence}
+                                        />
+                                      );
+                                      current = chunkStart;
+                                    }
+                                  } else {
+                                    const prevBlock = sortedBlocks[idx - 1];
+                                    // Calculate gap between blocks
+                                    const gapStartTime = prevBlock.startTime; // Start of newer block (visual bottom of prev)
+                                    const gapEndTime = block.endTime; // End of older block (visual top of current)
+                                    
+                                    // Fill with 15-min gap blocks
+                                    let current = gapStartTime;
+                                    while (current > gapEndTime) {
+                                      const chunkStart = Math.max(gapEndTime, current - (15 * 60 * 1000));
+                                      const chunkEnd = current;
+                                      
+                                      gapElements.push(
+                                        <GapBlock
+                                          key={`gap-between-${chunkStart}`}
+                                          startTime={chunkStart}
+                                          endTime={chunkEnd}
+                                          formatTime={formatTime}
+                                          isPresenceActive={checkPresence}
+                                        />
+                                      );
+                                      
+                                      current = chunkStart;
                                     }
                                   }
-                                } else {
-                                  const prevBlock = sortedBlocks[idx - 1];
-                                  // Calculate gap between blocks
-                                  // prevBlock is newer (above), block is older (current)
-                                  // Gap is from when previous block started to when current block ended
-                                  const gapStartTime = prevBlock.startTime; // Start of newer block (visual bottom)
-                                  const gapEndTime = block.endTime; // End of older block (visual top)
-                                  const timeGapMs = gapStartTime - gapEndTime;
 
-                                  if (timeGapMs > 0) {
-                                    const timeGapMinutes = timeGapMs / (1000 * 60);
-                                    marginTop = timeGapMinutes * 2; // 2px per minute
-                                  }
-                                }
+                                  const isInactive = isLoginWindowOnlyBlock(block);
 
-                                return (
-                                  <div
-                                    key={`block-${block.startTime}-${idx}`}
-                                    style={{
-                                      marginTop: `${marginTop}px`,
-                                      marginBottom: '4px',
-                                    }}
-                                  >
-                                    <TimeBlockEntry
-                                      block={block}
-                                      formatTime={formatTime}
-                                      formatDuration={formatDuration}
-                                      onEventClick={handleAWEventClick}
-                                      onCreateManual={handleCreateManualEntry}
-                                    />
-                                  </div>
-                                );
+                                  return (
+                                    <div
+                                      key={`block-wrapper-${block.startTime}-${idx}`}
+                                      style={{ marginBottom: '0px' }}
+                                    >
+                                      {/* Render gaps between blocks first */}
+                                      {gapElements}
+                                      
+                                      <div>
+                                        {isInactive ? (
+                                          // Render inactive blocks as a series of GapBlocks
+                                          (() => {
+                                            const inactiveGaps: JSX.Element[] = [];
+                                            let current = block.endTime;
+                                            while (current > block.startTime) {
+                                              const chunkStart = Math.max(block.startTime, current - (15 * 60 * 1000));
+                                              const chunkEnd = current;
+                                              
+                                              inactiveGaps.push(
+                                                <GapBlock
+                                                  key={`gap-inactive-${chunkStart}`}
+                                                  startTime={chunkStart}
+                                                  endTime={chunkEnd}
+                                                  formatTime={formatTime}
+                                                  isPresenceActive={checkPresence}
+                                                />
+                                              );
+                                              current = chunkStart;
+                                            }
+                                            return <>{inactiveGaps}</>;
+                                          })()
+                                        ) : (
+                                          <TimeBlockEntry
+                                            block={block}
+                                            formatTime={formatTime}
+                                            formatDuration={formatDuration}
+                                            onEventClick={handleAWEventClick}
+                                            // onCreateManual prop removed as requested
+                                            isExpanded={expandedBlockStart === block.startTime}
+                                            onToggleExpand={() => {
+                                                setExpandedBlockStart(
+                                                    expandedBlockStart === block.startTime ? null : block.startTime
+                                                );
+                                            }}
+                                          />
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
                               });
-                            })()}
+
+                              // Add Bottom/Morning Gaps (from oldest block start down to dayStart)
+                              const oldestBlockStartTime = sortedBlocks[sortedBlocks.length - 1].startTime;
+                              const bottomGaps: JSX.Element[] = [];
+                              let current = oldestBlockStartTime;
+                              while (current > dayStart) {
+                                const chunkStart = Math.max(dayStart, current - (15 * 60 * 1000));
+                                const chunkEnd = current;
+                                bottomGaps.push(
+                                  <GapBlock
+                                    key={`gap-bottom-${chunkStart}`}
+                                    startTime={chunkStart}
+                                    endTime={chunkEnd}
+                                    formatTime={formatTime}
+                                  />
+                                );
+                                current = chunkStart;
+                              }
+
+                              return [...blockElements, ...bottomGaps];
+                              })()}
                           </div>
                         )}
                       </div>

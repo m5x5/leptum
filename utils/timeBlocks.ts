@@ -151,8 +151,10 @@ export function getBlockActivityBreakdown(block: TimeBlock): Array<{
   );
 
   block.allEvents.forEach(event => {
-    // Skip AFK events in breakdown (they're shown in the presence bar)
-    if (event.bucketType === 'afkstatus') return;
+    // Skip "Active" AFK events in breakdown, but show "Away" events (which look like duplicates of work but provide important context)
+    // We assume if status is NOT 'not-afk', it is AFK/Away.
+    if (event.bucketType === 'afkstatus' && event.eventData?.status === 'not-afk') return;
+
 
     // Skip loginwindow if there are other meaningful activities
     if (hasMeaningfulActivities && event.displayName?.toLowerCase() === 'loginwindow') return;

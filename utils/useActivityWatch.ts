@@ -8,6 +8,7 @@ import {
 } from '../activity-watch.d';
 import {
   processAWEvents,
+  filterDuplicateEvents,
   ProcessingOptions,
   DEFAULT_DAYS_BACK,
   DEFAULT_MIN_DURATION_SECONDS,
@@ -31,6 +32,7 @@ export interface UseActivityWatchReturn {
   toggleBucket: (bucketId: string) => Promise<void>;
   updateFilterSettings: (updates: Partial<FilterSettings>) => void;
   reload: () => Promise<void>;
+  duplicateCount: number;
 }
 
 const DEFAULT_FILTER_SETTINGS: FilterSettings = {
@@ -46,6 +48,7 @@ export function useActivityWatch(): UseActivityWatchReturn {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [filterSettings, setFilterSettings] = useState<FilterSettings>(DEFAULT_FILTER_SETTINGS);
+  const [duplicateCount, setDuplicateCount] = useState(0);
 
   /**
    * Load ActivityWatch data from RemoteStorage
@@ -58,7 +61,10 @@ export function useActivityWatch(): UseActivityWatchReturn {
       const data = await remoteStorageClient.getActivityWatchData();
 
       if (data) {
-        setAwData(data);
+        const { uniqueEvents, duplicateCount: removedCount } = filterDuplicateEvents(data.events);
+        setDuplicateCount(removedCount);
+        
+        setAwData({ ...data, events: uniqueEvents });
 
         // Initialize filter settings with buckets that are marked as visible
         setFilterSettings((prev) => ({
@@ -104,18 +110,28 @@ export function useActivityWatch(): UseActivityWatchReturn {
         const processedData = processAWEvents(welcomeData, options);
 
         // If clearExisting is true, replace; otherwise merge
+        // Filter duplicates from processed data
+        const { uniqueEvents, duplicateCount: newDuplicates } = filterDuplicateEvents(processedData.events);
+        
         let finalData: ActivityWatchData;
         if (options.clearExisting || !awData) {
           // Replace entirely
-          finalData = processedData;
+          finalData = { ...processedData, events: uniqueEvents };
+          setDuplicateCount(newDuplicates);
           await remoteStorageClient.saveActivityWatchData(finalData);
           setAwData(finalData);
         } else {
           // Merge with existing data
+          const mergedEvents = [...awData.events, ...uniqueEvents].sort(
+            (a, b) => a.timestamp - b.timestamp
+          );
+          
+          // Re-filter specifically for safety if overlaps occurred during merge
+          const { uniqueEvents: finalEvents, duplicateCount: totalDuplicates } = filterDuplicateEvents(mergedEvents);
+          setDuplicateCount(totalDuplicates);
+
           finalData = {
-            events: [...awData.events, ...processedData.events].sort(
-              (a, b) => a.timestamp - b.timestamp
-            ),
+            events: finalEvents,
             importedAt: Date.now(),
             buckets: mergeBuckets(awData.buckets, processedData.buckets),
           };
@@ -228,6 +244,7 @@ export function useActivityWatch(): UseActivityWatchReturn {
     toggleBucket,
     updateFilterSettings,
     reload,
+    duplicateCount,
   };
 }
 
