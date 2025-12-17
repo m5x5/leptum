@@ -151,29 +151,25 @@ export default function TimelinePage() {
   };
 
   const handleInlineSubmit = (data: { activity: string; goalId: string }) => {
-    if (!editingGapStart) return;
-    
-    const date = new Date(editingGapStart);
-    const dateStr = date.toISOString().split('T')[0];
-    const timeStr = date.toTimeString().slice(0, 5);
-    
-    addNewActivity({
-      activity: data.activity,
-      date: dateStr,
-      time: timeStr,
-      goalId: data.goalId
-    });
-    
-    setEditingGapStart(null);
-  };
+  if (!editingGapStart) return;
+  
+  const { dateStr, timeStr } = getLocalDateTimeStrings(editingGapStart);
+  
+  addNewActivity({
+    activity: data.activity,
+    date: dateStr,
+    time: timeStr,
+    goalId: data.goalId
+  });
+  
+  setEditingGapStart(null);
+};
 
   const openEditModal = (impact: Impact, index: number) => {
     setEditingImpact(impact);
     setEditingIndex(index);
 
-    const date = new Date(impact.date);
-    const dateStr = date.toISOString().split('T')[0];
-    const timeStr = date.toTimeString().slice(0, 5);
+    const { dateStr, timeStr } = getLocalDateTimeStrings(impact.date);
 
     setEditFormData({
       activity: impact.activity,
@@ -245,6 +241,21 @@ export default function TimelinePage() {
     const day = String(date.getDate()).padStart(2, "0");
     return `${year}-${month}-${day}`;
   };
+
+  // Extract date and time strings in local time (not UTC) for form inputs
+  const getLocalDateTimeStrings = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return {
+      dateStr: `${year}-${month}-${day}`,
+      timeStr: `${hours}:${minutes}`
+    };
+  };
+
 
   const getDuration = (startTime: number, endTime: number) => {
     const durationMs = endTime - startTime;
@@ -406,9 +417,7 @@ export default function TimelinePage() {
   const handleCreateManualEntry = (event: ProcessedAWEvent) => {
     // Round the timestamp to nearest 15 minutes
     const roundedTimestamp = roundToNearest15Minutes(event.timestamp);
-    const date = new Date(roundedTimestamp);
-    const dateStr = date.toISOString().split('T')[0];
-    const timeStr = date.toTimeString().slice(0, 5);
+    const { dateStr, timeStr } = getLocalDateTimeStrings(roundedTimestamp);
 
     setAddFormInitialData({
       activity: event.displayName,
@@ -497,9 +506,7 @@ export default function TimelinePage() {
               onClick={() => {
                 // Round current time to nearest 15 minutes
                 const roundedTimestamp = roundToNearest15Minutes(Date.now());
-                const now = new Date(roundedTimestamp);
-                const dateStr = now.toISOString().split('T')[0];
-                const timeStr = now.toTimeString().slice(0, 5);
+                const { dateStr, timeStr } = getLocalDateTimeStrings(roundedTimestamp);
                 setAddFormInitialData({
                   activity: "",
                   date: dateStr,
@@ -617,26 +624,66 @@ export default function TimelinePage() {
                       getActivityColor={getActivityColor}
                     />
                   ) : dayImpacts.length > 0 ? (
-                    // Static summary for past days
+                    // Static summary for past days - positioned by actual time
                     (() => {
-                      const daySummary = calculateDaySummary(dayImpacts);
-                      const totalPercentageFilled = daySummary.reduce((sum, s) => sum + s.percentage, 0);
+                      const [year, month, day] = dateKey.split('-').map(Number);
+                      const dayStart = new Date(year, month - 1, day).getTime();
+                      const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+                      const fullDayInMs = dayEnd - dayStart;
+
+                      // Build timeline segments with actual positions
+                      const segments: Array<{
+                        activity: string;
+                        color: string;
+                        startTime: number;
+                        endTime: number;
+                        startPercent: number;
+                        widthPercent: number;
+                      }> = [];
+
+                      // dayImpacts are sorted in descending order (most recent first)
+                      for (let i = dayImpacts.length - 1; i >= 0; i--) {
+                        const current = dayImpacts[i];
+                        let endTime: number;
+
+                        if (i === 0) {
+                          // Last activity goes until end of day
+                          endTime = dayEnd;
+                        } else {
+                          // Duration goes until the next activity
+                          endTime = dayImpacts[i - 1].date;
+                        }
+
+                        const startPercent = ((current.date - dayStart) / fullDayInMs) * 100;
+                        const widthPercent = ((endTime - current.date) / fullDayInMs) * 100;
+
+                        segments.push({
+                          activity: current.activity,
+                          color: getActivityColor(current),
+                          startTime: current.date,
+                          endTime: endTime,
+                          startPercent,
+                          widthPercent,
+                        });
+                      }
 
                       return (
-                        <div className="flex h-8 rounded-lg overflow-hidden border border-border">
-                          {daySummary.map((summary, idx) => (
+                        <div className="relative h-8 rounded-lg overflow-hidden border border-border bg-muted/20">
+                          {segments.map((segment, idx) => (
                             <div
-                              key={`${summary.activity}-${idx}`}
-                              className={`${summary.color} flex items-center justify-center text-xs text-white font-medium border-r border-background/30`}
+                              key={`${segment.activity}-${idx}`}
+                              className={`${segment.color} absolute top-0 bottom-0 flex items-center justify-center text-xs text-white font-medium ${
+                                idx < segments.length - 1 ? 'border-r border-background/50' : ''
+                              }`}
                               style={{
-                                width: `${summary.percentage}%`,
-                                borderRightWidth: idx === daySummary.length - 1 ? '0' : '2px'
+                                left: `${segment.startPercent}%`,
+                                width: `${segment.widthPercent}%`,
                               }}
-                              title={`${summary.activity}: ${summary.percentage.toFixed(1)}%`}
+                              title={`${segment.activity}: ${formatTime(segment.startTime)} - ${formatTime(segment.endTime)}`}
                             >
-                              {summary.percentage > 8 && (
-                                <span className="px-1">
-                                  {summary.percentage.toFixed(0)}%
+                              {segment.widthPercent > 8 && (
+                                <span className="px-1 truncate">
+                                  {segment.activity}
                                 </span>
                               )}
                             </div>
@@ -645,6 +692,80 @@ export default function TimelinePage() {
                       );
                     })()
                   ) : null}
+
+                  {/* Presence Status Bar - Shows Active/Away status across the day */}
+                  {(() => {
+                    // Get AW events for this day to calculate presence
+                    const allAWEvents = getFilteredAWEventsForDate(dateKey);
+                    const afkEvents = allAWEvents.filter(e => e.bucketType === 'afkstatus');
+                    
+                    if (afkEvents.length === 0) return null;
+
+                    // Calculate presence for 15-min blocks
+                    const afkMap = new Map<number, boolean>();
+                    const blockSize = 15 * 60 * 1000;
+                    const [year, month, day] = dateKey.split('-').map(Number);
+                    const dayStart = new Date(year, month - 1, day).getTime();
+                    const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+                    
+                    afkEvents.forEach(event => {
+                      const isActive = event.displayName === 'Active' || event.eventData?.status === 'not-afk';
+                      const eventStart = event.timestamp;
+                      const eventEnd = eventStart + (event.duration * 1000);
+                      
+                      const firstBlockStart = Math.floor(eventStart / blockSize) * blockSize;
+                      const lastBlockStart = Math.floor(eventEnd / blockSize) * blockSize;
+                      
+                      for (let blockStart = firstBlockStart; blockStart <= lastBlockStart; blockStart += blockSize) {
+                        const blockEnd = blockStart + blockSize;
+                        const overlapStart = Math.max(eventStart, blockStart);
+                        const overlapEnd = Math.min(eventEnd, blockEnd);
+                        if (overlapEnd > overlapStart) {
+                          const currentStatus = afkMap.get(blockStart);
+                          if (currentStatus === true || (currentStatus === undefined && isActive)) {
+                            afkMap.set(blockStart, isActive);
+                          }
+                        }
+                      }
+                    });
+
+                    // Generate blocks for the entire day
+                    const blocks = [];
+                    for (let time = dayStart; time < dayEnd; time += blockSize) {
+                      const isActive = afkMap.get(time) === true;
+                      blocks.push({
+                        time,
+                        isActive,
+                      });
+                    }
+
+                    return (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs text-muted-foreground">Presence:</span>
+                          <div className="flex gap-2 text-xs">
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 rounded-full bg-green-500"></div>
+                              <span className="text-muted-foreground">Active</span>
+                            </div>
+                            <div className="flex items-center gap-1">
+                              <div className="w-2 h-2 rounded-full bg-gray-600"></div>
+                              <span className="text-muted-foreground">Away</span>
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex h-2 rounded overflow-hidden border border-border">
+                          {blocks.map((block, idx) => (
+                            <div
+                              key={idx}
+                              className={`flex-1 ${block.isActive ? 'bg-green-500' : 'bg-gray-600'}`}
+                              title={`${formatTime(block.time)}: ${block.isActive ? 'Active' : 'Away'}`}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
 
                 </div>
 
@@ -807,9 +928,7 @@ export default function TimelinePage() {
                                                     style={{ top: `${slotTop - 10}px` }} // Center vertically
                                                     onClick={(e) => {
                                                         e.stopPropagation();
-                                                        const date = new Date(thisSlotTime);
-                                                        const dateStr = date.toISOString().split('T')[0];
-                                                        const timeStr = date.toTimeString().slice(0, 5);
+                                                        const { dateStr, timeStr } = getLocalDateTimeStrings(thisSlotTime);
                                                         
                                                         setAddFormInitialData({
                                                             activity: "",
@@ -847,7 +966,7 @@ export default function TimelinePage() {
                                     style={{ minHeight: `${barHeight}px` }}
                                     onClick={() => openEditModal(impact, actualIndex)}
                                   >
-                                    <div className="flex items-center justify-between sticky top-[5.4rem] z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
+                                    <div className="flex items-center justify-between sticky top-[7.7rem] z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
                                       <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <span className={`text-sm font-mono whitespace-nowrap shrink-0 ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                                           {formatTime(impact.date)}
@@ -872,6 +991,85 @@ export default function TimelinePage() {
                                 </div>
                               );
                             })}
+                            
+                            {/* Render GapBlocks for the top (empty space after last/newest activity) */}
+                            {(() => {
+                              // If there are activities, create gaps from the newest activity up to dayEnd/now
+                              // dayImpacts is sorted Newest First, so the FIRST item is the NEWEST
+                              if (dayImpacts.length === 0) {
+                                // No activities, so no top gap needed (the bottom gaps will fill the entire day)
+                                return null;
+                              }
+                              
+                              const newestActivity = dayImpacts[0];
+                              const isLive = isTodayFlag && dayImpacts.length === 1;
+                              
+                              // Determine where gaps should start (after the newest activity)
+                              let gapStartTime: number;
+                              let gapCeiling: number;
+                              
+                              if (isLive) {
+                                // For live activity, no gap after it (it extends to now)
+                                return null;
+                              } else if (isTodayFlag) {
+                                // For today with multiple activities, gap starts from the newest activity
+                                gapStartTime = newestActivity.date;
+                                gapCeiling = roundToNearest15Minutes(Date.now());
+                              } else {
+                                // For past days, gap starts from the newest activity to end of day
+                                gapStartTime = newestActivity.date;
+                                gapCeiling = dayEnd;
+                              }
+                              
+                              // Don't create gaps if there's no space
+                              if (gapCeiling <= gapStartTime) {
+                                return null;
+                              }
+                              
+                              const topGaps: JSX.Element[] = [];
+                              let current = gapCeiling;
+                              
+                              // Fill DOWN from ceiling to gapStartTime in 15-min chunks
+                              while (current > gapStartTime) {
+                                const chunkStart = Math.max(gapStartTime, current - (15 * 60 * 1000));
+                                const chunkEnd = current;
+                                
+                                if (chunkEnd > chunkStart) {
+                                  // Check if this gap is being edited
+                                  if (editingGapStart === chunkStart) {
+                                    topGaps.push(
+                                      <DraftTimelineEntry
+                                        key={`draft-top-${chunkStart}`}
+                                        startTime={chunkStart}
+                                        endTime={gapCeiling}
+                                        formatTime={formatTime}
+                                        onCancel={() => setEditingGapStart(null)}
+                                        onSubmit={handleInlineSubmit}
+                                      />
+                                    );
+                                  } else if (editingGapStart !== null && chunkStart > editingGapStart && chunkStart < gapCeiling) {
+                                    // Skip gaps that are occluded by the draft
+                                  } else {
+                                    topGaps.push(
+                                      <GapBlock
+                                        key={`gap-top-${chunkStart}`}
+                                        startTime={chunkStart}
+                                        endTime={chunkEnd}
+                                        formatTime={formatTime}
+                                        onClick={(e) => {
+                                          e?.stopPropagation();
+                                          setEditingGapStart(chunkStart);
+                                        }}
+                                      />
+                                    );
+                                  }
+                                }
+                                
+                                current = chunkStart;
+                              }
+                              
+                              return topGaps;
+                            })()}
                             
                             {/* Render GapBlocks for the morning (empty space before first activity) */}
                             {(() => {
@@ -938,7 +1136,10 @@ export default function TimelinePage() {
                                         startTime={chunkStart}
                                         endTime={chunkEnd}
                                         formatTime={formatTime}
-                                        onClick={() => setEditingGapStart(chunkStart)}
+                                        onClick={(e) => {
+                                          e?.stopPropagation();
+                                          setEditingGapStart(chunkStart);
+                                        }}
                                       />
                                     );
                                   }

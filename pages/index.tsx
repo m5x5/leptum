@@ -256,12 +256,7 @@ export default function Home() {
                   </p>
                   <p className="text-xs text-muted-foreground">elapsed</p>
                 </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Online Presence</span>
-                  <span className="text-sm font-semibold text-primary">
-                    {formatDuration(onlinePresence)}
-                  </span>
-                </div>
+
               </div>
             </div>
           </div>

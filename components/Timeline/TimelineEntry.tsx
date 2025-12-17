@@ -415,7 +415,7 @@ export function TimeBlockEntry({
           }}
           style={{ minHeight: `${barHeight}px` }}
         >
-          <div className="flex items-center gap-3 flex-1 min-w-0 sticky top-[5.4rem] z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
+          <div className="flex items-center gap-3 flex-1 min-w-0 sticky top-[7.7rem] z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
             {/* Time Range */}
             <span className="text-sm font-mono text-muted-foreground whitespace-nowrap shrink-0">
               {timeRange}
@@ -526,7 +526,7 @@ interface GapBlockProps {
   startTime: number;
   endTime: number;
   formatTime: (timestamp: number) => string;
-  onClick?: () => void;
+  onClick?: (e?: React.MouseEvent) => void;
   children?: React.ReactNode;
   isPresenceActive?: (timestamp: number) => boolean;
 }
@@ -566,7 +566,10 @@ export function GapBlock({
       <div 
         className={`flex-1 border-b border-dashed border-border/50 bg-background/30 transition-colors ${onClick ? 'cursor-pointer hover:bg-accent/5 group-hover:border-primary/30' : ''}`}
         style={{ minHeight: `${barHeight}px` }}
-        onClick={onClick}
+        onClick={(e) => {
+          e.stopPropagation();
+          onClick?.(e);
+        }}
         role={onClick ? "button" : undefined}
         aria-label={onClick ? `Empty slot: ${timeRange}. Click to add activity.` : `Empty slot: ${timeRange}`}
       >
