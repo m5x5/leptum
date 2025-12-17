@@ -737,6 +737,8 @@ export default function TimelinePage() {
                                 // For live activities, we'll use LiveActivityDuration component
                                 // Calculate a temporary duration for bar height
                                 durationMs = Date.now() - impact.date;
+                                // For live activities, end time is effectively now
+                                endTime = Date.now();
                               }
 
                               const durationMinutes = durationMs / (1000 * 60);
@@ -759,34 +761,84 @@ export default function TimelinePage() {
                                     style={{ height: `${barHeight}px` }}
                                   ></div>
 
-                                  {/* Add Activity Button (Visible on Hover) */}
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      // Calculate start time for new activity:
-                                      // If it's a past activity, it ends at 'endTime'.
-                                      // If it's the current/live activity, inserting 'after' it effectively means
-                                      // ending the current one now and starting a new one.
-                                      // Or if live, maybe we just default to 'now'.
-                                      const newStartTime = isLive ? Date.now() : endTime;
-                                      
-                                      const date = new Date(newStartTime);
-                                      const dateStr = date.toISOString().split('T')[0];
-                                      const timeStr = date.toTimeString().slice(0, 5);
-                                      
-                                      setAddFormInitialData({
-                                        activity: "",
-                                        date: dateStr,
-                                        time: timeStr,
-                                        goalId: "",
-                                      });
-                                      setShowAddModal(true);
-                                    }}
-                                    className="absolute left-[-2.2rem] bottom-[-0.6rem] z-20 w-5 h-5 rounded-full bg-primary text-primary-foreground flex items-center justify-center opacity-0 group-hover/manual-entry:opacity-100 transition-opacity hover:scale-110 shadow-sm border border-border"
-                                    title={`Add activity after ${impact.activity}`}
-                                  >
-                                    <span className="text-xs font-bold leading-none">+</span>
-                                  </button>
+                                  {/* Sub-slots Overlay (Visible on Hover) */}
+                                  <div className="absolute inset-x-0 top-0 bottom-0 pointer-events-none group-hover/manual-entry:pointer-events-auto z-10">
+                                      {(() => {
+                                        // Generate 15-minute slots for the duration of this activity
+                                        // Iterate BACKWARDS from End Time to Start Time (Future -> Past)
+                                        // This places Newest Slots at the TOP of the visual block, matching the global timeline flow.
+                                        const slots: JSX.Element[] = [];
+                                        const slotSize = 15 * 60 * 1000;
+                                        
+                                        // For live activity, endTime is now-ish
+                                        const effectiveEndTime = isLive ? Date.now() : endTime;
+                                        const durationMs = effectiveEndTime - impact.date;
+
+                                        // We only want to show slots if duration is sufficient (e.g. > 20 mins)
+                                        if (durationMs < 20 * 60 * 1000) return null;
+
+                                        // Start one slot-step back from the end
+                                        let currentSlotTime = effectiveEndTime - (10 * 60 * 1000); // Small offset from pure end
+                                        // actually let's stick to 15m steps from start, but render reverse? 
+                                        // No, simpler to just loop backwards.
+                                        
+                                        // Aligning? The previous code didn't align, it just did start + 15m.
+                                        // Let's do end - 15m, end - 30m... to keep relative consistency.
+                                        currentSlotTime = effectiveEndTime - slotSize;
+
+                                        while (currentSlotTime > impact.date + (5 * 60 * 1000)) { // Don't show slot too close to start
+                                            // Calculate position: 0px = effectiveEndTime (Top). Height px = impact.date (Bottom).
+                                            // But wait, the previous logic had slotTop = (current - start) scale. (Start=0).
+                                            // The container renders DOWN.
+                                            // If we want Future at Top (Newest Top), and Start is Oldest.
+                                            // Then Start Time (14:00) should be at Bottom (Height).
+                                            // End Time (15:00) should be at Top (0).
+                                            // So 0px corresponds to effectiveEndTime.
+                                            
+                                            const timeFromEnd = effectiveEndTime - currentSlotTime;
+                                            const slotTop = (timeFromEnd / (1000 * 60)) * 2;
+                                            
+                                            const thisSlotTime = currentSlotTime;
+
+                                            slots.push(
+                                                <div 
+                                                    key={`slot-${thisSlotTime}`}
+                                                    className="absolute left-[-3.5rem] w-12 h-5 flex items-center justify-end opacity-0 hover:opacity-100 transition-opacity cursor-pointer transform hover:scale-105 group/slot"
+                                                    style={{ top: `${slotTop - 10}px` }} // Center vertically
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        const date = new Date(thisSlotTime);
+                                                        const dateStr = date.toISOString().split('T')[0];
+                                                        const timeStr = date.toTimeString().slice(0, 5);
+                                                        
+                                                        setAddFormInitialData({
+                                                            activity: "",
+                                                            date: dateStr,
+                                                            time: timeStr,
+                                                            goalId: "",
+                                                        });
+                                                        setShowAddModal(true);
+                                                    }}
+                                                    title={`Insert activity at ${formatTime(thisSlotTime)}`}
+                                                >
+                                                    {/* Time Label */}
+                                                    <span className="text-[10px] font-mono text-muted-foreground mr-1 opacity-0 group-hover/slot:opacity-100 transition-opacity bg-background px-1 rounded shadow-sm">
+                                                      {formatTime(thisSlotTime)}
+                                                    </span>
+                                                    
+                                                    <div className="w-5 h-5 rounded-full bg-background border border-border shadow-sm flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground shrink-0 z-10">
+                                                        <span className="text-[10px] font-bold">+</span>
+                                                    </div>
+                                                    {/* Line indicator */}
+                                                    <div className="absolute right-[-2rem] w-[2rem] h-px bg-primary/30 pointer-events-none" />
+                                                </div>
+                                            );
+                                            
+                                            currentSlotTime -= slotSize;
+                                        }
+                                        return slots;
+                                      })()}
+                                  </div>
 
                                   <div
                                     className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 min-w-0 ${
@@ -795,7 +847,7 @@ export default function TimelinePage() {
                                     style={{ minHeight: `${barHeight}px` }}
                                     onClick={() => openEditModal(impact, actualIndex)}
                                   >
-                                    <div className="flex items-center justify-between">
+                                    <div className="flex items-center justify-between sticky top-28 z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
                                       <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <span className={`text-sm font-mono whitespace-nowrap shrink-0 ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                                           {formatTime(impact.date)}
