@@ -415,7 +415,7 @@ export function TimeBlockEntry({
           }}
           style={{ minHeight: `${barHeight}px` }}
         >
-          <div className="flex items-center gap-3 flex-1 min-w-0 sticky top-2 z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
+          <div className="flex items-center gap-3 flex-1 min-w-0 sticky top-28 z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
             {/* Time Range */}
             <span className="text-sm font-mono text-muted-foreground whitespace-nowrap shrink-0">
               {timeRange}

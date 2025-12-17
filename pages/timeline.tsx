@@ -598,7 +598,7 @@ export default function TimelinePage() {
 
             return (
               <div key={dateKey} className="space-y-4">
-                <div className="sticky top-0 bg-background/95 backdrop-blur z-10 pb-3 border-b border-border">
+                <div className="sticky top-0 bg-background/95 backdrop-blur z-10 pb-3 border-b border-border z-20">
                   <h2 className="text-xl font-semibold text-foreground mb-3">
                     {displayDate}
                     {isTodayFlag && (
