@@ -598,7 +598,7 @@ export default function TimelinePage() {
 
             return (
               <div key={dateKey} className="space-y-4">
-                <div className="sticky top-0 bg-background/95 backdrop-blur z-10 pb-3 border-b border-border z-20">
+                <div className="sticky top-0 bg-background/95 backdrop-blur z-20 pb-3 border-b border-border">
                   <h2 className="text-xl font-semibold text-foreground mb-3">
                     {displayDate}
                     {isTodayFlag && (
@@ -847,7 +847,7 @@ export default function TimelinePage() {
                                     style={{ minHeight: `${barHeight}px` }}
                                     onClick={() => openEditModal(impact, actualIndex)}
                                   >
-                                    <div className="flex items-center justify-between sticky top-28 z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
+                                    <div className="flex items-center justify-between sticky top-[5.4rem] z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
                                       <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <span className={`text-sm font-mono whitespace-nowrap shrink-0 ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                                           {formatTime(impact.date)}
