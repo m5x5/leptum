@@ -30,7 +30,7 @@ function PresenceBar({
   }, [startTime, endTime, isPresenceActive]);
 
   return (
-    <div className="absolute left-[-1.9rem] w-1.5 flex flex-col z-10" style={{ top: 0, bottom: 0 }}>
+    <div className="absolute left-0 w-1 flex flex-col z-10" style={{ top: 0, bottom: 0 }}>
       {segments.map((seg, i) => (
         <div
           key={i}
@@ -337,6 +337,7 @@ export function TimeBlockEntry({
   const dominantEvent = block.dominantActivity;
   const blockDurationMinutes = (block.endTime - block.startTime) / (1000 * 60);
   const barHeight = Math.max(12, blockDurationMinutes * 2);
+  const isLongBlock = blockDurationMinutes >= 60; // 1 hour or more
 
   // Format time range for the block
   const timeRange = `${formatTime(block.startTime)} - ${formatTime(block.endTime)}`;
@@ -415,7 +416,7 @@ export function TimeBlockEntry({
           }}
           style={{ minHeight: `${barHeight}px` }}
         >
-          <div className="flex items-center gap-3 flex-1 min-w-0 sticky top-[7.7rem] z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
+          <div className={`flex items-center gap-3 flex-1 min-w-0 pr-2 rounded py-1 -my-1 ${isLongBlock ? 'sticky top-[7.7rem] z-10 bg-card' : ''}`}>
             {/* Time Range */}
             <span className="text-sm font-mono text-muted-foreground whitespace-nowrap shrink-0">
               {timeRange}

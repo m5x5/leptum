@@ -214,21 +214,22 @@ export default function ImpactPage() {
         <title>Impact - Leptum</title>
       </Head>
 
-      <div className="mb-6">
-        <h1 className="text-3xl font-bold text-foreground">Impact</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Log your activities and track their impact on your wellbeing
-        </p>
+      <div className="max-w-6xl mx-auto">
+      <div className="mb-6 flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground">Impact</h1>
+          <p className="text-sm text-muted-foreground mt-1">
+            Log your activities and track their impact on your wellbeing
+          </p>
+        </div>
+        <button
+          onClick={openQuickLogModal}
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+        >
+          <PlusIcon className="w-5 h-5" />
+          <span>Add Log</span>
+        </button>
       </div>
-
-      {/* Prominent Add Log Button */}
-      <button
-        onClick={openQuickLogModal}
-        className="w-full mb-6 p-4 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold text-lg flex items-center justify-center gap-2 shadow-lg"
-      >
-        <PlusIcon className="w-6 h-6" />
-        Add Log
-      </button>
 
       {/* Quick Log Modal */}
       <Modal
@@ -426,6 +427,7 @@ export default function ImpactPage() {
               editMode={editMode}
             />
           ))}
+      </div>
       </div>
     </>
   );

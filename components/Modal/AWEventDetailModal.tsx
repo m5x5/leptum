@@ -47,7 +47,7 @@ export default function AWEventDetailModal({
   };
 
   return (
-    <Modal isOpen={isOpen} closeModal={closeModal}>
+    <Modal isOpen={isOpen} closeModal={closeModal} className="z-[60]">
       <Modal.Title>ActivityWatch Event Details</Modal.Title>
       <Modal.Body>
         <div className="space-y-4 mt-4">

@@ -103,7 +103,7 @@ export default function TimelinePage() {
   }, []);
 
   // Pagination state
-  const [daysToShow, setDaysToShow] = useState(2);
+  const [daysToShow, setDaysToShow] = useState(3);
 
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
@@ -502,7 +502,7 @@ export default function TimelinePage() {
         <title>Timeline - Leptum</title>
       </Head>
 
-      <div className="max-w-4xl mx-auto">
+      <div className="w-full mx-auto">
         <div className="flex items-center justify-between mb-6">
           <div>
             <h1 className="text-3xl font-bold text-foreground">Timeline</h1>
@@ -600,7 +600,7 @@ export default function TimelinePage() {
           </Modal.Body>
         </Modal>
 
-        <div className="space-y-8">
+        <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
           {dates.map((dateKey) => {
             const dayImpacts = groupedImpacts[dateKey] || [];
 
@@ -621,7 +621,7 @@ export default function TimelinePage() {
 
             return (
               <div key={dateKey} className="space-y-4">
-                <div className="sticky top-0 bg-background/95 backdrop-blur z-20 pb-3 border-b border-border">
+                <div className="sticky top-0 bg-background z-20 pb-3 border-b border-border">
                   <h2 className="text-xl font-semibold text-foreground mb-3">
                     {displayDate}
                     {isTodayFlag && (
@@ -977,7 +977,8 @@ export default function TimelinePage() {
                     if (awEvents.length > 0) {
                       // First chunk into 15-minute blocks (loginwindow is handled in dominant activity selection)
                       // We include ALL events here, including loginwindow
-                      const chunks = chunkEventsIntoTimeBlocks(awEvents, DEFAULT_BLOCK_SIZE_MINUTES);
+                      // Pass dayStart and dayEnd to ensure blocks stay within the day boundaries
+                      const chunks = chunkEventsIntoTimeBlocks(awEvents, DEFAULT_BLOCK_SIZE_MINUTES, dayStart, dayEnd);
                       // Then merge consecutive blocks with same dominant activity
                       // This will also merge consecutive loginwindow-only blocks
                       timeBlocks = mergeConsecutiveBlocks(chunks);
@@ -985,10 +986,9 @@ export default function TimelinePage() {
 
                     return (
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        {/* Left Column: Manual Activities */}
+                        {/* Manual Activities */}
                         {filterSettings.showManual && (
                           <div className="relative pl-8" style={{ minHeight: '200px' }}>
-                            <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
                             <h3 className="text-sm font-semibold text-muted-foreground mb-4">Manual Activities</h3>
 
                             {dayImpacts.map((impact, index) => {
@@ -1022,6 +1022,7 @@ export default function TimelinePage() {
                               const durationMinutes = durationMs / (1000 * 60);
                               const barHeight = Math.max(12, durationMinutes * 2);
                               const isShortActivity = durationMinutes < 15;
+                              const isLongActivity = durationMinutes >= 60; // 1 hour or more
 
                               const actualIndex = impacts.findIndex(
                                 (imp) => imp.date === impact.date && imp.activity === impact.activity
@@ -1039,54 +1040,28 @@ export default function TimelinePage() {
                                     style={{ height: `${barHeight}px` }}
                                   ></div>
 
-                                  {/* Sub-slots Overlay (Visible on Hover) */}
-                                  <div className="absolute inset-x-0 top-0 bottom-0 pointer-events-none group-hover/manual-entry:pointer-events-auto z-10">
+                                  {/* Optimized Sub-slots - only render on parent hover */}
+                                  {durationMs >= 20 * 60 * 1000 && (
+                                    <div className="absolute inset-x-0 top-0 bottom-0 pointer-events-none group-hover/manual-entry:pointer-events-auto z-10 hidden group-hover/manual-entry:block">
                                       {(() => {
-                                        // Generate 15-minute slots for the duration of this activity
-                                        // Iterate BACKWARDS from End Time to Start Time (Future -> Past)
-                                        // This places Newest Slots at the TOP of the visual block, matching the global timeline flow.
                                         const slots: JSX.Element[] = [];
                                         const slotSize = 15 * 60 * 1000;
-                                        
-                                        // For live activity, endTime is now-ish
                                         const effectiveEndTime = isLive ? Date.now() : endTime;
-                                        const durationMs = effectiveEndTime - impact.date;
+                                        let currentSlotTime = effectiveEndTime - slotSize;
 
-                                        // We only want to show slots if duration is sufficient (e.g. > 20 mins)
-                                        if (durationMs < 20 * 60 * 1000) return null;
-
-                                        // Start one slot-step back from the end
-                                        let currentSlotTime = effectiveEndTime - (10 * 60 * 1000); // Small offset from pure end
-                                        // actually let's stick to 15m steps from start, but render reverse? 
-                                        // No, simpler to just loop backwards.
-                                        
-                                        // Aligning? The previous code didn't align, it just did start + 15m.
-                                        // Let's do end - 15m, end - 30m... to keep relative consistency.
-                                        currentSlotTime = effectiveEndTime - slotSize;
-
-                                        while (currentSlotTime > impact.date + (5 * 60 * 1000)) { // Don't show slot too close to start
-                                            // Calculate position: 0px = effectiveEndTime (Top). Height px = impact.date (Bottom).
-                                            // But wait, the previous logic had slotTop = (current - start) scale. (Start=0).
-                                            // The container renders DOWN.
-                                            // If we want Future at Top (Newest Top), and Start is Oldest.
-                                            // Then Start Time (14:00) should be at Bottom (Height).
-                                            // End Time (15:00) should be at Top (0).
-                                            // So 0px corresponds to effectiveEndTime.
-                                            
+                                        while (currentSlotTime > impact.date + (5 * 60 * 1000)) {
                                             const timeFromEnd = effectiveEndTime - currentSlotTime;
                                             const slotTop = (timeFromEnd / (1000 * 60)) * 2;
-                                            
                                             const thisSlotTime = currentSlotTime;
 
                                             slots.push(
-                                                <div 
+                                                <div
                                                     key={`slot-${thisSlotTime}`}
-                                                    className="absolute left-[-3.5rem] w-12 h-5 flex items-center justify-end opacity-0 hover:opacity-100 transition-opacity cursor-pointer transform hover:scale-105 group/slot"
-                                                    style={{ top: `${slotTop - 10}px` }} // Center vertically
+                                                    className="absolute left-[-3.5rem] w-12 h-5 flex items-center justify-end opacity-0 hover:opacity-100 cursor-pointer group/slot"
+                                                    style={{ top: `${slotTop - 10}px` }}
                                                     onClick={(e) => {
                                                         e.stopPropagation();
                                                         const { dateStr, timeStr } = getLocalDateTimeStrings(thisSlotTime);
-                                                        
                                                         setAddFormInitialData({
                                                             activity: "",
                                                             date: dateStr,
@@ -1097,24 +1072,21 @@ export default function TimelinePage() {
                                                     }}
                                                     title={`Insert activity at ${formatTime(thisSlotTime)}`}
                                                 >
-                                                    {/* Time Label */}
-                                                    <span className="text-[10px] font-mono text-muted-foreground mr-1 opacity-0 group-hover/slot:opacity-100 transition-opacity bg-background px-1 rounded shadow-sm">
+                                                    <span className="text-[10px] font-mono text-muted-foreground mr-1 bg-background px-1 rounded shadow-sm">
                                                       {formatTime(thisSlotTime)}
                                                     </span>
-                                                    
                                                     <div className="w-5 h-5 rounded-full bg-background border border-border shadow-sm flex items-center justify-center text-muted-foreground hover:bg-primary hover:text-primary-foreground shrink-0 z-10">
                                                         <span className="text-[10px] font-bold">+</span>
                                                     </div>
-                                                    {/* Line indicator */}
                                                     <div className="absolute right-[-2rem] w-[2rem] h-px bg-primary/30 pointer-events-none" />
                                                 </div>
                                             );
-                                            
                                             currentSlotTime -= slotSize;
                                         }
                                         return slots;
                                       })()}
                                   </div>
+                                  )}
 
                                   <div
                                     className={`bg-card border-b hover:shadow-md transition-shadow cursor-pointer flex-1 min-w-0 ${
@@ -1123,7 +1095,7 @@ export default function TimelinePage() {
                                     style={{ minHeight: `${barHeight}px` }}
                                     onClick={() => openEditModal(impact, actualIndex)}
                                   >
-                                    <div className="flex items-center justify-between sticky top-[7.7rem] z-10 bg-card/80 backdrop-blur-sm pr-2 rounded py-1 -my-1">
+                                    <div className={`flex items-center justify-between pr-2 rounded py-1 -my-1 ${isLongActivity ? 'sticky top-[7.7rem] z-10 bg-card' : ''}`}>
                                       <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <span className={`text-sm font-mono whitespace-nowrap shrink-0 ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
                                           {formatTime(impact.date)}
@@ -1250,8 +1222,6 @@ export default function TimelinePage() {
                           <div className="relative pl-8" style={{ minHeight: '200px' }}>
                             {/* Vertical AFK Presence Bar */}
 
-
-                            <div className="absolute left-3 top-0 bottom-0 w-0.5 bg-border"></div>
                             <h3 className="text-sm font-semibold text-muted-foreground mb-4">
                               ActivityWatch Events
                               <span className="ml-2 text-xs font-normal">
@@ -1266,7 +1236,7 @@ export default function TimelinePage() {
                               
                               if (sortedBlocks.length === 0) {
                                 // If no AW events, fill the whole day with gaps
-                                const dayTop = isTodayFlag ? roundToNearest15Minutes(Date.now()) : dayEnd;
+                                const dayTop = isTodayFlag ? Math.min(roundToNearest15Minutes(Date.now()), dayEnd) : dayEnd;
                                 const gaps: JSX.Element[] = [];
                                 let current = dayTop;
                                 while (current > dayStart) {
@@ -1291,9 +1261,10 @@ export default function TimelinePage() {
 
                                   if (idx === 0) {
                                     // For first block (newest), fill gap from Top of Day down to this block
-                                    const dayTop = isTodayFlag ? roundToNearest15Minutes(Date.now()) : dayEnd;
+                                    const dayTop = isTodayFlag ? Math.min(roundToNearest15Minutes(Date.now()), dayEnd) : dayEnd;
                                     const gapTop = dayTop;
-                                    const gapBottom = block.endTime;
+                                    // Ensure block doesn't extend beyond day boundaries
+                                    const gapBottom = Math.min(block.endTime, dayEnd);
                                     
                                     let current = gapTop;
                                     while (current > gapBottom) {
@@ -1314,8 +1285,8 @@ export default function TimelinePage() {
                                   } else {
                                     const prevBlock = sortedBlocks[idx - 1];
                                     // Calculate gap between blocks
-                                    const gapStartTime = prevBlock.startTime; // Start of newer block (visual bottom of prev)
-                                    const gapEndTime = block.endTime; // End of older block (visual top of current)
+                                    const gapStartTime = Math.min(prevBlock.startTime, dayEnd); // Start of newer block (visual bottom of prev)
+                                    const gapEndTime = Math.min(block.endTime, dayEnd); // End of older block (visual top of current)
                                     
                                     // Fill with 15-min gap blocks
                                     let current = gapStartTime;

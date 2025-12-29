@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import GoalList from "../components/Goals/List";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
@@ -9,8 +9,11 @@ import { WeeklyGoalTimeTracking } from "../components/WeeklyGoals/TimeTracking";
 import { DayCard } from "../components/WeeklyGoals/DayCard";
 import { AddWeeklyGoalModal } from "../components/Modal/AddWeeklyGoalModal";
 import { MigrationBanner } from "../components/WeeklyGoals/MigrationBanner";
-import { getDayOfWeek } from "../utils/timeCalculations";
+import { DayTimelineSlideOver } from "../components/WeeklyGoals/DayTimelineSlideOver";
+import { getDayOfWeek, Impact } from "../utils/timeCalculations";
 import { remoteStorageClient } from "../lib/remoteStorage";
+import { useActivityWatch } from "../utils/useActivityWatch";
+import { ProcessedAWEvent } from "../activity-watch.d";
 import { PlusIcon, ChevronLeftIcon, ChevronRightIcon, TrashIcon } from "@heroicons/react/solid";
 
 const DAYS = [
@@ -44,8 +47,72 @@ export default function GoalsPage() {
   const [editText, setEditText] = useState("");
   const [addGoalModalOpen, setAddGoalModalOpen] = useState(false);
   const [selectedDay, setSelectedDay] = useState<typeof DAYS[number]['key'] | null>(null);
+  const [impacts, setImpacts] = useState<Impact[]>([]);
+  const [timelineSlideOverOpen, setTimelineSlideOverOpen] = useState(false);
+  const [selectedDayForTimeline, setSelectedDayForTimeline] = useState<typeof DAYS[number]['key'] | null>(null);
 
   const { goalTimeBreakdowns } = useWeeklyGoalTimeTracking(currentWeekStart, goals);
+
+  // Load ActivityWatch data
+  const {
+    awData,
+    filterSettings,
+  } = useActivityWatch();
+
+  // Get AW events for a specific date
+  const getFilteredAWEventsForDate = (dateKey: string): ProcessedAWEvent[] => {
+    if (!awData || !awData.events || awData.events.length === 0) return [];
+
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const dayStart = new Date(year, month - 1, day).getTime();
+    const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+
+    const filtered = awData.events.filter(event => {
+      // Date range filter
+      if (event.timestamp < dayStart || event.timestamp > dayEnd) return false;
+
+      // Apply the same filters as timeline page
+      if (filterSettings.showActivityWatch) {
+        // Filter by visible buckets
+        if (!filterSettings.visibleBuckets.includes(event.bucketId)) return false;
+
+        // Filter by minimum duration
+        if (event.duration < filterSettings.minDuration) return false;
+      }
+
+      return true;
+    });
+
+    return filtered;
+  };
+
+  // Load impacts for activity bars
+  useEffect(() => {
+    const loadImpacts = async () => {
+      try {
+        const data = await remoteStorageClient.getImpacts();
+        setImpacts(data || []);
+      } catch (error) {
+        console.error("Failed to load impacts:", error);
+      }
+    };
+
+    loadImpacts();
+  }, []);
+
+  const handleSaveImpacts = async (newImpacts: Impact[]) => {
+    try {
+      await remoteStorageClient.saveImpacts(newImpacts);
+      setImpacts(newImpacts);
+    } catch (error) {
+      console.error("Failed to save impacts:", error);
+    }
+  };
+
+  const handleEditDay = (dayKey: typeof DAYS[number]['key']) => {
+    setSelectedDayForTimeline(dayKey);
+    setTimelineSlideOverOpen(true);
+  };
 
   const handleRemove = (name: string) => {};
 
@@ -147,11 +214,25 @@ export default function GoalsPage() {
     }
   };
 
+  // Calculate date key for each day of the week
+  const getDayDateKey = (dayKey: typeof DAYS[number]['key']): string => {
+    const weekStart = new Date(currentWeekStart);
+    const dayIndex = DAYS.findIndex(d => d.key === dayKey);
+    const dayDate = new Date(weekStart);
+    dayDate.setDate(dayDate.getDate() + dayIndex);
+
+    const year = dayDate.getFullYear();
+    const month = String(dayDate.getMonth() + 1).padStart(2, '0');
+    const day = String(dayDate.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   return (
     <>
       <Head>
         <title>Goals - Leptum</title>
       </Head>
+      <div className="max-w-7xl mx-auto">
       <div className="mb-6">
         <h1 className="text-3xl font-bold text-foreground">Goals</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -284,9 +365,30 @@ export default function GoalsPage() {
                     timeBreakdown={getDayTimeBreakdown(key)}
                     onAddGoal={() => handleAddGoal(key)}
                     onRemoveGoal={(index) => removeGoal(key, index)}
+                    dateKey={getDayDateKey(key)}
+                    impacts={impacts}
+                    onEditDay={() => handleEditDay(key)}
                   />
                 ))}
               </div>
+
+              {/* Day Timeline Slide-Over */}
+              {selectedDayForTimeline && (
+                <DayTimelineSlideOver
+                  isOpen={timelineSlideOverOpen}
+                  onClose={() => {
+                    setTimelineSlideOverOpen(false);
+                    setSelectedDayForTimeline(null);
+                  }}
+                  dateKey={getDayDateKey(selectedDayForTimeline)}
+                  dayLabel={DAYS.find(d => d.key === selectedDayForTimeline)?.label || ''}
+                  impacts={impacts}
+                  goals={goals}
+                  onSaveImpacts={handleSaveImpacts}
+                  awEvents={getFilteredAWEventsForDate(getDayDateKey(selectedDayForTimeline))}
+                  filterSettings={filterSettings}
+                />
+              )}
 
               {/* Add Goal Modal */}
               <AddWeeklyGoalModal
@@ -304,6 +406,7 @@ export default function GoalsPage() {
           )}
         </>
       )}
+      </div>
     </>
   );
 }

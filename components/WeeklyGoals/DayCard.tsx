@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import { PlusIcon, TrashIcon } from '@heroicons/react/solid';
 import { WeeklyGoalItem } from '../../utils/useWeeklyGoals';
-import { formatMinutesToReadable } from '../../utils/timeCalculations';
+import { formatMinutesToReadable, Impact } from '../../utils/timeCalculations';
+import { DailyActivityBar } from './DailyActivityBar';
 
 interface Goal {
   id: string;
@@ -18,6 +19,9 @@ interface DayCardProps {
   onAddGoal: () => void;
   onRemoveGoal: (index: number) => void;
   onEditGoal?: (index: number, item: string | WeeklyGoalItem) => void;
+  dateKey?: string; // Date in YYYY-MM-DD format
+  impacts?: Impact[]; // All impacts for activity bar
+  onEditDay?: () => void; // Callback to open timeline slide-over
 }
 
 export function DayCard({
@@ -28,7 +32,10 @@ export function DayCard({
   timeBreakdown = {},
   onAddGoal,
   onRemoveGoal,
-  onEditGoal
+  onEditGoal,
+  dateKey,
+  impacts = [],
+  onEditDay
 }: DayCardProps) {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [editText, setEditText] = useState('');
@@ -89,6 +96,24 @@ export function DayCard({
           onClick={onAddGoal}
         />
       </div>
+
+      {/* Daily Activity Bar - clickable to open timeline */}
+      {dateKey && impacts.length > 0 && onEditDay && (
+        <div onClick={onEditDay} className="cursor-pointer">
+          <DailyActivityBar
+            dateKey={dateKey}
+            impacts={impacts}
+            goals={availableGoals}
+          />
+        </div>
+      )}
+      {dateKey && impacts.length > 0 && !onEditDay && (
+        <DailyActivityBar
+          dateKey={dateKey}
+          impacts={impacts}
+          goals={availableGoals}
+        />
+      )}
 
       <div className="flex flex-col gap-2">
         {goalItems.map((item, index) => {
