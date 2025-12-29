@@ -25,7 +25,7 @@ function MyApp({ Component, pageProps }: AppProps) {
             <div id="remotestorage-widget" className="fixed top-4 right-4 z-50"></div>
 
             <NewSidebar />
-            <div className="flex-grow px-4 pb-20 md:pb-4 md:h-screen overflow-y-auto">
+            <div className="flex-grow px-4 pb-20 md:pb-4 md:h-screen overflow-y-auto overflow-x-hidden min-w-0">
               <div className="mx-auto my-4">
                 <Component {...pageProps} />
               </div>

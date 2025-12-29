@@ -56,6 +56,32 @@ export default function StandaloneTaskItem({
     }
   };
 
+  const formatDateTime = (timestamp: number) => {
+    const date = new Date(timestamp);
+    const now = new Date();
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    const taskDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+
+    const timeStr = date.toLocaleTimeString('en-US', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false
+    });
+
+    if (taskDate.getTime() === today.getTime()) {
+      return `Today at ${timeStr}`;
+    } else if (taskDate.getTime() === yesterday.getTime()) {
+      return `Yesterday at ${timeStr}`;
+    } else {
+      return `${date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      })} at ${timeStr}`;
+    }
+  };
+
   return (
     <div className={`
       flex items-center justify-between p-3 rounded-lg
@@ -69,7 +95,7 @@ export default function StandaloneTaskItem({
           onChange={handleToggleComplete}
           className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
         />
-        
+
         <div className="flex-grow">
           {isEditing ? (
             <div className="space-y-2">
@@ -109,8 +135,8 @@ export default function StandaloneTaskItem({
             <div>
               <div className={`
                 text-sm font-medium
-                ${task.status === 'completed' 
-                  ? 'line-through text-gray-500 dark:text-gray-400' 
+                ${task.status === 'completed'
+                  ? 'line-through text-gray-500 dark:text-gray-400'
                   : 'text-gray-900 dark:text-white'
                 }
               `}>
@@ -119,12 +145,17 @@ export default function StandaloneTaskItem({
               {task.description && (
                 <div className={`
                   text-xs mt-1
-                  ${task.status === 'completed' 
-                    ? 'line-through text-gray-400 dark:text-gray-500' 
+                  ${task.status === 'completed'
+                    ? 'line-through text-gray-400 dark:text-gray-500'
                     : 'text-gray-600 dark:text-gray-300'
                   }
                 `}>
                   {task.description}
+                </div>
+              )}
+              {task.routineId && (
+                <div className="text-xs mt-1 text-gray-500 dark:text-gray-400">
+                  Created {formatDateTime(task.createdAt)}
                 </div>
               )}
             </div>

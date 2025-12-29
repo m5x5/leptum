@@ -693,6 +693,12 @@ export class RemoteStorageClient {
     return await this.saveRoutineCompletions(completions);
   }
 
+  public async deleteRoutineCompletion(routineInstanceId: string) {
+    const completions = await this.getRoutineCompletions();
+    const filtered = completions.filter((c: any) => c.routineInstanceId !== routineInstanceId);
+    return await this.saveRoutineCompletions(filtered);
+  }
+
   // Todonna integration methods
   
   // Convert local task format to todonna format

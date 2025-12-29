@@ -51,7 +51,7 @@ export default function NewSidebar() {
     <>
       {/* Desktop Sidebar - Left side vertical */}
       <nav
-        className={`hidden md:flex md:h-screen bg-card border-r border-border p-1 md:flex-col transition-all duration-300 ${
+        className={`hidden md:flex md:h-screen bg-card border-r border-border p-1 md:flex-col flex-shrink-0 transition-all duration-300 ${
           isExpanded ? "md:w-48" : "md:w-14"
         }`}
         aria-label="Main navigation"

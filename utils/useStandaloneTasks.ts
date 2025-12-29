@@ -120,12 +120,16 @@ export function useStandaloneTasks() {
         const routine = routines.find((r: any) => r.id === routineId);
 
         if (routine) {
+          // Use the creation date of the routine tasks (when they were scheduled)
+          // rather than when they were completed
+          const routineCreatedAt = routineTasks[0]?.createdAt || Date.now();
+
           // Save the completion
           const completion = {
             routineId,
             routineInstanceId,
             routineName: (routine as any).name as string,
-            completedAt: Date.now(),
+            completedAt: routineCreatedAt,
             taskCount: routineTasks.length
           };
 
@@ -159,7 +163,18 @@ export function useStandaloneTasks() {
       status: 'due' as const,
     };
     await updateTask(taskId, updates);
-  }, [updateTask]);
+
+    // If this task is part of a routine, delete the routine completion
+    const task = tasks.find(t => t.id === taskId);
+    if (task && task.routineInstanceId) {
+      try {
+        await remoteStorageClient.deleteRoutineCompletion(task.routineInstanceId);
+        console.log('Routine completion deleted for:', task.routineInstanceId);
+      } catch (error) {
+        console.error('Failed to delete routine completion:', error);
+      }
+    }
+  }, [updateTask, tasks]);
 
   return {
     tasks,

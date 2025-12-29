@@ -3,7 +3,6 @@ import Head from "next/head";
 import { useEffect, useState } from "react";
 import ActivitySelector from "../components/ActivitySelector";
 import ImpactCard from "../components/ImpactCard";
-import LineControls from "../components/LineControls";
 import SummaryChart from "../components/SummaryChart";
 import Modal from "../components/Modal";
 import { remoteStorageClient } from "../lib/remoteStorage";
@@ -46,7 +45,10 @@ export default function ImpactPage() {
   const [activityIndex, setActivityIndex] = useState(0);
   const [editMode, setEditMode] = useState(true);
   const [showQuickLogModal, setShowQuickLogModal] = useState(false);
-  const [selectedLines, setSelectedLines] = useState(["stress", "cleanliness", "motivation", "energy"]);
+  // Initialize with all available impact categories from METRIC_CONFIG
+  const [selectedLines, setSelectedLines] = useState(() => Object.keys(METRIC_CONFIG));
+  const [showCategorySelect, setShowCategorySelect] = useState(false);
+  const [showTimespanSelect, setShowTimespanSelect] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [tempLogData, setTempLogData] = useState({});
   const [touchedFields, setTouchedFields] = useState(new Set());
@@ -89,6 +91,20 @@ export default function ImpactPage() {
 
     saveImpacts();
   }, [JSON.stringify(state.impacts), isDataLoaded]);
+
+  // Close category dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showCategorySelect && !event.target.closest('.category-select-container')) {
+        setShowCategorySelect(false);
+      }
+    };
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showCategorySelect]);
 
   const onChange = (impact) => (e) => {
     const value = e.target.value;
@@ -162,6 +178,16 @@ export default function ImpactPage() {
     setTouchedFields(prev => new Set([...prev, field]));
   };
 
+  // Remove focus from any element when slider is released to prevent unwanted focus jumps
+  const handleSliderRelease = () => {
+    // Use setTimeout to ensure this runs after React's state update
+    setTimeout(() => {
+      if (document.activeElement && document.activeElement.blur) {
+        document.activeElement.blur();
+      }
+    }, 0);
+  };
+
   const onChangeActivity = (index) => {
     setActivityIndex(index);
   };
@@ -192,10 +218,6 @@ export default function ImpactPage() {
     // If activityIndex is 0 and there are still items, keep it at 0
   };
 
-  const selectLines = (selected) => {
-    // Selected lines setting can be stored locally or in RemoteStorage if needed
-    setSelectedLines([...selected]);
-  };
 
   const updateActivityName = (newName) => {
     const newState = { ...state };
@@ -366,6 +388,8 @@ export default function ImpactPage() {
                               max={metricConfig.max}
                               value={displayValue}
                               onChange={(e) => updateTempLogData(impact, e.target.value)}
+                              onMouseUp={handleSliderRelease}
+                              onTouchEnd={handleSliderRelease}
                               className="w-full h-2 appearance-none cursor-pointer rounded-lg"
                               style={getSliderStyle()}
                             />
@@ -382,6 +406,8 @@ export default function ImpactPage() {
                               max={metricConfig.max}
                               value={displayValue}
                               onChange={(e) => updateTempLogData(impact, e.target.value)}
+                              onMouseUp={handleSliderRelease}
+                              onTouchEnd={handleSliderRelease}
                               className="w-full h-2 appearance-none cursor-pointer rounded-lg"
                               style={getSliderStyle()}
                             />
@@ -389,15 +415,9 @@ export default function ImpactPage() {
                           <span className="text-xs text-foreground/70 font-medium">100</span>
                         </div>
                       )}
-                      <input
-                        type="number"
-                        min={metricConfig.min}
-                        max={metricConfig.max}
-                        value={touchedFields.has(impact) ? tempLogData[impact] : ""}
-                        onChange={(e) => updateTempLogData(impact, e.target.value)}
-                        className="w-20 p-2 bg-background text-foreground text-center rounded border border-border"
-                        placeholder={placeholderValue.toString()}
-                      />
+                      <div className="w-20 p-2 bg-muted text-foreground text-center rounded border border-border select-none">
+                        {touchedFields.has(impact) ? tempLogData[impact] : placeholderValue}
+                      </div>
                     </div>
                   </div>
                 );
@@ -476,7 +496,51 @@ export default function ImpactPage() {
         </button>
       </div>
 
-      <LineControls selected={selectedLines} onChange={selectLines} />
+      {/* Category Multiselect */}
+      <div className="mb-4 relative category-select-container">
+        <button
+          onClick={() => setShowCategorySelect(!showCategorySelect)}
+          className="px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-muted transition-colors flex items-center gap-2"
+        >
+          <span>Impact Categories ({selectedLines.length})</span>
+          <svg
+            className={`w-4 h-4 transition-transform ${showCategorySelect ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+        
+        {showCategorySelect && (
+          <div className="absolute z-10 mt-2 w-64 bg-card border border-border rounded-lg shadow-lg p-2 max-h-96 overflow-y-auto">
+            {Object.keys(METRIC_CONFIG).map((category) => {
+              const isSelected = selectedLines.includes(category);
+              return (
+                <label
+                  key={category}
+                  className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                >
+                  <input
+                    type="checkbox"
+                    checked={isSelected}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setSelectedLines([...selectedLines, category]);
+                      } else {
+                        setSelectedLines(selectedLines.filter((item) => item !== category));
+                      }
+                    }}
+                    className="rounded border-border"
+                  />
+                  <span className="text-foreground capitalize">{category}</span>
+                </label>
+              );
+            })}
+          </div>
+        )}
+      </div>
       <SummaryChart
         impacts={filteredImpacts}
         activities={state.activities}
@@ -588,6 +652,8 @@ export default function ImpactPage() {
                                   max={metricConfig.max}
                                   value={currentValue}
                                   onChange={onChange(impact)}
+                                  onMouseUp={handleSliderRelease}
+                                  onTouchEnd={handleSliderRelease}
                                   className="w-full h-2 appearance-none cursor-pointer rounded-lg"
                                   style={getSliderStyle()}
                                 />
@@ -604,6 +670,8 @@ export default function ImpactPage() {
                                   max={metricConfig.max}
                                   value={currentValue}
                                   onChange={onChange(impact)}
+                                  onMouseUp={handleSliderRelease}
+                                  onTouchEnd={handleSliderRelease}
                                   className="w-full h-2 appearance-none cursor-pointer rounded-lg"
                                   style={getSliderStyle()}
                                 />
@@ -611,15 +679,9 @@ export default function ImpactPage() {
                               <span className="text-xs text-foreground/70 font-medium">100</span>
                             </div>
                           )}
-                          <input
-                            type="number"
-                            min={metricConfig.min}
-                            max={metricConfig.max}
-                            value={state.impacts[activityIndex]?.[impact] || ""}
-                            onChange={onChange(impact)}
-                            className="w-20 p-2 bg-background text-foreground text-center rounded border border-border"
-                            placeholder="0"
-                          />
+                          <div className="w-20 p-2 bg-muted text-foreground text-center rounded border border-border select-none">
+                            {state.impacts[activityIndex]?.[impact] || 0}
+                          </div>
                         </div>
                       </div>
                     );
