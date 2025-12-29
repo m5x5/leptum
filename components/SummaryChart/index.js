@@ -1,4 +1,4 @@
-import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import distinctColors from "distinct-colors";
 import CustomTooltip from "./CustomTooltip";
@@ -11,19 +11,29 @@ const palette = distinctColors({
   chromaMin: 50,
 });
 
+// Configuration for impact metrics - should match pages/impact.js
+const METRIC_CONFIG = {
+  stress: { min: 0, max: 100, allowsNegative: false },
+  cleanliness: { min: 0, max: 100, allowsNegative: false },
+  fulfillment: { min: 0, max: 100, allowsNegative: false },
+  motivation: { min: 0, max: 100, allowsNegative: false },
+  energy: { min: 0, max: 100, allowsNegative: false },
+  focus: { min: 0, max: 100, allowsNegative: false },
+  happiness: { min: -100, max: 100, allowsNegative: true },
+  confidence: { min: -100, max: 100, allowsNegative: true },
+};
+
 // Material Design Colors
 
-export default function SummaryChart({ impacts, selectedLines }) {
+export default function SummaryChart({ impacts, selectedLines, dateFilter, currentActivityTimestamp }) {
   const chartData = impacts.map((impact, i) => {
     const newImpact = {};
     selectedLines.forEach((type) => {
-      let value = getNumberFromString(impact[type]);
+      let value = null;
 
-      // If the value doesn't exist take the value of the previous one
-      if (!value) {
-        if (impacts[i - 1]?.[type]) {
-          value = getNumberFromString(impacts[i - 1][type]);
-        }
+      // Only use actual values, don't fill from previous
+      if (typeof impact[type] !== "undefined" && impact[type] !== "") {
+        value = getNumberFromString(impact[type]);
       }
       newImpact[type] = value;
     });
@@ -35,8 +45,17 @@ export default function SummaryChart({ impacts, selectedLines }) {
 
   const formatXAxis = (timestamp) => {
     const date = new Date(timestamp);
-    return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    // Show time for daily view, date for other views
+    if (dateFilter === 'day') {
+      return date.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+    } else {
+      return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+    }
   };
+
+  // Determine Y-axis domain based on selected metrics
+  const hasNegativeMetrics = selectedLines.some(line => METRIC_CONFIG[line]?.allowsNegative);
+  const yAxisDomain = hasNegativeMetrics ? [-100, 100] : [0, 100];
 
   return (
     <ResponsiveContainer width="100%" height="auto" aspect={1.7}>
@@ -50,8 +69,11 @@ export default function SummaryChart({ impacts, selectedLines }) {
         />
         <YAxis
           stroke="hsl(var(--muted-foreground))"
-          domain={[0, 100]}
+          domain={yAxisDomain}
         />
+        {hasNegativeMetrics && (
+          <ReferenceLine y={0} stroke="hsl(var(--muted-foreground))" strokeWidth={1} strokeDasharray="3 3" />
+        )}
         <Tooltip content={<CustomTooltip />} />
         {selectedLines.map((type, i) => (
           <Line
@@ -62,8 +84,17 @@ export default function SummaryChart({ impacts, selectedLines }) {
             stroke={palette[IMPACT_TYPES.indexOf(type)]}
             dot={false}
             strokeWidth={4}
+            connectNulls={false}
           />
         ))}
+        {currentActivityTimestamp && (
+          <ReferenceLine
+            x={currentActivityTimestamp}
+            stroke="#D81B60"
+            strokeWidth={2}
+            strokeDasharray="3 3"
+          />
+        )}
       </LineChart>
     </ResponsiveContainer>
   );

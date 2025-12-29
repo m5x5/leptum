@@ -64,7 +64,14 @@ const ImpactSchema = {
     fulfillment: { type: ['string', 'number'] },
     motivation: { type: ['string', 'number'] },
     cleanliness: { type: ['string', 'number'] },
-    goalId: { type: 'string' }
+    happiness: { type: ['string', 'number'] },
+    confidence: { type: ['string', 'number'] },
+    energy: { type: ['string', 'number'] },
+    focus: { type: ['string', 'number'] },
+    shame: { type: ['string', 'number'] },
+    guilt: { type: ['string', 'number'] },
+    goalId: { type: 'string' },
+    notes: { type: 'string' }
   },
   required: ['activity']
 };
@@ -306,6 +313,10 @@ export class RemoteStorageClient {
         remote: true, 
         conflicts: true 
       }
+    });
+
+    this.remoteStorage.setApiKeys({
+      dropbox: 'k4ydeln2lqgsfch',
     });
 
     // Claim access to the leptum namespace

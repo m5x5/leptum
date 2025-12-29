@@ -1,4 +1,4 @@
-import { PencilIcon, PlusIcon, TrashIcon } from "@heroicons/react/solid";
+import { PlusIcon } from "@heroicons/react/solid";
 import Head from "next/head";
 import { useEffect, useState } from "react";
 import ActivitySelector from "../components/ActivitySelector";
@@ -9,6 +9,23 @@ import Modal from "../components/Modal";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
+
+// Configuration for impact metrics
+const METRIC_CONFIG = {
+  // Positive metrics with red-green gradient (0 = red/bad, 100 = green/good)
+  cleanliness: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  fulfillment: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  motivation: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  energy: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  focus: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  // Inverted metrics with green-red gradient (0 = green/good, 100 = red/bad)
+  stress: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: true },
+  shame: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: true },
+  guilt: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: true },
+  // Bipolar metrics (-100 to 100) with red-green gradient
+  happiness: { min: -100, max: 100, allowsNegative: true, showGradient: true, inverted: false },
+  confidence: { min: -100, max: 100, allowsNegative: true, showGradient: true, inverted: false },
+};
 
 const defaultState = {
   impacts: [
@@ -26,13 +43,13 @@ const defaultState = {
 export default function ImpactPage() {
   const [state, setState] = useState(defaultState);
   console.log("state", state);
-  const [activityName, setActivityName] = useState("");
   const [activityIndex, setActivityIndex] = useState(0);
   const [editMode, setEditMode] = useState(true);
   const [showQuickLogModal, setShowQuickLogModal] = useState(false);
   const [selectedLines, setSelectedLines] = useState(["stress", "cleanliness", "motivation", "energy"]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [tempLogData, setTempLogData] = useState({});
+  const [touchedFields, setTouchedFields] = useState(new Set());
   const [dateFilter, setDateFilter] = useState("day"); // "day", "week", "month", "year", "all"
   const activities = state.impacts.map((impact) => impact.activity);
 
@@ -86,25 +103,25 @@ export default function ImpactPage() {
     setState(newState);
   };
 
-  const addActivity = () => {
-    if (!activityName) return;
-
-    const newState = { ...state };
-    // insert after activityIndex
-    newState.impacts.splice(activityIndex + 1, 0, { activity: activityName, date: Date.now() });
-    setState(newState);
-    setActivityName("");
-  };
-
   const openQuickLogModal = () => {
-    // Initialize temp data with default values
+    // Get the last entry's values as placeholders
+    const lastEntry = state.impacts[state.impacts.length - 1] || {};
+    const placeholderValues = selectedLines.reduce((acc, line) => {
+      if (line !== "activity") {
+        // Use last entry's value, or default to 0 for bipolar metrics, 50 for others
+        const metricConfig = METRIC_CONFIG[line];
+        const defaultValue = metricConfig?.allowsNegative ? 0 : 50;
+        acc[line] = lastEntry[line] !== undefined ? lastEntry[line] : defaultValue;
+      }
+      return acc;
+    }, {});
+
     setTempLogData({
       activity: "",
-      ...selectedLines.reduce((acc, line) => {
-        if (line !== "activity") acc[line] = 50;
-        return acc;
-      }, {})
+      notes: "",
+      ...placeholderValues
     });
+    setTouchedFields(new Set()); // Reset touched fields
     setShowQuickLogModal(true);
   };
 
@@ -114,16 +131,26 @@ export default function ImpactPage() {
     const now = new Date();
     const defaultActivity = tempLogData.activity ||
       `Now - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
+
+    // Only include fields that were actually touched/changed
+    const savedData = {};
+    touchedFields.forEach(field => {
+      if (tempLogData[field] !== undefined) {
+        savedData[field] = tempLogData[field];
+      }
+    });
+
     const newEntry = {
       activity: defaultActivity,
       date: Date.now(),
-      ...tempLogData
+      ...savedData
     };
     newState.impacts.push(newEntry);
     setState(newState);
     setActivityIndex(newState.impacts.length - 1);
     setShowQuickLogModal(false);
     setTempLogData({});
+    setTouchedFields(new Set());
   };
 
   const updateTempLogData = (field, value) => {
@@ -131,10 +158,8 @@ export default function ImpactPage() {
       ...tempLogData,
       [field]: value
     });
-  };
-
-  const changeActivityName = (e) => {
-    setActivityName(e.target.value);
+    // Mark this field as touched
+    setTouchedFields(prev => new Set([...prev, field]));
   };
 
   const onChangeActivity = (index) => {
@@ -279,35 +304,104 @@ export default function ImpactPage() {
               </div>
             )}
 
+            {/* Notes/Diary */}
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Notes / Diary Entry (optional)
+              </label>
+              <textarea
+                placeholder="How are you feeling? What happened today?"
+                className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none min-h-[100px] resize-y"
+                value={tempLogData.notes || ""}
+                onChange={(e) => updateTempLogData("notes", e.target.value)}
+              />
+            </div>
+
             {/* Emotion Sliders */}
             {selectedLines
               .filter((impact) => impact !== "activity")
-              .map((impact) => (
-                <div key={impact}>
-                  <label className="block text-sm font-medium text-foreground mb-2 capitalize">
-                    {impact}
-                  </label>
-                  <div className="flex items-center gap-3">
-                    <input
-                      type="range"
-                      min="0"
-                      max="100"
-                      value={tempLogData[impact] || 50}
-                      onChange={(e) => updateTempLogData(impact, e.target.value)}
-                      className="flex-grow h-2 bg-muted rounded-lg appearance-none cursor-pointer slider"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      value={tempLogData[impact] || ""}
-                      onChange={(e) => updateTempLogData(impact, e.target.value)}
-                      className="w-16 p-2 bg-background text-foreground text-center rounded border border-border"
-                      placeholder="50"
-                    />
+              .map((impact) => {
+                const metricConfig = METRIC_CONFIG[impact] || { min: 0, max: 100, allowsNegative: false };
+                const defaultValue = metricConfig.allowsNegative ? 0 : 50;
+                const placeholderValue = tempLogData[impact] !== undefined ? tempLogData[impact] : defaultValue;
+                const displayValue = touchedFields.has(impact) ? tempLogData[impact] : placeholderValue;
+
+                // Calculate gradient - red to green (or inverted for negative metrics)
+                const getSliderStyle = () => {
+                  if (!metricConfig.showGradient) {
+                    return {};
+                  }
+                  // Inverted gradient for metrics where lower is better (stress, shame, guilt)
+                  if (metricConfig.inverted) {
+                    return {
+                      background: `linear-gradient(to right, #22c55e 0%, #fbbf24 50%, #ef4444 100%)`,
+                      backgroundSize: '100% 100%',
+                    };
+                  }
+                  // Normal gradient for metrics where higher is better
+                  return {
+                    background: `linear-gradient(to right, #ef4444 0%, #fbbf24 50%, #22c55e 100%)`,
+                    backgroundSize: '100% 100%',
+                  };
+                };
+
+                return (
+                  <div key={impact}>
+                    <label className="block text-sm font-medium text-foreground mb-2 capitalize">
+                      {impact}
+                      {metricConfig.allowsNegative && (
+                        <span className="ml-2 text-xs text-muted-foreground">
+                          (negative to positive)
+                        </span>
+                      )}
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {metricConfig.allowsNegative ? (
+                        <div className="flex-grow flex items-center gap-2">
+                          <span className="text-xs text-foreground/70 font-medium">-100</span>
+                          <div className="flex-grow relative">
+                            <input
+                              type="range"
+                              min={metricConfig.min}
+                              max={metricConfig.max}
+                              value={displayValue}
+                              onChange={(e) => updateTempLogData(impact, e.target.value)}
+                              className="w-full h-2 appearance-none cursor-pointer rounded-lg"
+                              style={getSliderStyle()}
+                            />
+                          </div>
+                          <span className="text-xs text-foreground/70 font-medium">+100</span>
+                        </div>
+                      ) : (
+                        <div className="flex-grow flex items-center gap-2">
+                          <span className="text-xs text-foreground/70 font-medium">0</span>
+                          <div className="flex-grow relative">
+                            <input
+                              type="range"
+                              min={metricConfig.min}
+                              max={metricConfig.max}
+                              value={displayValue}
+                              onChange={(e) => updateTempLogData(impact, e.target.value)}
+                              className="w-full h-2 appearance-none cursor-pointer rounded-lg"
+                              style={getSliderStyle()}
+                            />
+                          </div>
+                          <span className="text-xs text-foreground/70 font-medium">100</span>
+                        </div>
+                      )}
+                      <input
+                        type="number"
+                        min={metricConfig.min}
+                        max={metricConfig.max}
+                        value={touchedFields.has(impact) ? tempLogData[impact] : ""}
+                        onChange={(e) => updateTempLogData(impact, e.target.value)}
+                        className="w-20 p-2 bg-background text-foreground text-center rounded border border-border"
+                        placeholder={placeholderValue.toString()}
+                      />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
           </div>
         </Modal.Body>
         <Modal.Footer>
@@ -327,13 +421,6 @@ export default function ImpactPage() {
           </div>
         </Modal.Footer>
       </Modal>
-
-      {/* Main Content */}
-      <ActivitySelector
-        impacts={state.impacts}
-        index={activityIndex}
-        onChange={onChangeActivity}
-      />
 
       {/* Date Filter Buttons */}
       <div className="flex gap-2 mb-4 overflow-x-auto">
@@ -394,40 +481,154 @@ export default function ImpactPage() {
         impacts={filteredImpacts}
         activities={state.activities}
         selectedLines={selectedLines}
+        dateFilter={dateFilter}
+        currentActivityTimestamp={state.impacts[activityIndex]?.date}
       />
-      <div className="grid grid-cols-2 flex-grow gap-4 mt-12">
-        <input
-          type="text"
-          placeholder="Activity"
-          className="p-2 px-3 bg-card border border-border text-foreground rounded-md w-full"
-          onChange={changeActivityName}
-          value={activityName}
-        />
-        <div className="flex flex-row justify-between items-center text-muted-foreground">
-          <button className="btn btn-primary btn-sm" onClick={addActivity}>
-            <PlusIcon className="w-5" />
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={toggleEditMode}>
-            <PencilIcon className="w-5" />
-          </button>
-          <button className="btn btn-secondary btn-sm" onClick={deleteActivity}>
-            <TrashIcon className="w-5" />
-          </button>
+
+      {/* Activity Selector and Edit Panel */}
+      {filteredImpacts.length > 0 && (
+        <div className="mt-8 bg-card border border-border rounded-lg p-6">
+          <ActivitySelector
+            impacts={filteredImpacts}
+            index={filteredImpacts.findIndex(imp => imp === state.impacts[activityIndex])}
+            onChange={(filteredIdx) => {
+              // Map filtered index back to original index
+              const selectedImpact = filteredImpacts[filteredIdx];
+              const originalIndex = state.impacts.findIndex(imp => imp === selectedImpact);
+              if (originalIndex !== -1) {
+                onChangeActivity(originalIndex);
+              }
+            }}
+            onDelete={deleteActivity}
+            onToggleEdit={toggleEditMode}
+            editMode={editMode}
+          />
+
+          {/* Edit Activity Name */}
+          {editMode && state.impacts[activityIndex] && (
+            <div className="mt-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Activity Name
+                </label>
+                <input
+                  type="text"
+                  value={state.impacts[activityIndex]?.activity || ""}
+                  onChange={(e) => updateActivityName(e.target.value)}
+                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+                  placeholder="Activity name"
+                />
+              </div>
+
+              {/* Notes/Diary */}
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
+                  Notes / Diary Entry
+                </label>
+                <textarea
+                  placeholder="How are you feeling? What happened?"
+                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none min-h-[100px] resize-y"
+                  value={state.impacts[activityIndex]?.notes || ""}
+                  onChange={(e) => {
+                    const newState = { ...state };
+                    if (newState.impacts[activityIndex]) {
+                      newState.impacts[activityIndex].notes = e.target.value;
+                      setState(newState);
+                    }
+                  }}
+                />
+              </div>
+
+              {/* Emotion Sliders */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-medium text-foreground">Emotion Metrics</h3>
+                {selectedLines
+                  .filter((impact) => impact !== "activity")
+                  .map((impact) => {
+                    const metricConfig = METRIC_CONFIG[impact] || { min: 0, max: 100, allowsNegative: false, showGradient: false, inverted: false };
+                    const currentValue = state.impacts[activityIndex]?.[impact] || 0;
+
+                    // Calculate gradient - red to green (or inverted for negative metrics)
+                    const getSliderStyle = () => {
+                      if (!metricConfig.showGradient) {
+                        return {};
+                      }
+                      // Inverted gradient for metrics where lower is better (stress, shame, guilt)
+                      if (metricConfig.inverted) {
+                        return {
+                          background: `linear-gradient(to right, #22c55e 0%, #fbbf24 50%, #ef4444 100%)`,
+                          backgroundSize: '100% 100%',
+                        };
+                      }
+                      // Normal gradient for metrics where higher is better
+                      return {
+                        background: `linear-gradient(to right, #ef4444 0%, #fbbf24 50%, #22c55e 100%)`,
+                        backgroundSize: '100% 100%',
+                      };
+                    };
+
+                    return (
+                      <div key={impact}>
+                        <label className="block text-sm font-medium text-foreground mb-2 capitalize">
+                          {impact}
+                          {metricConfig.allowsNegative && (
+                            <span className="ml-2 text-xs text-muted-foreground">
+                              (negative to positive)
+                            </span>
+                          )}
+                        </label>
+                        <div className="flex items-center gap-3">
+                          {metricConfig.allowsNegative ? (
+                            <div className="flex-grow flex items-center gap-2">
+                              <span className="text-xs text-foreground/70 font-medium">-100</span>
+                              <div className="flex-grow relative">
+                                <input
+                                  type="range"
+                                  min={metricConfig.min}
+                                  max={metricConfig.max}
+                                  value={currentValue}
+                                  onChange={onChange(impact)}
+                                  className="w-full h-2 appearance-none cursor-pointer rounded-lg"
+                                  style={getSliderStyle()}
+                                />
+                              </div>
+                              <span className="text-xs text-foreground/70 font-medium">+100</span>
+                            </div>
+                          ) : (
+                            <div className="flex-grow flex items-center gap-2">
+                              <span className="text-xs text-foreground/70 font-medium">0</span>
+                              <div className="flex-grow relative">
+                                <input
+                                  type="range"
+                                  min={metricConfig.min}
+                                  max={metricConfig.max}
+                                  value={currentValue}
+                                  onChange={onChange(impact)}
+                                  className="w-full h-2 appearance-none cursor-pointer rounded-lg"
+                                  style={getSliderStyle()}
+                                />
+                              </div>
+                              <span className="text-xs text-foreground/70 font-medium">100</span>
+                            </div>
+                          )}
+                          <input
+                            type="number"
+                            min={metricConfig.min}
+                            max={metricConfig.max}
+                            value={state.impacts[activityIndex]?.[impact] || ""}
+                            onChange={onChange(impact)}
+                            className="w-20 p-2 bg-background text-foreground text-center rounded border border-border"
+                            placeholder="0"
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
         </div>
-        {selectedLines
-          .filter((impact) => impact !== "activity")
-          .map((impact) => (
-            <ImpactCard
-              key={impact}
-              impact={impact}
-              impacts={state.impacts}
-              activities={activities}
-              activityIndex={activityIndex}
-              onChange={onChange(impact)}
-              editMode={editMode}
-            />
-          ))}
-      </div>
+      )}
       </div>
     </>
   );

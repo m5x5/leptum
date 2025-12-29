@@ -1,5 +1,5 @@
 import Head from "next/head";
-import { PlusIcon, TrashIcon, ClockIcon, CheckCircleIcon } from "@heroicons/react/solid";
+import { PlusIcon, TrashIcon, ClockIcon, CheckCircleIcon, PencilIcon } from "@heroicons/react/solid";
 import { useEffect, useState } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { Routine } from "../components/Job/api";
@@ -240,25 +240,33 @@ export default function RoutinesPage() {
               {scheduledRoutines.map((routine) => (
                 <div
                   key={routine.id}
-                  className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => openEditModal(routine)}
+                  className="bg-card border border-border rounded-lg p-4 relative"
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-lg font-semibold text-foreground">{routine.name}</h3>
-                    <span className="text-sm px-3 py-1 bg-primary/10 text-primary rounded-full">
-                      {getPrettyTimeTillNextOccurrence(routine.cron!)}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm px-3 py-1 bg-primary/10 text-primary rounded-full">
+                        {getPrettyTimeTillNextOccurrence(routine.cron!)}
+                      </span>
+                      <button
+                        onClick={() => openEditModal(routine)}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors"
+                        aria-label="Edit routine"
+                      >
+                        <PencilIcon className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    </div>
                   </div>
                   <p className="text-sm text-muted-foreground mb-4">
                     {getDescription(routine.cron!)}
                   </p>
-                  
+
                   {completions.some(c => c.routineId === routine.id) && (
                     <div className="mb-4">
-                      <EChartsHeatmap 
-                        completions={completions} 
-                        routineId={routine.id} 
-                        months={12} 
+                      <EChartsHeatmap
+                        completions={completions}
+                        routineId={routine.id}
+                        months={12}
                       />
                     </div>
                   )}
@@ -285,17 +293,25 @@ export default function RoutinesPage() {
               {unscheduledRoutines.map((routine) => (
                 <div
                   key={routine.id}
-                  className="bg-card border border-border rounded-lg p-4 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => openEditModal(routine)}
+                  className="bg-card border border-border rounded-lg p-4 relative"
                 >
-                  <h3 className="text-lg font-semibold text-foreground mb-4">{routine.name}</h3>
-                  
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold text-foreground">{routine.name}</h3>
+                    <button
+                      onClick={() => openEditModal(routine)}
+                      className="p-2 hover:bg-muted rounded-lg transition-colors"
+                      aria-label="Edit routine"
+                    >
+                      <PencilIcon className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                    </button>
+                  </div>
+
                   {completions.some(c => c.routineId === routine.id) && (
                     <div className="mb-4">
-                      <EChartsHeatmap 
-                        completions={completions} 
-                        routineId={routine.id} 
-                        months={12} 
+                      <EChartsHeatmap
+                        completions={completions}
+                        routineId={routine.id}
+                        months={12}
                       />
                     </div>
                   )}
