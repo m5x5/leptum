@@ -1,4 +1,4 @@
-import { PlusIcon } from "@heroicons/react/solid";
+import { PlusIcon, ChevronDownIcon } from "@heroicons/react/solid";
 import Head from "next/head";
 import { useEffect, useState } from "react";
 import ActivitySelector from "../components/ActivitySelector";
@@ -8,6 +8,15 @@ import Modal from "../components/Modal";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../components/ui/dropdown-menu";
+import { Button } from "../components/ui/button";
 
 // Configuration for impact metrics
 const METRIC_CONFIG = {
@@ -47,7 +56,6 @@ export default function ImpactPage() {
   const [showQuickLogModal, setShowQuickLogModal] = useState(false);
   // Initialize with all available impact categories from METRIC_CONFIG
   const [selectedLines, setSelectedLines] = useState(() => Object.keys(METRIC_CONFIG));
-  const [showCategorySelect, setShowCategorySelect] = useState(false);
   const [showTimespanSelect, setShowTimespanSelect] = useState(false);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [tempLogData, setTempLogData] = useState({});
@@ -92,11 +100,11 @@ export default function ImpactPage() {
     saveImpacts();
   }, [JSON.stringify(state.impacts), isDataLoaded]);
 
-  // Close category dropdown when clicking outside
+  // Close timespan dropdown when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
-      if (showCategorySelect && !event.target.closest('.category-select-container')) {
-        setShowCategorySelect(false);
+      if (showTimespanSelect && !event.target.closest('.timespan-select-container')) {
+        setShowTimespanSelect(false);
       }
     };
 
@@ -104,7 +112,7 @@ export default function ImpactPage() {
     return () => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
-  }, [showCategorySelect]);
+  }, [showTimespanSelect]);
 
   const onChange = (impact) => (e) => {
     const value = e.target.value;
@@ -261,7 +269,7 @@ export default function ImpactPage() {
         <title>Impact - Leptum</title>
       </Head>
 
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-32 md:pb-0">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Impact</h1>
@@ -269,14 +277,24 @@ export default function ImpactPage() {
             Log your activities and track their impact on your wellbeing
           </p>
         </div>
+        {/* Desktop Add Log Button */}
         <button
           onClick={openQuickLogModal}
-          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+          className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
         >
           <PlusIcon className="w-5 h-5" />
           <span>Add Log</span>
         </button>
       </div>
+
+      {/* Mobile Add Log Button - Fixed above navigation */}
+      <button
+        onClick={openQuickLogModal}
+        className="md:hidden fixed bottom-20 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+      >
+        <PlusIcon className="w-5 h-5" />
+        <span>Add Log</span>
+      </button>
 
       {/* Quick Log Modal */}
       <Modal
@@ -442,105 +460,92 @@ export default function ImpactPage() {
         </Modal.Footer>
       </Modal>
 
-      {/* Date Filter Buttons */}
-      <div className="flex gap-2 mb-4 overflow-x-auto">
-        <button
-          onClick={() => setDateFilter("day")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-            dateFilter === "day"
-              ? "bg-primary text-primary-foreground"
-              : "bg-card border border-border text-foreground hover:bg-muted"
-          }`}
-        >
-          Today
-        </button>
-        <button
-          onClick={() => setDateFilter("week")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-            dateFilter === "week"
-              ? "bg-primary text-primary-foreground"
-              : "bg-card border border-border text-foreground hover:bg-muted"
-          }`}
-        >
-          Week
-        </button>
-        <button
-          onClick={() => setDateFilter("month")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-            dateFilter === "month"
-              ? "bg-primary text-primary-foreground"
-              : "bg-card border border-border text-foreground hover:bg-muted"
-          }`}
-        >
-          Month
-        </button>
-        <button
-          onClick={() => setDateFilter("year")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-            dateFilter === "year"
-              ? "bg-primary text-primary-foreground"
-              : "bg-card border border-border text-foreground hover:bg-muted"
-          }`}
-        >
-          Year
-        </button>
-        <button
-          onClick={() => setDateFilter("all")}
-          className={`px-4 py-2 rounded-lg font-medium transition-colors whitespace-nowrap ${
-            dateFilter === "all"
-              ? "bg-primary text-primary-foreground"
-              : "bg-card border border-border text-foreground hover:bg-muted"
-          }`}
-        >
-          All Time
-        </button>
-      </div>
-
-      {/* Category Multiselect */}
-      <div className="mb-4 relative category-select-container">
-        <button
-          onClick={() => setShowCategorySelect(!showCategorySelect)}
-          className="px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-muted transition-colors flex items-center gap-2"
-        >
-          <span>Impact Categories ({selectedLines.length})</span>
-          <svg
-            className={`w-4 h-4 transition-transform ${showCategorySelect ? 'rotate-180' : ''}`}
-            fill="none"
-            stroke="currentColor"
-            viewBox="0 0 24 24"
+      {/* Timespan and Category Selectors */}
+      <div className="flex gap-2 mb-4">
+        {/* Timespan Dropdown */}
+        <div className="relative timespan-select-container">
+          <button
+            onClick={() => setShowTimespanSelect(!showTimespanSelect)}
+            className="px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-muted transition-colors flex items-center gap-2"
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-          </svg>
-        </button>
-        
-        {showCategorySelect && (
-          <div className="absolute z-10 mt-2 w-64 bg-card border border-border rounded-lg shadow-lg p-2 max-h-96 overflow-y-auto">
+            <span>
+              {dateFilter === "day" ? "Today" :
+               dateFilter === "week" ? "Week" :
+               dateFilter === "month" ? "Month" :
+               dateFilter === "year" ? "Year" :
+               "All Time"}
+            </span>
+            <svg
+              className={`w-4 h-4 transition-transform ${showTimespanSelect ? 'rotate-180' : ''}`}
+              fill="none"
+              stroke="currentColor"
+              viewBox="0 0 24 24"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+          
+          {showTimespanSelect && (
+            <div className="absolute z-10 mt-2 w-40 bg-card border border-border rounded-lg shadow-lg p-2">
+              {[
+                { value: "day", label: "Today" },
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" },
+                { value: "year", label: "Year" },
+                { value: "all", label: "All Time" }
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  onClick={() => {
+                    setDateFilter(option.value);
+                    setShowTimespanSelect(false);
+                  }}
+                  className={`w-full text-left px-3 py-2 rounded hover:bg-muted transition-colors ${
+                    dateFilter === option.value
+                      ? "bg-primary text-primary-foreground"
+                      : "text-foreground"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Category Multiselect */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="flex items-center gap-2">
+              <span>Impact Categories ({selectedLines.length})</span>
+              <ChevronDownIcon className="h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-64 max-h-96 overflow-y-auto">
+            <DropdownMenuLabel>Select Categories</DropdownMenuLabel>
+            <DropdownMenuSeparator />
             {Object.keys(METRIC_CONFIG).map((category) => {
               const isSelected = selectedLines.includes(category);
               return (
-                <label
+                <DropdownMenuCheckboxItem
                   key={category}
-                  className="flex items-center gap-2 p-2 rounded hover:bg-muted cursor-pointer"
+                  checked={isSelected}
+                  onCheckedChange={(checked) => {
+                    if (checked) {
+                      setSelectedLines([...selectedLines, category]);
+                    } else {
+                      setSelectedLines(selectedLines.filter((item) => item !== category));
+                    }
+                  }}
                 >
-                  <input
-                    type="checkbox"
-                    checked={isSelected}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedLines([...selectedLines, category]);
-                      } else {
-                        setSelectedLines(selectedLines.filter((item) => item !== category));
-                      }
-                    }}
-                    className="rounded border-border"
-                  />
-                  <span className="text-foreground capitalize">{category}</span>
-                </label>
+                  <span className="capitalize">{category}</span>
+                </DropdownMenuCheckboxItem>
               );
             })}
-          </div>
-        )}
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
       <SummaryChart
         impacts={filteredImpacts}
         activities={state.activities}
