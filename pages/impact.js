@@ -1,4 +1,4 @@
-import { PlusIcon, ChevronDownIcon } from "@heroicons/react/solid";
+import { PlusIcon } from "@heroicons/react/solid";
 import Head from "next/head";
 import { useEffect, useState } from "react";
 import ActivitySelector from "../components/ActivitySelector";
@@ -8,6 +8,10 @@ import Modal from "../components/Modal";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
+import { useInsights } from "../utils/useInsights";
+import { usePatternNotes } from "../utils/usePatternNotes";
+import { TrashIcon, PencilIcon, ChartBarIcon, ChevronDownIcon } from "@heroicons/react/solid";
+import { analyzeActivityPatterns, getSuggestionsForMetrics } from "../utils/activityAnalysis";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -17,6 +21,8 @@ import {
   DropdownMenuTrigger,
 } from "../components/ui/dropdown-menu";
 import { Button } from "../components/ui/button";
+import { Input } from "../components/ui/input";
+import { Textarea } from "../components/ui/textarea";
 
 // Configuration for impact metrics
 const METRIC_CONFIG = {
@@ -61,10 +67,72 @@ export default function ImpactPage() {
   const [tempLogData, setTempLogData] = useState({});
   const [touchedFields, setTouchedFields] = useState(new Set());
   const [dateFilter, setDateFilter] = useState("day"); // "day", "week", "month", "year", "all"
+  const [activeTab, setActiveTab] = useState("impact"); // "impact" or "insights"
   const activities = state.impacts.map((impact) => impact.activity);
 
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
+  const { insights, loading: insightsLoading, addInsight, updateInsight, deleteInsight } = useInsights();
+  const { patternNotes, getPatternNote, savePatternNote, deletePatternNote } = usePatternNotes();
+
+  // Form state for insights
+  const [showInsightModal, setShowInsightModal] = useState(false);
+  const [editingInsight, setEditingInsight] = useState(null);
+  const [insightFormData, setInsightFormData] = useState({
+    name: '',
+    notes: '',
+    category: '',
+    affectedMetrics: []
+  });
+
+  // Activity pattern analysis
+  const [activityPatterns, setActivityPatterns] = useState([]);
+  const [expandedPatterns, setExpandedPatterns] = useState({});
+  const [editingPatternNote, setEditingPatternNote] = useState(null);
+  const [patternNoteText, setPatternNoteText] = useState("");
+
+  // Analyze activity patterns when impacts change
+  useEffect(() => {
+    if (state.impacts && state.impacts.length >= 2) {
+      const patterns = analyzeActivityPatterns(state.impacts);
+      setActivityPatterns(patterns);
+    }
+  }, [state.impacts]);
+
+  const togglePatternExpanded = (activityName) => {
+    setExpandedPatterns(prev => ({
+      ...prev,
+      [activityName]: !prev[activityName]
+    }));
+  };
+
+  const startEditingPatternNote = (activity) => {
+    const existingNote = getPatternNote(activity);
+    setEditingPatternNote(activity);
+    setPatternNoteText(existingNote?.notes || "");
+  };
+
+  const cancelEditingPatternNote = () => {
+    setEditingPatternNote(null);
+    setPatternNoteText("");
+  };
+
+  const saveCurrentPatternNote = async () => {
+    if (editingPatternNote && patternNoteText.trim()) {
+      await savePatternNote(editingPatternNote, patternNoteText.trim());
+      setEditingPatternNote(null);
+      setPatternNoteText("");
+    }
+  };
+
+  const handleDeletePatternNote = async (activity) => {
+    if (confirm('Are you sure you want to delete your thoughts on this pattern?')) {
+      await deletePatternNote(activity);
+      if (editingPatternNote === activity) {
+        cancelEditingPatternNote();
+      }
+    }
+  };
 
   useEffect(() => {
     const loadImpacts = async () => {
@@ -83,6 +151,11 @@ export default function ImpactPage() {
     };
 
     loadImpacts();
+
+    // Check URL hash to set active tab
+    if (window.location.hash === '#insights') {
+      setActiveTab('insights');
+    }
   }, []);
 
   useEffect(() => {
@@ -263,37 +336,177 @@ export default function ImpactPage() {
 
   const filteredImpacts = getFilteredImpacts();
 
+  // Insights management functions
+  const openAddInsightModal = () => {
+    setEditingInsight(null);
+    setInsightFormData({
+      name: '',
+      notes: '',
+      category: '',
+      affectedMetrics: []
+    });
+    setShowInsightModal(true);
+  };
+
+  const openEditInsightModal = (insight) => {
+    setEditingInsight(insight);
+    setInsightFormData({
+      name: insight.name,
+      notes: insight.notes || '',
+      category: insight.category || '',
+      affectedMetrics: insight.affectedMetrics
+    });
+    setShowInsightModal(true);
+  };
+
+  const toggleInsightMetric = (metric) => {
+    const existingIndex = insightFormData.affectedMetrics.findIndex(m => m.metric === metric);
+
+    if (existingIndex >= 0) {
+      const existing = insightFormData.affectedMetrics[existingIndex];
+      if (existing.effect === 'positive') {
+        const updated = [...insightFormData.affectedMetrics];
+        updated[existingIndex] = { ...existing, effect: 'negative' };
+        setInsightFormData({ ...insightFormData, affectedMetrics: updated });
+      } else {
+        const updated = insightFormData.affectedMetrics.filter(m => m.metric !== metric);
+        setInsightFormData({ ...insightFormData, affectedMetrics: updated });
+      }
+    } else {
+      setInsightFormData({
+        ...insightFormData,
+        affectedMetrics: [...insightFormData.affectedMetrics, { metric, effect: 'positive' }]
+      });
+    }
+  };
+
+  const handleSaveInsight = async () => {
+    if (!insightFormData.name.trim()) {
+      alert('Please enter a name');
+      return;
+    }
+
+    if (insightFormData.affectedMetrics.length === 0) {
+      alert('Please select at least one affected metric');
+      return;
+    }
+
+    if (editingInsight) {
+      await updateInsight(editingInsight.id, insightFormData);
+    } else {
+      await addInsight(insightFormData);
+    }
+
+    setShowInsightModal(false);
+  };
+
+  const handleDeleteInsight = async (id) => {
+    if (confirm('Are you sure you want to delete this insight?')) {
+      await deleteInsight(id);
+    }
+  };
+
+  const getInsightMetricEffect = (metric) => {
+    const found = insightFormData.affectedMetrics.find(m => m.metric === metric);
+    return found ? found.effect : null;
+  };
+
+  const getInsightMetricButtonStyle = (metric) => {
+    const effect = getInsightMetricEffect(metric);
+    if (!effect) {
+      return "bg-muted text-foreground border border-border";
+    }
+    if (effect === 'positive') {
+      return "bg-green-500 text-white border border-green-600";
+    }
+    return "bg-red-500 text-white border border-red-600";
+  };
+
+  const getInsightMetricSymbol = (metric) => {
+    const effect = getInsightMetricEffect(metric);
+    if (!effect) return '';
+    return effect === 'positive' ? ' ↑' : ' ↓';
+  };
+
   return (
     <>
       <Head>
-        <title>Impact - Leptum</title>
+        <title>Wellbeing - Leptum</title>
       </Head>
 
       <div className="max-w-6xl mx-auto pb-32 md:pb-0">
       <div className="mb-6 flex items-start justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Impact</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Wellbeing</h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Log your activities and track their impact on your wellbeing
+            Track your mood and discover what helps
           </p>
         </div>
-        {/* Desktop Add Log Button */}
-        <button
-          onClick={openQuickLogModal}
-          className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span>Add Log</span>
-        </button>
+        {/* Desktop Add Button */}
+        {activeTab === 'impact' ? (
+          <button
+            onClick={openQuickLogModal}
+            className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span>Add Log</span>
+          </button>
+        ) : (
+          <button
+            onClick={openAddInsightModal}
+            className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+          >
+            <PlusIcon className="w-5 h-5" />
+            <span>Add Insight</span>
+          </button>
+        )}
       </div>
 
-      {/* Mobile Add Log Button - Fixed above navigation */}
+      {/* Tabs */}
+      <div className="mb-6 border-b border-border">
+        <div className="flex gap-4">
+          <button
+            onClick={() => {
+              setActiveTab('impact');
+              window.history.replaceState(null, '', '/impact');
+            }}
+            className={`pb-3 px-2 font-medium transition-colors relative ${
+              activeTab === 'impact'
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Impact Tracking
+            {activeTab === 'impact' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
+            )}
+          </button>
+          <button
+            onClick={() => {
+              setActiveTab('insights');
+              window.history.replaceState(null, '', '/impact#insights');
+            }}
+            className={`pb-3 px-2 font-medium transition-colors relative ${
+              activeTab === 'insights'
+                ? 'text-primary'
+                : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Insights
+            {activeTab === 'insights' && (
+              <div className="absolute bottom-0 left-0 right-0 h-0.5 bg-primary"></div>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Mobile Add Button - Fixed above navigation */}
       <button
-        onClick={openQuickLogModal}
-        className="md:hidden fixed bottom-20 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+        onClick={activeTab === 'impact' ? openQuickLogModal : openAddInsightModal}
+        className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
       >
         <PlusIcon className="w-5 h-5" />
-        <span>Add Log</span>
+        <span>{activeTab === 'impact' ? 'Add Log' : 'Add Insight'}</span>
       </button>
 
       {/* Quick Log Modal */}
@@ -306,10 +519,10 @@ export default function ImpactPage() {
           <div className="space-y-4 mt-4">
             {/* Activity Name Input */}
             <div>
-              <input
+              <Input
                 type="text"
                 placeholder="What are you doing? (optional)"
-                className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
+                className="text-lg"
                 value={tempLogData.activity || ""}
                 onChange={(e) => updateTempLogData("activity", e.target.value)}
               />
@@ -349,9 +562,9 @@ export default function ImpactPage() {
               <label className="block text-sm font-medium text-foreground mb-2">
                 Notes / Diary Entry (optional)
               </label>
-              <textarea
+              <Textarea
                 placeholder="How are you feeling? What happened today?"
-                className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none min-h-[100px] resize-y"
+                className="min-h-[100px] resize-y"
                 value={tempLogData.notes || ""}
                 onChange={(e) => updateTempLogData("notes", e.target.value)}
               />
@@ -404,6 +617,7 @@ export default function ImpactPage() {
                               type="range"
                               min={metricConfig.min}
                               max={metricConfig.max}
+                              step="10"
                               value={displayValue}
                               onChange={(e) => updateTempLogData(impact, e.target.value)}
                               onMouseUp={handleSliderRelease}
@@ -422,6 +636,7 @@ export default function ImpactPage() {
                               type="range"
                               min={metricConfig.min}
                               max={metricConfig.max}
+                              step="10"
                               value={displayValue}
                               onChange={(e) => updateTempLogData(impact, e.target.value)}
                               onMouseUp={handleSliderRelease}
@@ -460,6 +675,9 @@ export default function ImpactPage() {
         </Modal.Footer>
       </Modal>
 
+      {/* Impact Tracking Tab Content */}
+      {activeTab === 'impact' && (
+        <>
       {/* Timespan and Category Selectors */}
       <div className="flex gap-2 mb-4">
         {/* Timespan Dropdown */}
@@ -574,17 +792,16 @@ export default function ImpactPage() {
           />
 
           {/* Edit Activity Name */}
-          {editMode && state.impacts[activityIndex] && (
+              {editMode && state.impacts[activityIndex] && (
             <div className="mt-6 space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Activity Name
                 </label>
-                <input
+                <Input
                   type="text"
                   value={state.impacts[activityIndex]?.activity || ""}
                   onChange={(e) => updateActivityName(e.target.value)}
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
                   placeholder="Activity name"
                 />
               </div>
@@ -594,9 +811,9 @@ export default function ImpactPage() {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Notes / Diary Entry
                 </label>
-                <textarea
+                <Textarea
                   placeholder="How are you feeling? What happened?"
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none min-h-[100px] resize-y"
+                  className="min-h-[100px] resize-y"
                   value={state.impacts[activityIndex]?.notes || ""}
                   onChange={(e) => {
                     const newState = { ...state };
@@ -655,6 +872,7 @@ export default function ImpactPage() {
                                   type="range"
                                   min={metricConfig.min}
                                   max={metricConfig.max}
+                                  step="10"
                                   value={currentValue}
                                   onChange={onChange(impact)}
                                   onMouseUp={handleSliderRelease}
@@ -673,6 +891,7 @@ export default function ImpactPage() {
                                   type="range"
                                   min={metricConfig.min}
                                   max={metricConfig.max}
+                                  step="10"
                                   value={currentValue}
                                   onChange={onChange(impact)}
                                   onMouseUp={handleSliderRelease}
@@ -696,6 +915,385 @@ export default function ImpactPage() {
           )}
         </div>
       )}
+        </>
+      )}
+
+      {/* Insights Tab Content */}
+      {activeTab === 'insights' && (
+        <div className="space-y-6">
+          {/* Discovered Patterns from Data */}
+          {activityPatterns.length > 0 && (
+            <div>
+              <div className="flex items-center gap-2 mb-4">
+                <ChartBarIcon className="w-5 h-5 text-primary" />
+                <h2 className="text-lg font-semibold text-foreground">Discovered Patterns</h2>
+                <span className="text-xs text-muted-foreground">
+                  Based on your logged activities
+                </span>
+              </div>
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                {activityPatterns.slice(0, 10).map((pattern, index) => (
+                  <div
+                    key={index}
+                    className="bg-gradient-to-r from-primary/5 to-transparent border border-border rounded-lg p-5"
+                  >
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="flex-1">
+                        <h3 className="text-base font-semibold text-foreground mb-1">
+                          {pattern.activity}
+                        </h3>
+                        <p className="text-xs text-muted-foreground">
+                          Logged {pattern.totalLogs} {pattern.totalLogs === 1 ? 'time' : 'times'}
+                          {pattern.totalLogs === 1 && (
+                            <span className="ml-2 text-yellow-600 dark:text-yellow-400">
+                              • Early data
+                            </span>
+                          )}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {pattern.positiveEffects.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-green-600 dark:text-green-400 mb-1">
+                            Positive Effects:
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {pattern.positiveEffects.map(effect => {
+                              const isInverted = ['stress', 'shame', 'guilt'].includes(effect.metric);
+                              const displayValue = isInverted
+                                ? `${effect.change}` // Shows -29 for stress decrease
+                                : `+${effect.change}`; // Shows +20 for happiness increase
+                              return (
+                                <span
+                                  key={effect.metric}
+                                  className="text-xs px-3 py-1 bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 rounded-full font-medium capitalize"
+                                >
+                                  {effect.metric} {displayValue}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+
+                      {pattern.negativeEffects.length > 0 && (
+                        <div>
+                          <p className="text-xs font-medium text-red-600 dark:text-red-400 mb-1">
+                            Negative Effects:
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {pattern.negativeEffects.map(effect => {
+                              const isInverted = ['stress', 'shame', 'guilt'].includes(effect.metric);
+                              const displayValue = isInverted
+                                ? `+${effect.change}` // Shows +20 for stress increase
+                                : `${effect.change}`; // Shows -20 for happiness decrease
+                              return (
+                                <span
+                                  key={effect.metric}
+                                  className="text-xs px-3 py-1 bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300 rounded-full font-medium capitalize"
+                                >
+                                  {effect.metric} {displayValue}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Show References Button */}
+                    <button
+                      onClick={() => togglePatternExpanded(pattern.activity)}
+                      className="mt-3 flex items-center gap-1 text-xs text-primary hover:underline"
+                    >
+                      <ChevronDownIcon className={`w-4 h-4 transition-transform ${expandedPatterns[pattern.activity] ? 'rotate-180' : ''}`} />
+                      {expandedPatterns[pattern.activity] ? 'Hide' : 'Show'} details
+                    </button>
+
+                    {/* References */}
+                    {expandedPatterns[pattern.activity] && (
+                      <div className="mt-3 pt-3 border-t border-border space-y-2">
+                        <p className="text-xs font-medium text-muted-foreground mb-2">When this was detected:</p>
+                        {[...pattern.positiveEffects, ...pattern.negativeEffects].map((effect, effectIdx) => (
+                          <div key={effectIdx} className="space-y-1">
+                            <p className="text-xs font-medium capitalize text-foreground">{effect.metric}:</p>
+                            {effect.references && effect.references.map((ref, refIdx) => (
+                              <div key={refIdx} className="text-xs bg-muted/50 rounded px-2 py-1.5">
+                                <p className="text-muted-foreground">
+                                  {new Date(ref.date).toLocaleString('en-US', {
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: 'numeric',
+                                    minute: '2-digit'
+                                  })}
+                                </p>
+                                <p className="text-foreground">
+                                  {ref.previousValue} → {ref.currentValue}
+                                  <span className={ref.change > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                                    {' '}({ref.change > 0 ? '+' : ''}{ref.change})
+                                  </span>
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* Your Thoughts Section */}
+                    <div className="mt-3 pt-3 border-t border-border">
+                      {(() => {
+                        const existingNote = getPatternNote(pattern.activity);
+                        const isEditing = editingPatternNote === pattern.activity;
+
+                        if (isEditing) {
+                          return (
+                            <div className="space-y-2">
+                              <label className="block text-xs font-medium text-foreground">
+                                Your thoughts on this pattern:
+                              </label>
+                              <Textarea
+                                value={patternNoteText}
+                                onChange={(e) => setPatternNoteText(e.target.value)}
+                                placeholder="What do you think about this pattern? Any insights or observations?"
+                                className="min-h-[80px] text-sm"
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={saveCurrentPatternNote}
+                                  className="px-3 py-1.5 bg-primary text-primary-foreground rounded text-xs font-medium hover:opacity-90"
+                                >
+                                  Save
+                                </button>
+                                <button
+                                  onClick={cancelEditingPatternNote}
+                                  className="px-3 py-1.5 bg-muted text-foreground rounded text-xs hover:opacity-80"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        }
+
+                        if (existingNote) {
+                          return (
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between">
+                                <p className="text-xs font-medium text-foreground">Your thoughts:</p>
+                                <div className="flex gap-1">
+                                  <button
+                                    onClick={() => startEditingPatternNote(pattern.activity)}
+                                    className="p-1 text-foreground hover:bg-muted rounded transition"
+                                    title="Edit thoughts"
+                                  >
+                                    <PencilIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDeletePatternNote(pattern.activity)}
+                                    className="p-1 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded transition"
+                                    title="Delete thoughts"
+                                  >
+                                    <TrashIcon className="w-3.5 h-3.5" />
+                                  </button>
+                                </div>
+                              </div>
+                              <p className="text-sm text-muted-foreground bg-muted/50 rounded px-3 py-2">
+                                {existingNote.notes}
+                              </p>
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <button
+                            onClick={() => startEditingPatternNote(pattern.activity)}
+                            className="text-xs text-primary hover:underline flex items-center gap-1"
+                          >
+                            <PencilIcon className="w-3.5 h-3.5" />
+                            Add your thoughts
+                          </button>
+                        );
+                      })()}
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              {activityPatterns.length === 0 && (
+                <div className="text-center py-8 bg-card border border-border rounded-lg">
+                  <ChartBarIcon className="w-12 h-12 text-muted-foreground mx-auto mb-3 opacity-50" />
+                  <p className="text-muted-foreground text-sm">
+                    Keep logging your activities and mood to discover patterns!
+                  </p>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    You need at least 2 logs to see patterns.
+                  </p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Manual Insights */}
+          <div>
+            <h2 className="text-lg font-semibold text-foreground mb-4">Your Insights</h2>
+          {insights.length === 0 ? (
+            <div className="text-center py-12 bg-card border border-border rounded-lg">
+              <p className="text-muted-foreground mb-4">
+                No insights yet. Start adding what helps your mood!
+              </p>
+              <Button onClick={openAddInsightModal}>
+                Add Your First Insight
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {insights.map(insight => (
+              <div
+                key={insight.id}
+                className="bg-card border border-border rounded-lg p-6 hover:shadow-md transition"
+              >
+                <div className="flex items-start justify-between mb-3">
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-foreground mb-1">
+                      {insight.name}
+                    </h3>
+                    {insight.category && (
+                      <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded">
+                        {insight.category}
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => openEditInsightModal(insight)}
+                      className="p-2 text-foreground hover:bg-muted rounded-lg transition"
+                      title="Edit"
+                    >
+                      <PencilIcon className="w-5 h-5" />
+                    </button>
+                    <button
+                      onClick={() => handleDeleteInsight(insight.id)}
+                      className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded-lg transition"
+                      title="Delete"
+                    >
+                      <TrashIcon className="w-5 h-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {insight.affectedMetrics.map(({ metric, effect }) => (
+                    <span
+                      key={metric}
+                      className={`text-xs px-3 py-1 rounded-full font-medium capitalize ${
+                        effect === 'positive'
+                          ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                          : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                      }`}
+                    >
+                      {effect === 'positive' ? '↑' : '↓'} {metric}
+                    </span>
+                  ))}
+                </div>
+
+                {insight.notes && (
+                  <p className="text-sm text-muted-foreground">
+                    {insight.notes}
+                  </p>
+                )}
+              </div>
+            ))}
+            </div>
+          )}
+          </div>
+        </div>
+      )}
+
+      {/* Insight Modal */}
+      <Modal isOpen={showInsightModal} closeModal={() => setShowInsightModal(false)}>
+        <Modal.Title>
+          {editingInsight ? 'Edit Insight' : 'Add Insight'}
+        </Modal.Title>
+        <Modal.Body>
+          <div className="space-y-4 mt-4">
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Name *
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g., Tea, Walk outside, Call a friend"
+                value={insightFormData.name}
+                onChange={(e) => setInsightFormData({ ...insightFormData, name: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Category (optional)
+              </label>
+              <Input
+                type="text"
+                placeholder="e.g., Self-care, Social, Physical"
+                value={insightFormData.category}
+                onChange={(e) => setInsightFormData({ ...insightFormData, category: e.target.value })}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Affected Metrics *
+              </label>
+              <p className="text-xs text-muted-foreground mb-3">
+                Click once for positive effect (↑), twice for negative (↓), third to remove
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                {Object.keys(METRIC_CONFIG).map(metric => (
+                  <button
+                    key={metric}
+                    type="button"
+                    onClick={() => toggleInsightMetric(metric)}
+                    className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition ${getInsightMetricButtonStyle(metric)}`}
+                  >
+                    {metric}{getInsightMetricSymbol(metric)}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-foreground mb-2">
+                Notes (optional)
+              </label>
+              <Textarea
+                placeholder="When does this help? Any specific situations?"
+                value={insightFormData.notes}
+                onChange={(e) => setInsightFormData({ ...insightFormData, notes: e.target.value })}
+                className="min-h-[100px]"
+              />
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowInsightModal(false)}
+              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveInsight}
+              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+            >
+              {editingInsight ? 'Save Changes' : 'Add Insight'}
+            </button>
+          </div>
+        </Modal.Footer>
+      </Modal>
       </div>
     </>
   );

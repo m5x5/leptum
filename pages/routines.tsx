@@ -8,6 +8,7 @@ import { getDescription, getPrettyTimeTillNextOccurrence } from "../utils/cron";
 import { useRoutineCompletions } from "../utils/useRoutineCompletions";
 import EChartsHeatmap from "../components/RoutineHeatmap/EChartsHeatmap";
 import { useGoals } from "../utils/useGoals";
+import { Input } from "../components/ui/input";
 
 export default function RoutinesPage() {
   const [routines, setRoutines] = useState<(Routine| any)[]>([]);
@@ -210,22 +211,32 @@ export default function RoutinesPage() {
         <title>Routines - Leptum</title>
       </Head>
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto pb-32 md:pb-0">
         <div className="flex flex-row w-full justify-between items-center mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Routines</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Routines</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Manage your routines and tasks - add schedules optionally
             </p>
           </div>
+          {/* Desktop New Routine Button */}
           <button
             onClick={openCreateModal}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
+            className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
           >
-            <PlusIcon className="h-5 w-5" />
-            New Routine
+            <PlusIcon className="w-5 h-5" />
+            <span>New Routine</span>
           </button>
         </div>
+
+        {/* Mobile New Routine Button */}
+        <button
+          onClick={openCreateModal}
+          className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+        >
+          <PlusIcon className="w-5 h-5" />
+          <span>New Routine</span>
+        </button>
 
 
 
@@ -359,12 +370,11 @@ export default function RoutinesPage() {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Routine Name
                 </label>
-                <input
+                <Input
                   type="text"
                   value={formData.name}
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   placeholder="e.g., Morning Routine, Workout..."
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
                   autoFocus
                 />
               </div>
@@ -373,12 +383,12 @@ export default function RoutinesPage() {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Schedule (optional)
                 </label>
-                <input
+                <Input
                   type="text"
                   value={formData.cron}
                   onChange={(e) => setFormData({ ...formData, cron: e.target.value })}
                   placeholder="0 8 * * * (CRON expression) - leave empty for no schedule"
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none font-mono text-sm"
+                  className="font-mono text-sm"
                 />
                 {formData.cron && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -424,13 +434,13 @@ export default function RoutinesPage() {
                     </div>
                   ))}
                   <div className="flex items-center gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={formData.newTask}
                       onChange={(e) => setFormData({ ...formData, newTask: e.target.value })}
                       onKeyPress={(e) => e.key === 'Enter' && addTaskToForm()}
                       placeholder="Add a task..."
-                      className="flex-grow p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+                      className="flex-grow"
                     />
                     <button
                       onClick={addTaskToForm}

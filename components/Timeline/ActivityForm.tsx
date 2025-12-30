@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
+import { Input } from "../ui/input";
 
 interface ActivityFormProps {
   initialData?: {
@@ -80,10 +81,10 @@ export default function ActivityForm({
         <label className="block text-sm font-medium text-foreground mb-2">
           Activity Name
         </label>
-        <input
+        <Input
           type="text"
           placeholder="What were you doing?"
-          className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
+          className="text-lg"
           value={formData.activity}
           onChange={(e) =>
             setFormData({ ...formData, activity: e.target.value })
@@ -94,9 +95,9 @@ export default function ActivityForm({
         <label className="block text-sm font-medium text-foreground mb-2">
           Start Date
         </label>
-        <input
+        <Input
           type="date"
-          className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
+          className="text-lg"
           value={formData.date}
           onChange={(e) =>
             setFormData({ ...formData, date: e.target.value })
@@ -107,10 +108,10 @@ export default function ActivityForm({
         <label className="block text-sm font-medium text-foreground mb-2">
           Start Time <span className="text-xs text-muted-foreground">(rounded to 15 min)</span>
         </label>
-        <input
+        <Input
           type="time"
           step="900"
-          className="text-lg p-3 bg-muted border border-border text-foreground rounded-lg w-full focus:border-primary focus:outline-none"
+          className="text-lg"
           value={formData.time}
           onChange={(e) => {
             const roundedTime = roundToNearest15Minutes(e.target.value);

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from ".";
+import { Input } from "../ui/input";
 
 interface AddHabitModalProps {
   onAdd: (habitName: string) => void;
@@ -37,13 +38,12 @@ const AddHabitModal = ({ onAdd, isOpen, onHide, stackName }: AddHabitModalProps)
           <label className="block text-sm font-medium text-foreground mb-2">
             Habit Name
           </label>
-          <input
+          <Input
             type="text"
             value={habitName}
             onChange={(e) => setHabitName(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="e.g., Make bed, Drink water, Exercise..."
-            className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
             autoFocus
           />
         </div>

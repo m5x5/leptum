@@ -13,14 +13,19 @@ import CustomTooltip from "./CustomTooltip";
 
 // Configuration for impact metrics - should match pages/impact.js
 const METRIC_CONFIG = {
-  stress: { min: 0, max: 100, allowsNegative: false },
-  cleanliness: { min: 0, max: 100, allowsNegative: false },
-  fulfillment: { min: 0, max: 100, allowsNegative: false },
-  motivation: { min: 0, max: 100, allowsNegative: false },
-  energy: { min: 0, max: 100, allowsNegative: false },
-  focus: { min: 0, max: 100, allowsNegative: false },
-  happiness: { min: -100, max: 100, allowsNegative: true },
-  confidence: { min: -100, max: 100, allowsNegative: true },
+  // Positive metrics with red-green gradient (0 = red/bad, 100 = green/good)
+  cleanliness: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  fulfillment: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  motivation: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  energy: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  focus: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: false },
+  // Inverted metrics with green-red gradient (0 = green/good, 100 = red/bad)
+  stress: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: true },
+  shame: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: true },
+  guilt: { min: 0, max: 100, allowsNegative: false, showGradient: true, inverted: true },
+  // Bipolar metrics (-100 to 100) with red-green gradient
+  happiness: { min: -100, max: 100, allowsNegative: true, showGradient: true, inverted: false },
+  confidence: { min: -100, max: 100, allowsNegative: true, showGradient: true, inverted: false },
 };
 
 export default function ImpactCard({

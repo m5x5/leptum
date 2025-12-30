@@ -2,6 +2,8 @@ import { useState } from "react";
 import { StandaloneTask } from "../../utils/useStandaloneTasks";
 import { TrashIcon, PencilIcon } from "@heroicons/react/outline";
 import { PlayIcon } from "@heroicons/react/solid";
+import { Checkbox } from "../ui/checkbox";
+import { Input } from "../ui/input";
 
 interface Props {
   task: StandaloneTask;
@@ -89,31 +91,36 @@ export default function StandaloneTaskItem({
       ${isActive ? 'bg-primary/5 border-l-2 border-primary' : ''}
     `}>
       <div className="flex items-center flex-grow">
-        <input
-          type="checkbox"
+        <Checkbox
           checked={task.status === 'completed'}
-          onChange={handleToggleComplete}
-          className="mr-3 h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          onCheckedChange={(checked) => {
+            if (checked) {
+              onComplete(task.id);
+            } else {
+              onUncomplete(task.id);
+            }
+          }}
+          className="mr-3"
         />
 
         <div className="flex-grow">
           {isEditing ? (
             <div className="space-y-2">
-              <input
+              <Input
                 type="text"
                 value={editName}
                 onChange={(e) => setEditName(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="block w-full px-2 py-1 text-sm border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-white"
+                className="text-sm"
                 placeholder="Task name"
                 autoFocus
               />
-              <input
+              <Input
                 type="text"
                 value={editDescription}
                 onChange={(e) => setEditDescription(e.target.value)}
                 onKeyDown={handleKeyDown}
-                className="block w-full px-2 py-1 text-xs border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 dark:bg-gray-700 dark:border-gray-600 dark:text-gray-300"
+                className="text-xs"
                 placeholder="Description (optional)"
               />
               <div className="flex space-x-2">

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from ".";
+import { Input } from "../ui/input";
 
 const CreateStackModal = ({ onCreate, isOpen, onHide }) => {
   let [title, setTitle] = useState("");
@@ -28,13 +29,12 @@ const CreateStackModal = ({ onCreate, isOpen, onHide }) => {
           <label className="block text-sm font-medium text-foreground mb-2">
             Stack Name
           </label>
-          <input
+          <Input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
             onKeyPress={handleKeyPress}
             placeholder="e.g., Morning Routine, Evening Routine..."
-            className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
             autoFocus
           />
         </div>

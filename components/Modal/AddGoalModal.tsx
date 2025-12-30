@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from ".";
+import { Input } from "../ui/input";
 
 interface AddGoalModalProps {
   onAdd: (goalName: string, color: string) => void;
@@ -71,13 +72,12 @@ const AddGoalModal = ({
             <label className="block text-sm font-medium text-foreground mb-2">
               Goal Name
             </label>
-            <input
+            <Input
               type="text"
               value={goalName}
               onChange={(e) => setGoalName(e.target.value)}
               onKeyPress={handleKeyPress}
               placeholder="e.g., Learn React, Exercise daily..."
-              className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
               autoFocus
             />
           </div>

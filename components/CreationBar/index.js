@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { PlusIcon } from "@heroicons/react/solid";
+import { Input } from "../ui/input";
 
 export default function CreationBar({ onCreateStandaloneTask }) {
     const [taskName, setTaskName] = useState("");
@@ -37,22 +38,20 @@ export default function CreationBar({ onCreateStandaloneTask }) {
                 </button>
             ) : (
                 <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                    <input
+                    <Input
                         type="text"
                         value={taskName}
                         onChange={(e) => setTaskName(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Task name..."
-                        className="w-full px-3 py-2 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
                         autoFocus
                     />
-                    <input
+                    <Input
                         type="text"
                         value={taskDescription}
                         onChange={(e) => setTaskDescription(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Description (optional)..."
-                        className="w-full px-3 py-2 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
                     />
                     <div className="flex gap-2 justify-end">
                         <button

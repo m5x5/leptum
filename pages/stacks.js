@@ -111,18 +111,32 @@ export default function StacksPage() {
 
   return (
     <>
+      <div className="max-w-6xl mx-auto pb-32 md:pb-0">
       <div className="flex flex-row w-full justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-foreground">Stacks</h1>
+          <h1 className="text-2xl md:text-3xl font-bold text-foreground">Stacks</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Organize habits into themed collections
           </p>
         </div>
-        <PlusIcon
-          className="h-5 w-5 cursor-pointer text-foreground hover:text-primary"
+        {/* Desktop Create Stack Button */}
+        <button
           onClick={() => setShowCreateStackModal(true)}
-        />
+          className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+        >
+          <PlusIcon className="w-5 h-5" />
+          <span>Create Stack</span>
+        </button>
       </div>
+
+      {/* Mobile Create Stack Button */}
+      <button
+        onClick={() => setShowCreateStackModal(true)}
+        className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+      >
+        <PlusIcon className="w-5 h-5" />
+        <span>Create Stack</span>
+      </button>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {stacks.map((stack, stackIndex) => (
           <EditableList
@@ -172,6 +186,7 @@ export default function StacksPage() {
         title="Delete Stack"
         description="Are you sure you want to delete this stack? All habits in this stack will be deleted."
       />
+      </div>
     </>
   );
 }

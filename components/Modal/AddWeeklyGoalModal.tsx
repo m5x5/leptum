@@ -2,6 +2,7 @@ import { Fragment, useState } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { XIcon } from '@heroicons/react/solid';
 import { WeeklyGoalItem } from '../../utils/useWeeklyGoals';
+import { Input } from '../ui/input';
 
 interface Goal {
   id: string;
@@ -180,26 +181,24 @@ export function AddWeeklyGoalModal({
                     </label>
                     <div className="flex gap-2">
                       <div className="flex-1">
-                        <input
+                        <Input
                           type="number"
                           min="0"
                           max="23"
                           placeholder="Hours"
                           value={targetHours}
                           onChange={(e) => setTargetHours(e.target.value)}
-                          className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         <div className="text-xs text-muted-foreground mt-1">Hours</div>
                       </div>
                       <div className="flex-1">
-                        <input
+                        <Input
                           type="number"
                           min="0"
                           max="59"
                           placeholder="Minutes"
                           value={targetMinutes}
                           onChange={(e) => setTargetMinutes(e.target.value)}
-                          className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                         />
                         <div className="text-xs text-muted-foreground mt-1">Minutes</div>
                       </div>
@@ -213,13 +212,12 @@ export function AddWeeklyGoalModal({
                     >
                       Note (optional)
                     </label>
-                    <input
+                    <Input
                       id="note"
                       type="text"
                       placeholder="Add a note..."
                       value={note}
                       onChange={(e) => setNote(e.target.value)}
-                      className="w-full px-3 py-2 bg-background border border-border rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-primary"
                     />
                   </div>
 

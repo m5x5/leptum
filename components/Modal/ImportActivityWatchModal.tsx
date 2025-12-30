@@ -10,6 +10,7 @@ import {
   DEFAULT_MIN_DURATION_SECONDS,
 } from '../../utils/activityWatch';
 import { UploadIcon, XIcon } from '@heroicons/react/outline';
+import { Input } from '../ui/input';
 
 interface ImportActivityWatchModalProps {
   isOpen: boolean;
@@ -198,7 +199,7 @@ export default function ImportActivityWatchModal({
               <label className="block text-sm font-medium text-foreground mb-1">
                 Days to import
               </label>
-              <input
+              <Input
                 type="number"
                 min="1"
                 max="90"
@@ -209,7 +210,6 @@ export default function ImportActivityWatchModal({
                   updatePreview(value, minDuration);
                 }}
                 disabled={isProcessing || !selectedFile}
-                className="w-full p-2 bg-background border border-border text-foreground rounded-lg focus:border-primary focus:outline-none disabled:opacity-50"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Import events from the last N days (recommended: 7)
@@ -221,7 +221,7 @@ export default function ImportActivityWatchModal({
               <label className="block text-sm font-medium text-foreground mb-1">
                 Minimum duration (seconds)
               </label>
-              <input
+              <Input
                 type="number"
                 min="0"
                 max="300"
@@ -232,7 +232,6 @@ export default function ImportActivityWatchModal({
                   updatePreview(daysBack, value);
                 }}
                 disabled={isProcessing || !selectedFile}
-                className="w-full p-2 bg-background border border-border text-foreground rounded-lg focus:border-primary focus:outline-none disabled:opacity-50"
               />
               <p className="text-xs text-muted-foreground mt-1">
                 Filter out events shorter than this (recommended: 60)

@@ -1,4 +1,5 @@
 import Head from "next/head";
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import { PlusIcon, ClockIcon, PlayIcon, StopIcon, CheckCircleIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "../utils/useStandaloneTasks";
@@ -6,10 +7,12 @@ import { useRoutineScheduler } from "../utils/useRoutineScheduler";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { Routine } from "../components/Job/api";
 import StandaloneTaskItem from "../components/Tasks/StandaloneItem";
-import { getDescription, getPrettyTimeTillNextOccurrence } from "../utils/cron";
+import { getDescription, getPrettyTimeTillNextOccurrence, getNextOccurrence } from "../utils/cron";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
 import Modal from "../components/Modal";
+import { Input } from "../components/ui/input";
+import InsightsWidget from "../components/InsightsWidget";
 
 export default function Home() {
   const {
@@ -232,33 +235,28 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-32 md:pb-0">
+        {/* Mobile Logo - Full Leptum logo on mobile */}
+        <div className="md:hidden mb-6">
+          <Link href="/" className="inline-block">
+            <span
+              className="text-foreground text-2xl font-bold"
+              style={{ fontFamily: "Rye", fontWeight: "normal" }}
+            >
+              Leptum
+            </span>
+          </Link>
+        </div>
+
         {/* Active Activity Tracker - Shows what's currently being tracked */}
         {currentActivity && (
-          <div className="mb-6 bg-primary/10 border-2 border-primary rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-3 h-3 bg-primary rounded-full animate-pulse"></div>
-                <div>
-                  <p className="text-sm text-muted-foreground">Currently tracking</p>
-                  <h3 className="text-xl font-semibold text-primary">{currentActivity.name}</h3>
-                  {currentActivity.goalId && goals && (
-                    <p className="text-xs text-muted-foreground mt-1">
-                      Goal: {goals.find(g => g.id === currentActivity.goalId)?.name || 'Unknown'}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="flex items-center gap-4">
-                <div className="text-right">
-                  <p className="text-2xl font-bold text-primary">
-                    {formatDuration(currentTime - currentActivity.startTime)}
-                  </p>
-                  <p className="text-xs text-muted-foreground">elapsed</p>
-                </div>
-
-              </div>
-            </div>
+          <div className="mb-4 inline-flex items-center gap-2 bg-primary/10 border border-primary rounded-full px-4 py-2">
+            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
+            <span className="text-sm font-medium text-primary">{currentActivity.name}</span>
+            <span className="text-xs text-muted-foreground">•</span>
+            <span className="text-sm font-semibold text-primary">
+              {formatDuration(currentTime - currentActivity.startTime)}
+            </span>
           </div>
         )}
 
@@ -268,35 +266,44 @@ export default function Home() {
             {/* Active Tasks */}
             <div>
               <div className="flex w-full items-center gap-4 mb-4 justify-between">
-                <h2 className="text-2xl font-bold text-foreground">Your Tasks</h2>
+                <h2 className="text-xl font-bold text-foreground">Your Tasks</h2>
                 {/* Add Task Section */}
                 <div>
                   {!showTaskForm ? (
-                    <button
-                      onClick={() => setShowTaskForm(true)}
-                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                      <span>Add Task</span>
-                    </button>
+                    <>
+                      {/* Desktop Add Task Button */}
+                      <button
+                        onClick={() => setShowTaskForm(true)}
+                        className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+                      >
+                        <PlusIcon className="w-5 h-5" />
+                        <span>Add Task</span>
+                      </button>
+                      {/* Mobile Add Task Button */}
+                      <button
+                        onClick={() => setShowTaskForm(true)}
+                        className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+                      >
+                        <PlusIcon className="w-5 h-5" />
+                        <span>Add Task</span>
+                      </button>
+                    </>
                   ) : (
                     <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                      <input
+                      <Input
                         type="text"
                         value={taskName}
                         onChange={(e) => setTaskName(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Task name..."
-                        className="w-full px-3 py-2 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
                         autoFocus
                       />
-                      <input
+                      <Input
                         type="text"
                         value={taskDescription}
                         onChange={(e) => setTaskDescription(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder="Description (optional)..."
-                        className="w-full px-3 py-2 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
                       />
                       <div className="flex gap-2 justify-end">
                         <button
@@ -350,7 +357,7 @@ export default function Home() {
                   onClick={() => setShowPastActivity(!showPastActivity)}
                   className="flex items-center justify-between w-full text-left mb-4 px-2 py-2 rounded-lg hover:bg-muted transition-colors"
                 >
-                  <h2 className="text-lg font-semibold text-foreground flex items-center gap-2">
+                  <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
                     Past Activity
                     <span className="text-sm bg-muted px-2 py-1 rounded-full">
                       {pastTasks.length}
@@ -387,13 +394,36 @@ export default function Home() {
           {/* Sidebar - Upcoming Routines */}
           <div className="space-y-4">
             <div>
-              <h2 className="text-xl font-bold text-foreground mb-4 flex items-center gap-2">
-                <ClockIcon className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
+                <ClockIcon className="h-4 w-4 text-primary" />
                 Upcoming Routines
               </h2>
-              {routines.length > 0 ? (
+              {(() => {
+                // Filter routines to only show those within the next 10 hours
+                const tenHoursFromNow = Date.now() + (10 * 60 * 60 * 1000);
+                const upcomingRoutines = routines
+                  .filter(routine => {
+                    try {
+                      const nextOccurrence = getNextOccurrence(routine.cron!);
+                      return nextOccurrence.getTime() <= tenHoursFromNow;
+                    } catch {
+                      return false;
+                    }
+                  })
+                  .sort((a, b) => {
+                    try {
+                      const aTime = getNextOccurrence(a.cron!).getTime();
+                      const bTime = getNextOccurrence(b.cron!).getTime();
+                      return aTime - bTime;
+                    } catch {
+                      return 0;
+                    }
+                  })
+                  .slice(0, 5);
+
+                return upcomingRoutines.length > 0 ? (
                 <div className="space-y-3">
-                  {routines.slice(0, 5).map((routine) => (
+                  {upcomingRoutines.map((routine) => (
                     <div key={routine.id} className="bg-card border border-border rounded-lg p-4">
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-semibold text-foreground">{routine.name}</h3>
@@ -429,24 +459,25 @@ export default function Home() {
                     </div>
                   ))}
                 </div>
-              ) : (
-                <div className="bg-card border border-border rounded-lg p-6 text-center">
-                  <p className="text-sm text-muted-foreground mb-3">
-                    No scheduled routines yet
-                  </p>
-                  <a
-                    href="/routines"
-                    className="text-sm text-primary hover:underline"
-                  >
-                    Create a routine →
-                  </a>
-                </div>
-              )}
+                ) : (
+                  <div className="bg-card border border-border rounded-lg p-6 text-center">
+                    <p className="text-sm text-muted-foreground mb-3">
+                      {routines.length > 0 ? "No routines in the next 10 hours" : "No scheduled routines yet"}
+                    </p>
+                    <a
+                      href="/routines"
+                      className="text-sm text-primary hover:underline"
+                    >
+                      {routines.length > 0 ? "View all routines →" : "Create a routine →"}
+                    </a>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Quick Stats */}
             <div className="bg-card border border-border rounded-lg p-4">
-              <h3 className="font-semibold text-foreground mb-3">Today's Progress</h3>
+              <h3 className="text-sm font-semibold text-foreground mb-3">Today's Progress</h3>
               <div className="space-y-2">
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Active Tasks</span>
@@ -478,7 +509,7 @@ export default function Home() {
             {/* Goal Progress */}
             {goals && goals.length > 0 && Object.keys(goalProgress).length > 0 && (
               <div className="bg-card border border-border rounded-lg p-4">
-                <h3 className="font-semibold text-foreground mb-3">Goal Progress Today</h3>
+                <h3 className="text-sm font-semibold text-foreground mb-3">Goal Progress Today</h3>
                 <div className="space-y-3">
                   {Object.entries(goalProgress)
                     .sort(([, timeA], [, timeB]) => timeB - timeA)
@@ -512,6 +543,9 @@ export default function Home() {
                 </div>
               </div>
             )}
+
+            {/* Insights Widget */}
+            <InsightsWidget />
           </div>
         </div>
       </div>

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from ".";
+import { Input } from "../ui/input";
 
 const CreateTaskModal = ({ onCreate, isOpen, onHide }) => {
   let [title, setTitle] = useState("");
@@ -23,20 +24,20 @@ const CreateTaskModal = ({ onCreate, isOpen, onHide }) => {
         <label className="mt-5 block uppercase font-semibold text-sm">
           Title
         </label>
-        <input
+        <Input
           type="text"
           value={title}
           onChange={(e) => setTitle(e.target.value)}
-          className="mt-1 rounded-lg"
+          className="mt-1"
         />
         <label className="mt-5 block uppercase font-semibold text-sm">
           Description
         </label>
-        <input
+        <Input
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="mt-1 rounded-lg"
+          className="mt-1"
         />
       </Modal.Body>
       <Modal.Footer>

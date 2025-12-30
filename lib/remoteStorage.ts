@@ -288,6 +288,66 @@ const ActivityWatchDataSchema = {
   required: ['events', 'importedAt', 'buckets']
 };
 
+// Insight schemas
+const AffectedMetricSchema = {
+  type: 'object',
+  properties: {
+    metric: { type: 'string' },
+    effect: { type: 'string' } // "positive" or "negative"
+  },
+  required: ['metric', 'effect']
+};
+
+const InsightSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    affectedMetrics: {
+      type: 'array',
+      items: AffectedMetricSchema
+    },
+    notes: { type: 'string' },
+    category: { type: 'string' },
+    createdAt: { type: 'number' }
+  },
+  required: ['id', 'name', 'affectedMetrics', 'createdAt']
+};
+
+const InsightsCollectionSchema = {
+  type: 'object',
+  properties: {
+    insights: {
+      type: 'array',
+      items: InsightSchema
+    }
+  },
+  required: ['insights']
+};
+
+// Pattern Note schemas
+const PatternNoteSchema = {
+  type: 'object',
+  properties: {
+    activity: { type: 'string' },
+    notes: { type: 'string' },
+    createdAt: { type: 'number' },
+    updatedAt: { type: 'number' }
+  },
+  required: ['activity', 'notes', 'createdAt']
+};
+
+const PatternNotesCollectionSchema = {
+  type: 'object',
+  properties: {
+    notes: {
+      type: 'array',
+      items: PatternNoteSchema
+    }
+  },
+  required: ['notes']
+};
+
 export class RemoteStorageClient {
   private remoteStorage: any = null;
   private client: any = null;
@@ -307,11 +367,11 @@ export class RemoteStorageClient {
 
     // Initialize RemoteStorage with change events enabled
     this.remoteStorage = new RemoteStorage({
-      changeEvents: { 
-        local: true, 
-        window: true, 
-        remote: true, 
-        conflicts: true 
+      changeEvents: {
+        local: true,
+        window: true,
+        remote: true,
+        conflicts: true
       }
     });
 
@@ -321,19 +381,19 @@ export class RemoteStorageClient {
 
     // Claim access to the leptum namespace
     this.remoteStorage.access.claim('leptum', 'rw');
-    
+
     // Claim access to todonna namespace for integration
     this.remoteStorage.access.claim('todonna', 'rw');
-    
+
     // Create scoped client
     this.client = this.remoteStorage.scope('/leptum/');
-    
+
     // Create todonna client
     this.todonnaClient = this.remoteStorage.scope('/todonna/');
 
     // Declare schemas
     this.setupSchemas();
-    
+
     this.initialized = true;
   }
 
@@ -352,6 +412,10 @@ export class RemoteStorageClient {
     this.client.declareType('Routine', RoutineSchema);
     this.client.declareType('RoutineCompletionsCollection', RoutineCompletionsCollectionSchema);
     this.client.declareType('ActivityWatchData', ActivityWatchDataSchema);
+    this.client.declareType('Insight', InsightSchema);
+    this.client.declareType('InsightsCollection', InsightsCollectionSchema);
+    this.client.declareType('PatternNote', PatternNoteSchema);
+    this.client.declareType('PatternNotesCollection', PatternNotesCollectionSchema);
 
     // Setup todonna schema
     if (this.todonnaClient) {
@@ -362,24 +426,36 @@ export class RemoteStorageClient {
   // Initialize and attach widget
   public attachWidget(containerId: string = 'remotestorage-widget') {
     if (typeof window === 'undefined' || !Widget || !this.remoteStorage) return;
-    
+
     // Ensure RemoteStorage is initialized
     this.initialize();
-    
+
     if (!this.initialized) return;
 
+    // Don't attach if already attached
+    if (this.widget) return;
+
     this.widget = new Widget(this.remoteStorage, {
-      leaveOpen: false,
-      autoCloseAfter: 1500,
+      leaveOpen: true,
+      autoCloseAfter: 0,
       skipInitial: false,
       logging: false,
       modalBackdrop: 'onlySmallScreens'
     });
-    
+
     this.widget.attach(containerId);
-    
+
     // Enable caching for all paths
     this.client.cache('');
+  }
+
+  // Detach widget (cleanup)
+  public detachWidget() {
+    if (this.widget) {
+      // RemoteStorage widget doesn't have a direct detach method,
+      // but we can set it to null and the DOM element will be cleaned up
+      this.widget = null;
+    }
   }
 
   // Job operations
@@ -942,13 +1018,71 @@ export class RemoteStorageClient {
     }
   }
 
+  // Insights operations
+  public async getInsights() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const result = await this.client.getObject('insights') || { insights: [] };
+      return result.insights || [];
+    } catch (error) {
+      console.error('Failed to get insights:', error);
+      return [];
+    }
+  }
+
+  public async saveInsights(insights: any[]) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('InsightsCollection', 'insights', { insights });
+    } catch (error) {
+      console.error('Failed to save insights:', error);
+    }
+  }
+
+  // Pattern Notes operations
+  public async getPatternNotes() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const result = await this.client.getObject('pattern-notes') || { notes: [] };
+      return result.notes || [];
+    } catch (error) {
+      console.error('Failed to get pattern notes:', error);
+      return [];
+    }
+  }
+
+  public async savePatternNotes(notes: any[]) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('PatternNotesCollection', 'pattern-notes', { notes });
+    } catch (error) {
+      console.error('Failed to save pattern notes:', error);
+    }
+  }
+
   // Event listening
   public onChange(callback: (event: any) => void) {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return;
-    
+
     this.client.on('change', callback);
   }
 

@@ -3,6 +3,7 @@ import { PlusIcon, TrashIcon } from '@heroicons/react/solid';
 import { WeeklyGoalItem } from '../../utils/useWeeklyGoals';
 import { formatMinutesToReadable, Impact } from '../../utils/timeCalculations';
 import { DailyActivityBar } from './DailyActivityBar';
+import { Input } from '../ui/input';
 
 interface Goal {
   id: string;
@@ -126,14 +127,14 @@ export function DayCard({
               className="group flex flex-col gap-1 p-2 bg-background border border-border rounded hover:border-primary transition"
             >
               {editingIndex === index ? (
-                <input
+                <Input
                   type="text"
                   value={editText}
                   onChange={(e) => setEditText(e.target.value)}
                   onKeyDown={handleKeyPress}
                   onBlur={handleSaveEdit}
                   autoFocus
-                  className="flex-1 bg-transparent text-foreground outline-none"
+                  className="flex-1 bg-transparent"
                 />
               ) : (
                 <>

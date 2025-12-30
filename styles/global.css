@@ -2,6 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Rye Font */
+@font-face {
+  font-family: 'Rye';
+  src: url('/Rye-Regular.ttf') format('truetype');
+  font-weight: normal;
+  font-style: normal;
+  font-display: swap;
+}
+
 /* RemoteStorage Widget Styles */
  
 /* @layer base { */
@@ -72,8 +81,34 @@
     @apply border-border;
     -webkit-tap-highlight-color: transparent;
   }
+  html {
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+  }
   body {
     @apply bg-background text-foreground;
+    overscroll-behavior: none;
+    overscroll-behavior-y: none;
+  }
+  :root {
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 222.2 84% 4.9%;
+    --sidebar-primary: 222.2 47.4% 11.2%;
+    --sidebar-primary-foreground: 210 40% 98%;
+    --sidebar-accent: 210 40% 96.1%;
+    --sidebar-accent-foreground: 222.2 47.4% 11.2%;
+    --sidebar-border: 214.3 31.8% 91.4%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
+  }
+  .dark {
+    --sidebar-background: 222.2 84% 4.9%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 210 40% 98%;
+    --sidebar-primary-foreground: 222.2 47.4% 11.2%;
+    --sidebar-accent: 217.2 32.6% 17.5%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 217.2 32.6% 17.5%;
+    --sidebar-ring: 217.2 91.2% 59.8%;
   }
 }
 

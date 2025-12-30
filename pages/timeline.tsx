@@ -472,40 +472,16 @@ export default function TimelinePage() {
     });
   };
 
-  if (!isDataLoaded) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <p className="text-lg text-muted-foreground">Loading timeline...</p>
-      </div>
-    );
-  }
-
-  if (impacts.length === 0) {
-    return (
-      <>
-        <Head>
-          <title>Timeline - Leptum</title>
-        </Head>
-        <div className="flex flex-col items-center justify-center h-screen">
-          <p className="text-lg text-muted-foreground mb-4">No timeline data yet</p>
-          <p className="text-sm text-muted-foreground">
-            Start logging activities on the Impact page to see your timeline
-          </p>
-        </div>
-      </>
-    );
-  }
-
   return (
     <>
       <Head>
         <title>Timeline - Leptum</title>
       </Head>
 
-      <div className="w-full mx-auto">
+      <div className="w-full mx-auto pb-32 md:pb-0">
         <div className="flex items-center justify-between mb-6">
           <div>
-            <h1 className="text-3xl font-bold text-foreground">Timeline</h1>
+            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Timeline</h1>
             <p className="text-sm text-muted-foreground mt-1">
               Daily breakdown of your activities
             </p>
@@ -513,11 +489,12 @@ export default function TimelinePage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowImportModal(true)}
-              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
+              className="hidden md:flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold"
             >
               <UploadIcon className="w-5 h-5" />
               Import ActivityWatch
             </button>
+            {/* Desktop Add Activity Button */}
             <button
               onClick={() => {
                 // Round current time to nearest 15 minutes
@@ -531,13 +508,33 @@ export default function TimelinePage() {
                 });
                 setShowAddModal(true);
               }}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
+              className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
             >
               <PlusIcon className="w-5 h-5" />
-              Add Activity
+              <span>Add Activity</span>
             </button>
           </div>
         </div>
+
+        {/* Mobile Add Activity Button */}
+        <button
+          onClick={() => {
+            // Round current time to nearest 15 minutes
+            const roundedTimestamp = roundToNearest15Minutes(Date.now());
+            const { dateStr, timeStr } = getLocalDateTimeStrings(roundedTimestamp);
+            setAddFormInitialData({
+              activity: "",
+              date: dateStr,
+              time: timeStr,
+              goalId: "",
+            });
+            setShowAddModal(true);
+          }}
+          className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+        >
+          <PlusIcon className="w-5 h-5" />
+          <span>Add Activity</span>
+        </button>
 
         {/* Filter Controls */}
         {awData && awData.buckets.length > 0 && (
@@ -553,6 +550,23 @@ export default function TimelinePage() {
         {awError && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
             <p className="text-sm text-red-500">{awError}</p>
+          </div>
+        )}
+
+        {/* Loading State */}
+        {!isDataLoaded && (
+          <div className="flex flex-col items-center justify-center py-32">
+            <p className="text-lg text-muted-foreground">Loading timeline data...</p>
+          </div>
+        )}
+
+        {/* Empty State */}
+        {isDataLoaded && impacts.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-32">
+            <p className="text-lg text-muted-foreground mb-4">No timeline data yet</p>
+            <p className="text-sm text-muted-foreground mb-6">
+              Click "Add Activity" above to start logging your activities
+            </p>
           </div>
         )}
 
@@ -600,6 +614,9 @@ export default function TimelinePage() {
           </Modal.Body>
         </Modal>
 
+        {/* Timeline Content - Only show when data is loaded and exists */}
+        {isDataLoaded && impacts.length > 0 && (
+          <>
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
           {dates.map((dateKey) => {
             const dayImpacts = groupedImpacts[dateKey] || [];
@@ -1539,6 +1556,8 @@ export default function TimelinePage() {
               </span>
             </button>
           </div>
+        )}
+          </>
         )}
 
         {/* Import ActivityWatch Modal */}

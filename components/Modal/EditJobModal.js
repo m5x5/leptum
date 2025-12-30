@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from ".";
 import { useJobContext } from "../Job/Context";
+import { Input } from "../ui/input";
 
 const EditJobModal = ({ isOpen, onHide, prevCron, prevName }) => {
   let [cron, setCRON] = useState(prevCron);
@@ -30,7 +31,7 @@ const EditJobModal = ({ isOpen, onHide, prevCron, prevName }) => {
       <Modal.Title>Routine</Modal.Title>
       <Modal.Body>
         <label>CRON</label>
-        <input
+        <Input
           type="text"
           value={cron || ""}
           onChange={(e) => setCRON(e.target.value)}
@@ -40,7 +41,7 @@ const EditJobModal = ({ isOpen, onHide, prevCron, prevName }) => {
         </a>
         <br />
         <label>Name</label>
-        <input
+        <Input
           type="text"
           value={name || ""}
           onChange={(e) => setName(e.target.value)}

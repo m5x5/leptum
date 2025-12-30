@@ -1,6 +1,7 @@
 import { useState, useRef, useEffect } from "react";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
+import { Input } from "../ui/input";
 
 interface DraftTimelineEntryProps {
   startTime: number;
@@ -103,11 +104,11 @@ export default function DraftTimelineEntry({
       {/* The Form Popover - Positioned Below */}
       <div className="absolute top-full left-0 right-0 mt-2 p-3 bg-popover shadow-xl rounded-lg border border-border animate-in fade-in slide-in-from-top-2 z-20">
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <input
+            <Input
               ref={inputRef}
               type="text"
               placeholder="Type activity name..."
-              className="w-full text-base p-2 bg-muted/50 border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary"
+              className="text-base bg-muted/50"
               value={activity}
               onChange={(e) => setActivity(e.target.value)}
               onKeyDown={(e) => {
