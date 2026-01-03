@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { PlusIcon, ClockIcon, PlayIcon, StopIcon, CheckCircleIcon } from "@heroicons/react/solid";
+import { PlusIcon, ClockIcon, PlayIcon, StopIcon, CheckCircleIcon, ArchiveIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "../utils/useStandaloneTasks";
 import { useRoutineScheduler } from "../utils/useRoutineScheduler";
 import { remoteStorageClient } from "../lib/remoteStorage";
@@ -13,6 +13,12 @@ import { useGoalTypes } from "../utils/useGoalTypes";
 import Modal from "../components/Modal";
 import { Input } from "../components/ui/input";
 import InsightsWidget from "../components/InsightsWidget";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "../components/ui/sheet";
 
 export default function Home() {
   const {
@@ -40,6 +46,7 @@ export default function Home() {
   const [activeTaskStartTime, setActiveTaskStartTime] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(Date.now());
   const [showPastActivity, setShowPastActivity] = useState(false);
+  const [showArchiveSheet, setShowArchiveSheet] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [taskName, setTaskName] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
@@ -152,6 +159,37 @@ export default function Home() {
   const activeTasks = standaloneTasks.filter(task =>
     task.status !== 'completed' && task.createdAt > twoWeeksAgo
   );
+
+  const groupTasksByDay = (tasks: any[]) => {
+    const groups: Record<string, any[]> = {};
+    
+    // Sort tasks by date first (newest first)
+    const sortedTasks = [...tasks].sort((a, b) => {
+      const dateA = a.completedAt || a.createdAt;
+      const dateB = b.completedAt || b.createdAt;
+      return dateB - dateA;
+    });
+    
+    sortedTasks.forEach(task => {
+      const date = new Date(task.completedAt || task.createdAt);
+      // Use YYYY-MM-DD for stable keys
+      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+      if (!groups[dateKey]) {
+        groups[dateKey] = [];
+      }
+      groups[dateKey].push(task);
+    });
+    
+    return groups;
+  };
+
+  const formatDateTitle = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const date = new Date(year, month - 1, day);
+    const monthStr = date.toLocaleString('default', { month: 'short' });
+    return `${monthStr} ${day}`;
+  };
+
   const pastTasks = standaloneTasks
     .filter(task => task.status === 'completed' || task.createdAt <= twoWeeksAgo)
     .sort((a, b) => {
@@ -237,7 +275,7 @@ export default function Home() {
 
       <div className="max-w-6xl mx-auto pb-32 md:pb-0">
         {/* Mobile Logo - Full Leptum logo on mobile */}
-        <div className="md:hidden mb-6">
+        <div className="md:hidden mb-6 flex items-center justify-between">
           <Link href="/" className="inline-block">
             <span
               className="text-foreground text-2xl font-bold"
@@ -246,6 +284,12 @@ export default function Home() {
               Leptum
             </span>
           </Link>
+          <button
+            onClick={() => setShowArchiveSheet(true)}
+            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+          >
+            <ArchiveIcon className="w-6 h-6" />
+          </button>
         </div>
 
         {/* Active Activity Tracker - Shows what's currently being tracked */}
@@ -260,13 +304,12 @@ export default function Home() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="flex flex-col lg:flex-row gap-6">
           {/* Main Content - Tasks */}
-          <div className="lg:col-span-2 space-y-6">
+          <div className="flex-1 space-y-6 overflow-visible">
             {/* Active Tasks */}
-            <div>
+            <div className="relative overflow-visible">
               <div className="flex w-full items-center gap-4 mb-4 justify-between">
-                <h2 className="text-xl font-bold text-foreground">Your Tasks</h2>
                 {/* Add Task Section */}
                 <div>
                   {!showTaskForm ? (
@@ -328,31 +371,47 @@ export default function Home() {
                   )}
                 </div>
               </div>
-              {activeTasks.length > 0 ? (
-                <div className="space-y-2">
-                  {activeTasks.map((task) => (
-                    <StandaloneTaskItem
-                      key={task.id}
-                      task={task}
-                      onComplete={completeStandaloneTask}
-                      onUncomplete={uncompleteStandaloneTask}
-                      onDelete={deleteStandaloneTask}
-                      onUpdate={updateStandaloneTask}
-                      onStart={openStartTaskModal}
-                      isActive={currentActivity?.name === task.name}
-                    />
-                  ))}
-                </div>
-              ) : (
-                <div className="text-center py-12 bg-card border border-border rounded-lg">
-                  <p className="text-muted-foreground">No active tasks. Create one above to get started!</p>
-                </div>
-              )}
+              {(() => {
+                const grouped = groupTasksByDay(activeTasks);
+                const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+                
+                return sortedDates.length > 0 ? (
+                  <div className="space-y-4">
+                    {sortedDates.map((dateKey) => (
+                      <div key={dateKey} className="bg-card border border-border rounded-lg">
+                        <div className="bg-muted/80 px-4 py-2 border-b border-border sticky top-0 z-10 rounded-t-lg">
+                          <h3 className="font-semibold text-sm text-foreground">
+                            {formatDateTitle(dateKey)}
+                          </h3>
+                        </div>
+                        <div className="p-2 space-y-1">
+                          {grouped[dateKey].map((task) => (
+                            <StandaloneTaskItem
+                              key={task.id}
+                              task={task}
+                              onComplete={completeStandaloneTask}
+                              onUncomplete={uncompleteStandaloneTask}
+                              onDelete={deleteStandaloneTask}
+                              onUpdate={updateStandaloneTask}
+                              onStart={openStartTaskModal}
+                              isActive={currentActivity?.name === task.name}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-32 bg-card border border-border rounded-lg text-sm">
+                    <p className="text-muted-foreground">No active tasks. Create one above to get started!</p>
+                  </div>
+                );
+              })()}
             </div>
 
             {/* Past Activity */}
             {pastTasks.length > 0 && (
-              <div className="border-t border-border pt-6">
+              <div className="hidden md:block border-t border-border pt-6">
                 <button
                   onClick={() => setShowPastActivity(!showPastActivity)}
                   className="flex items-center justify-between w-full text-left mb-4 px-2 py-2 rounded-lg hover:bg-muted transition-colors"
@@ -374,17 +433,33 @@ export default function Home() {
                 </button>
 
                 {showPastActivity && (
-                  <div className="space-y-2 opacity-75">
-                    {pastTasks.map((task) => (
-                      <StandaloneTaskItem
-                        key={task.id}
-                        task={task}
-                        onComplete={completeStandaloneTask}
-                        onUncomplete={uncompleteStandaloneTask}
-                        onDelete={deleteStandaloneTask}
-                        onUpdate={updateStandaloneTask}
-                      />
-                    ))}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 opacity-80">
+                    {(() => {
+                      const grouped = groupTasksByDay(pastTasks);
+                      const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+                      
+                      return sortedDates.map((dateKey) => (
+                        <div key={dateKey} className="bg-card border border-border rounded-lg overflow-hidden flex flex-col">
+                          <div className="bg-muted/50 px-4 py-2 border-b border-border">
+                            <h3 className="font-semibold text-sm text-foreground">
+                              {formatDateTitle(dateKey)}
+                            </h3>
+                          </div>
+                          <div className="p-2 space-y-1 flex-1">
+                            {grouped[dateKey].map((task) => (
+                              <StandaloneTaskItem
+                                key={task.id}
+                                task={task}
+                                onComplete={completeStandaloneTask}
+                                onUncomplete={uncompleteStandaloneTask}
+                                onDelete={deleteStandaloneTask}
+                                onUpdate={updateStandaloneTask}
+                              />
+                            ))}
+                          </div>
+                        </div>
+                      ));
+                    })()}
                   </div>
                 )}
               </div>
@@ -392,10 +467,9 @@ export default function Home() {
           </div>
 
           {/* Sidebar - Upcoming Routines */}
-          <div className="space-y-4">
+          <div className="w-full lg:w-80 space-y-4">
             <div>
               <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                <ClockIcon className="h-4 w-4 text-primary" />
                 Upcoming Routines
               </h2>
               {(() => {
@@ -495,14 +569,6 @@ export default function Home() {
                     {formatDuration(todayTotalTime)}
                   </span>
                 </div>
-                {currentActivity && (
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Current Activity</span>
-                    <span className="text-sm font-semibold text-primary">
-                      {formatDuration(currentTime - currentActivity.startTime)}
-                    </span>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -545,7 +611,9 @@ export default function Home() {
             )}
 
             {/* Insights Widget */}
-            <InsightsWidget />
+            <div className="pt-6">
+              <InsightsWidget />
+            </div>
           </div>
         </div>
       </div>
@@ -618,6 +686,50 @@ export default function Home() {
           </div>
         </Modal.Footer>
       </Modal>
+
+      <Sheet open={showArchiveSheet} onOpenChange={setShowArchiveSheet}>
+        <SheetContent side="bottom" className="h-[80vh] sm:h-[90vh]">
+          <SheetHeader className="mb-4 text-left">
+            <SheetTitle>Past Activity</SheetTitle>
+          </SheetHeader>
+          <div className="overflow-y-auto pr-2 pb-8 h-full">
+            {pastTasks.length > 0 ? (
+              <div className="space-y-6">
+                {(() => {
+                  const grouped = groupTasksByDay(pastTasks);
+                  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+                  
+                  return sortedDates.map((dateKey) => (
+                    <div key={dateKey} className="space-y-2">
+                      <h3 className="font-semibold text-sm text-foreground bg-muted px-3 py-1 rounded-md sticky top-0 z-10">
+                        {formatDateTitle(dateKey)}
+                      </h3>
+                      <div className="space-y-1">
+                        {grouped[dateKey].map((task) => (
+                          <StandaloneTaskItem
+                            key={task.id}
+                            task={task}
+                            onComplete={completeStandaloneTask}
+                            onUncomplete={uncompleteStandaloneTask}
+                            onDelete={deleteStandaloneTask}
+                            onUpdate={updateStandaloneTask}
+                            onStart={openStartTaskModal}
+                            isActive={currentActivity?.name === task.name}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  ));
+                })()}
+              </div>
+            ) : (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No past activity found.</p>
+              </div>
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
     </>
   );
 }

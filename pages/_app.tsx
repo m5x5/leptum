@@ -65,8 +65,8 @@ function MyApp({ Component, pageProps }: AppProps) {
                 <SidebarTrigger />
                 <div className="flex-1" />
               </header>
-              <div className="flex-1 px-4 pb-20 md:pb-4 overflow-y-auto overflow-x-hidden min-w-0" style={{ overscrollBehavior: 'none' }}>
-                <div className="mx-auto my-4">
+              <div className="flex-1 px-4 py-4 pb-20 md:pb-4 overflow-y-auto min-w-0">
+                <div className="mx-auto">
                   <Component {...pageProps} />
                 </div>
               </div>

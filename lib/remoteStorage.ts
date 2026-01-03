@@ -4,7 +4,7 @@ let Widget: any;
 
 if (typeof window !== 'undefined') {
   RemoteStorage = require('remotestoragejs');
-  Widget = require('remotestorage-widget');
+  Widget = require('m5x5-remotestorage-widget');
 }
 
 // Data schemas for RemoteStorage

@@ -21,9 +21,9 @@ export default function SettingsPage() {
     active: false,
   });
   const [isChecking, setIsChecking] = useState(false);
-  const [offlineModeEnabled, setOfflineModeEnabledState] = useState(() => 
-    typeof window !== 'undefined' ? isOfflineModeEnabled() : true
-  );
+  const [mounted, setMounted] = useState(false);
+  const [isServiceWorkerSupported, setIsServiceWorkerSupported] = useState(false);
+  const [offlineModeEnabled, setOfflineModeEnabledState] = useState(true);
 
   // Entity management state
   const [entityModalOpen, setEntityModalOpen] = useState(false);
@@ -37,6 +37,10 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
+    setMounted(true);
+    setIsServiceWorkerSupported('serviceWorker' in navigator);
+    setOfflineModeEnabledState(isOfflineModeEnabled());
+    
     // Attach RemoteStorage widget when settings page mounts
     remoteStorageClient.attachWidget('remotestorage-widget');
 
@@ -262,8 +266,6 @@ export default function SettingsPage() {
     return entity.type === entityTypeFilter;
   });
 
-  const isServiceWorkerSupported = typeof window !== 'undefined' && 'serviceWorker' in navigator;
-
   return (
     <div className="max-w-4xl mx-auto pb-32 md:pb-0">
       <div className="mb-6">
@@ -274,59 +276,91 @@ export default function SettingsPage() {
       </div>
 
       <div className="space-y-6">
+        {/* Storage Section */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Storage</h2>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-muted-foreground mb-4">Connect your RemoteStorage account to sync your data across devices.</p>
+              <div id="remotestorage-widget"></div>
+            </div>
+
+            <button
+              onClick={handleExportData}
+              className="w-full flex items-center justify-between py-2 hover:bg-accent/50 pr-2 rounded-lg transition-colors text-left group"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm text-foreground group-hover:text-primary transition-colors">Export Data</span>
+                <span className="text-xs text-muted-foreground">Download all your data as a JSON file</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <Separator />
+
         {/* Application Section */}
         <div>
           <h2 className="text-lg font-semibold mb-4">Application</h2>
           <div className="space-y-4">
-            {isServiceWorkerSupported ? (
-              <>
-                <div className="flex items-center justify-between py-2">
-                  <div className="flex items-center gap-3">
-                    <span className="text-sm text-foreground">Offline mode</span>
-                    {swState.active && (
-                      <div className="flex items-center gap-1.5">
-                        <div className="w-2 h-2 rounded-full bg-green-500" />
-                        <span className="text-xs text-muted-foreground">Active</span>
+            {!mounted ? (
+              <div className="py-2 h-10 animate-pulse bg-muted/20 rounded-lg" />
+            ) : (
+              <div className="space-y-4">
+                {isServiceWorkerSupported ? (
+                  <>
+                    <div className="flex items-center justify-between py-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-sm text-foreground">Application ready for offline use</span>
+                        {swState.active && (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2 h-2 rounded-full bg-green-500" />
+                            <span className="text-xs text-muted-foreground">Active</span>
+                          </div>
+                        )}
+                      </div>
+                      <Switch
+                        checked={offlineModeEnabled}
+                        onCheckedChange={handleToggleOfflineMode}
+                        disabled={isChecking}
+                      />
+                    </div>
+                    
+                    {swState.updateAvailable && (
+                      <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3">
+                        <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
+                          <strong>Update available!</strong> A new version of the application is ready to install.
+                        </p>
+                        <button
+                          onClick={handleUpdateApp}
+                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                        >
+                          Update Now
+                        </button>
                       </div>
                     )}
-                  </div>
-                  <Switch
-                    checked={offlineModeEnabled}
-                    onCheckedChange={handleToggleOfflineMode}
-                    disabled={isChecking}
-                  />
-                </div>
-                
-                {swState.updateAvailable && (
-                  <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3">
-                    <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
-                      <strong>Update available!</strong> A new version of the application is ready to install.
+                    
+                    <div className="flex items-center justify-between py-2">
+                      <span className="text-sm text-foreground">Check for updates</span>
+                      <button
+                        onClick={handleCheckForUpdates}
+                        disabled={isChecking || !offlineModeEnabled}
+                        className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                      >
+                        {isChecking ? 'Checking...' : 'Check'}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="py-2">
+                    <p className="text-sm text-muted-foreground">
+                      Service Workers are not supported in this browser. Offline functionality is not available.
                     </p>
-                    <button
-                      onClick={handleUpdateApp}
-                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-                    >
-                      Update Now
-                    </button>
                   </div>
                 )}
-                
-                <div className="flex items-center justify-between py-2">
-                  <span className="text-sm text-foreground">Check for updates</span>
-                  <button
-                    onClick={handleCheckForUpdates}
-                    disabled={isChecking || !offlineModeEnabled}
-                    className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                  >
-                    {isChecking ? 'Checking...' : 'Check'}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <div className="py-2">
-                <p className="text-sm text-muted-foreground">
-                  Service Workers are not supported in this browser. Offline functionality is not available.
-                </p>
               </div>
             )}
           </div>
@@ -334,41 +368,14 @@ export default function SettingsPage() {
 
         <Separator />
 
-        {/* Storage Section */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Storage</h2>
-          <div className="py-2">
-            <p className="text-sm text-muted-foreground mb-4">Connect your RemoteStorage account to sync your data across devices.</p>
-            <div id="remotestorage-widget"></div>
-          </div>
-        </div>
-
-        <Separator />
-
-        {/* Data Export Section */}
-        <div>
-          <h2 className="text-lg font-semibold mb-4">Data Export</h2>
-          <div className="flex items-center justify-between py-2">
-            <span className="text-sm text-foreground">Export all your data as a JSON file for backup or migration</span>
-            <button
-              onClick={handleExportData}
-              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
-            >
-              Export
-            </button>
-          </div>
-        </div>
-
-        <Separator />
-
         {/* Entity Management Section */}
         <div>
-          <div className="flex justify-between items-center mb-4">
+          <div className="flex flex-wrap gap-y-2 justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Entity Management</h2>
             <div className="flex gap-2">
               <button
                 onClick={handleMigrateMentions}
-                className="px-3 py-2 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
                 title="Extract mentions from existing insights"
               >
                 Migrate Mentions
@@ -407,7 +414,7 @@ export default function SettingsPage() {
               No entities found. Add your first entity to start using @mentions!
             </p>
           ) : (
-            <div className="space-y-2 max-h-96 overflow-y-auto">
+            <div className="space-y-2">
               {filteredEntities.map(entity => (
                 <div
                   key={entity.id}
@@ -415,7 +422,7 @@ export default function SettingsPage() {
                 >
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-1">
+                      <div className="flex flex-wrap items-center gap-2 mb-1">
                         <h3 className="font-medium text-sm truncate">{entity.name}</h3>
                         {entity.type && (
                           <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-xs">

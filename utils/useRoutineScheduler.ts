@@ -87,7 +87,7 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
           const newTask = {
             id: `${routine.id}-${task.id}-${Date.now()}`,
             name: task.name,
-            description: task.description || `From routine: ${routine.name}`,
+            description: task.description || `Routine: ${routine.name}`,
             status: 'due' as const,
             createdAt: Date.now(),
             routineId: routine.id,
