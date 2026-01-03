@@ -8,6 +8,8 @@ interface FilterControlsProps {
   buckets: BucketMetadata[];
   onUpdateFilters: (updates: Partial<FilterSettings>) => void;
   onToggleBucket?: (bucketId: string) => void;
+  totalActiveTime?: number;
+  formatDuration?: (ms: number) => string;
 }
 
 export default function FilterControls({
@@ -15,6 +17,8 @@ export default function FilterControls({
   buckets,
   onUpdateFilters,
   onToggleBucket,
+  totalActiveTime,
+  formatDuration,
 }: FilterControlsProps) {
   const {
     showManual,
@@ -45,9 +49,16 @@ export default function FilterControls({
         className="flex items-center justify-between cursor-pointer md:cursor-default"
         onClick={() => setIsCollapsed(!isCollapsed)}
       >
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 md:gap-4">
           <FilterIcon className="w-5 h-5 text-muted-foreground" />
           <h3 className="font-semibold text-foreground">Filters</h3>
+
+          {/* Time Tracking Pill - Desktop Only */}
+          {totalActiveTime !== undefined && formatDuration && totalActiveTime > 0 && (
+            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md border border-green-500/20">
+              <span className="text-sm font-medium">Online Presence: {formatDuration(totalActiveTime)}</span>
+            </div>
+          )}
         </div>
         <button
           className="md:hidden p-1 hover:bg-muted rounded"

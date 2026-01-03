@@ -1,10 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useActivityWatch } from '../utils/useActivityWatch';
 import { remoteStorageClient } from '../lib/remoteStorage';
-import { serviceWorkerManager, ServiceWorkerState } from '../utils/serviceWorker';
+import { serviceWorkerManager, isOfflineModeEnabled, setOfflineModeEnabled, ServiceWorkerState } from '../utils/serviceWorker';
+import { useEntities, Entity } from '../utils/useEntities';
+import { useMentions } from '../utils/useMentions';
+import { extractMentionedEntityIds } from '../components/ui/mention-input';
+import { Separator } from '../components/ui/separator';
+import { Switch } from '../components/ui/switch';
 
 export default function SettingsPage() {
   const { duplicateCount } = useActivityWatch();
+  const { entities, loading: entitiesLoading, addEntity, updateEntity, deleteEntity } = useEntities();
+  const { getMentionCountForEntity, deleteMentionsForEntity, updateMentionsForSource } = useMentions();
+
   const [swState, setSwState] = useState<ServiceWorkerState>({
     registration: null,
     updateAvailable: false,
@@ -13,6 +21,20 @@ export default function SettingsPage() {
     active: false,
   });
   const [isChecking, setIsChecking] = useState(false);
+  const [offlineModeEnabled, setOfflineModeEnabledState] = useState(() => 
+    typeof window !== 'undefined' ? isOfflineModeEnabled() : true
+  );
+
+  // Entity management state
+  const [entityModalOpen, setEntityModalOpen] = useState(false);
+  const [editingEntity, setEditingEntity] = useState<Entity | null>(null);
+  const [entityTypeFilter, setEntityTypeFilter] = useState<'all' | 'person' | 'project' | 'context' | 'untyped'>('all');
+  const [entityFormData, setEntityFormData] = useState({
+    name: '',
+    type: null as 'person' | 'project' | 'context' | null,
+    description: '',
+    tags: '',
+  });
 
   useEffect(() => {
     // Attach RemoteStorage widget when settings page mounts
@@ -51,6 +73,48 @@ export default function SettingsPage() {
 
   const handleUpdateApp = async () => {
     await serviceWorkerManager.skipWaiting();
+  };
+
+  const handleToggleOfflineMode = async (enabled: boolean) => {
+    if (enabled) {
+      // Enable offline mode - register service worker
+      await serviceWorkerManager.register();
+      setOfflineModeEnabled(true); // Save to localStorage
+      setOfflineModeEnabledState(true); // Update React state
+    } else {
+      // Disable offline mode - unregister service worker
+      await serviceWorkerManager.unregister();
+      setOfflineModeEnabled(false); // Save to localStorage
+      setOfflineModeEnabledState(false); // Update React state
+      // Reload page to ensure service worker is fully removed
+      window.location.reload();
+    }
+  };
+
+  const handleMigrateMentions = async () => {
+    if (!confirm('This will scan all insights and extract mentions. Continue?')) {
+      return;
+    }
+
+    try {
+      const insights = await remoteStorageClient.getInsights();
+      let migratedCount = 0;
+
+      for (const insight of insights) {
+        if (insight.notes) {
+          const entityIds = extractMentionedEntityIds(insight.notes);
+          if (entityIds.length > 0) {
+            await updateMentionsForSource('insight', insight.id, 'notes', entityIds, insight.notes);
+            migratedCount++;
+          }
+        }
+      }
+
+      alert(`Migration complete! Extracted mentions from ${migratedCount} insights.`);
+    } catch (error) {
+      console.error('Failed to migrate mentions:', error);
+      alert('Failed to migrate mentions. Check console for details.');
+    }
   };
 
   const handleExportData = async () => {
@@ -117,6 +181,87 @@ export default function SettingsPage() {
     }
   };
 
+  const handleOpenEntityModal = (entity?: Entity) => {
+    if (entity) {
+      setEditingEntity(entity);
+      setEntityFormData({
+        name: entity.name,
+        type: entity.type || null,
+        description: entity.description || '',
+        tags: entity.tags?.join(', ') || '',
+      });
+    } else {
+      setEditingEntity(null);
+      setEntityFormData({
+        name: '',
+        type: null,
+        description: '',
+        tags: '',
+      });
+    }
+    setEntityModalOpen(true);
+  };
+
+  const handleCloseEntityModal = () => {
+    setEntityModalOpen(false);
+    setEditingEntity(null);
+  };
+
+  const handleSaveEntity = async () => {
+    if (!entityFormData.name.trim()) {
+      alert('Entity name is required');
+      return;
+    }
+
+    const tagsArray = entityFormData.tags
+      .split(',')
+      .map(tag => tag.trim())
+      .filter(tag => tag.length > 0);
+
+    if (editingEntity) {
+      // Update existing entity
+      await updateEntity(editingEntity.id, {
+        name: entityFormData.name,
+        type: entityFormData.type,
+        description: entityFormData.description,
+        tags: tagsArray,
+      });
+    } else {
+      // Add new entity
+      await addEntity({
+        name: entityFormData.name,
+        type: entityFormData.type,
+        description: entityFormData.description,
+        tags: tagsArray,
+      });
+    }
+
+    handleCloseEntityModal();
+  };
+
+  const handleDeleteEntity = async (entityId: string) => {
+    const mentionCount = getMentionCountForEntity(entityId);
+
+    if (mentionCount > 0) {
+      if (!confirm(`This entity is mentioned ${mentionCount} time(s). Are you sure you want to delete it?`)) {
+        return;
+      }
+    } else {
+      if (!confirm('Are you sure you want to delete this entity?')) {
+        return;
+      }
+    }
+
+    await deleteMentionsForEntity(entityId);
+    await deleteEntity(entityId);
+  };
+
+  const filteredEntities = entities.filter(entity => {
+    if (entityTypeFilter === 'all') return true;
+    if (entityTypeFilter === 'untyped') return !entity.type;
+    return entity.type === entityTypeFilter;
+  });
+
   const isServiceWorkerSupported = typeof window !== 'undefined' && 'serviceWorker' in navigator;
 
   return (
@@ -128,104 +273,327 @@ export default function SettingsPage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="border border-border rounded-lg p-6 bg-card">
-          <h2 className="text-xl font-semibold mb-4">Application</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Manage application updates and offline functionality.
-          </p>
-          
-          {isServiceWorkerSupported ? (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2 text-sm">
-                <div className={`w-2 h-2 rounded-full ${swState.active ? 'bg-green-500' : 'bg-gray-400'}`} />
-                <span className="text-muted-foreground">
-                  {swState.active ? 'Offline mode enabled' : 'Offline mode not active'}
-                </span>
-              </div>
-              
-              {swState.updateAvailable && (
-                <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3 mb-3">
-                  <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
-                    <strong>Update available!</strong> A new version of the application is ready to install.
-                  </p>
+      <div className="space-y-6">
+        {/* Application Section */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Application</h2>
+          <div className="space-y-4">
+            {isServiceWorkerSupported ? (
+              <>
+                <div className="flex items-center justify-between py-2">
+                  <div className="flex items-center gap-3">
+                    <span className="text-sm text-foreground">Offline mode</span>
+                    {swState.active && (
+                      <div className="flex items-center gap-1.5">
+                        <div className="w-2 h-2 rounded-full bg-green-500" />
+                        <span className="text-xs text-muted-foreground">Active</span>
+                      </div>
+                    )}
+                  </div>
+                  <Switch
+                    checked={offlineModeEnabled}
+                    onCheckedChange={handleToggleOfflineMode}
+                    disabled={isChecking}
+                  />
+                </div>
+                
+                {swState.updateAvailable && (
+                  <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3">
+                    <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
+                      <strong>Update available!</strong> A new version of the application is ready to install.
+                    </p>
+                    <button
+                      onClick={handleUpdateApp}
+                      className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                    >
+                      Update Now
+                    </button>
+                  </div>
+                )}
+                
+                <div className="flex items-center justify-between py-2">
+                  <span className="text-sm text-foreground">Check for updates</span>
                   <button
-                    onClick={handleUpdateApp}
-                    className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                    onClick={handleCheckForUpdates}
+                    disabled={isChecking || !offlineModeEnabled}
+                    className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
                   >
-                    Update Now
+                    {isChecking ? 'Checking...' : 'Check'}
                   </button>
                 </div>
-              )}
-              
+              </>
+            ) : (
+              <div className="py-2">
+                <p className="text-sm text-muted-foreground">
+                  Service Workers are not supported in this browser. Offline functionality is not available.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Storage Section */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Storage</h2>
+          <div className="py-2">
+            <p className="text-sm text-muted-foreground mb-4">Connect your RemoteStorage account to sync your data across devices.</p>
+            <div id="remotestorage-widget"></div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Data Export Section */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">Data Export</h2>
+          <div className="flex items-center justify-between py-2">
+            <span className="text-sm text-foreground">Export all your data as a JSON file for backup or migration</span>
+            <button
+              onClick={handleExportData}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+            >
+              Export
+            </button>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* Entity Management Section */}
+        <div>
+          <div className="flex justify-between items-center mb-4">
+            <h2 className="text-lg font-semibold">Entity Management</h2>
+            <div className="flex gap-2">
               <button
-                onClick={handleCheckForUpdates}
-                disabled={isChecking}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
+                onClick={handleMigrateMentions}
+                className="px-3 py-2 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors"
+                title="Extract mentions from existing insights"
               >
-                {isChecking ? 'Checking...' : 'Check for Updates'}
+                Migrate Mentions
+              </button>
+              <button
+                onClick={() => handleOpenEntityModal()}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm"
+              >
+                Add Entity
               </button>
             </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Service Workers are not supported in this browser. Offline functionality is not available.
+          </div>
+
+          {/* Type Filter Tabs */}
+          <div className="flex gap-2 mb-4 flex-wrap">
+            {(['all', 'person', 'project', 'context', 'untyped'] as const).map(type => (
+              <button
+                key={type}
+                onClick={() => setEntityTypeFilter(type)}
+                className={`px-3 py-1 rounded text-sm transition-colors ${
+                  entityTypeFilter === type
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                }`}
+              >
+                {type.charAt(0).toUpperCase() + type.slice(1)}
+              </button>
+            ))}
+          </div>
+
+          {/* Entity List */}
+          {entitiesLoading ? (
+            <p className="text-sm text-muted-foreground py-2">Loading entities...</p>
+          ) : filteredEntities.length === 0 ? (
+            <p className="text-sm text-muted-foreground py-2">
+              No entities found. Add your first entity to start using @mentions!
             </p>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {filteredEntities.map(entity => (
+                <div
+                  key={entity.id}
+                  className="border border-border rounded-lg p-3 bg-background hover:bg-accent/50 transition-colors"
+                >
+                  <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 mb-1">
+                        <h3 className="font-medium text-sm truncate">{entity.name}</h3>
+                        {entity.type && (
+                          <span className="px-2 py-0.5 bg-primary/20 text-primary rounded text-xs">
+                            {entity.type}
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 bg-muted text-muted-foreground rounded text-xs">
+                          {getMentionCountForEntity(entity.id)} mentions
+                        </span>
+                      </div>
+                      {entity.description && (
+                        <p className="text-xs text-muted-foreground mb-1 line-clamp-2">
+                          {entity.description}
+                        </p>
+                      )}
+                      {entity.tags && entity.tags.length > 0 && (
+                        <div className="flex gap-1 flex-wrap">
+                          {entity.tags.map(tag => (
+                            <span
+                              key={tag}
+                              className="px-1.5 py-0.5 bg-secondary text-secondary-foreground rounded text-xs"
+                            >
+                              {tag}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2 shrink-0">
+                      <button
+                        onClick={() => handleOpenEntityModal(entity)}
+                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                      >
+                        Edit
+                      </button>
+                      <button
+                        onClick={() => handleDeleteEntity(entity.id)}
+                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </div>
 
-        <div className="border border-border rounded-lg p-6 bg-card">
-          <h2 className="text-xl font-semibold mb-4">Storage</h2>
-          <p className="text-sm text-muted-foreground mb-4">Connect your RemoteStorage account to sync your data across devices.</p>
-          {/* RemoteStorage Widget Container */}
-          <div id="remotestorage-widget"></div>
-        </div>
+        <Separator />
 
-        <div className="border border-border rounded-lg p-6 bg-card">
-          <h2 className="text-xl font-semibold mb-4">Data Export</h2>
-          <p className="text-sm text-muted-foreground mb-4">Export all your data as a JSON file for backup or migration.</p>
-          <button
-            onClick={handleExportData}
-            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
-          >
-            Export all data as JSON
-          </button>
-        </div>
-
-        <div className="border border-border rounded-lg p-6 bg-card">
-          <h2 className="text-xl font-semibold mb-4">About</h2>
-          <p className="text-sm text-muted-foreground mb-4">
-            Leptum is an open-source personal productivity tracker with offline-first, user-owned data storage.
-          </p>
-          <a
-            href="https://github.com/m5x5/leptum"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors text-sm"
-          >
-            <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
-              <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
-            </svg>
-            View on GitHub
-          </a>
+        {/* About Section */}
+        <div>
+          <h2 className="text-lg font-semibold mb-4">About</h2>
+          <div className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Leptum is an open-source personal productivity tracker with offline-first, user-owned data storage.
+            </p>
+            <a
+              href="https://github.com/m5x5/leptum"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors text-sm"
+            >
+              <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+                <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
+              </svg>
+              View on GitHub
+            </a>
+          </div>
         </div>
 
         {duplicateCount > 0 && (
-          <div className="border border-yellow-500/30 bg-yellow-500/10 rounded-lg p-6">
-            <h2 className="text-xl font-semibold text-yellow-600 dark:text-yellow-500 mb-4 flex items-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              Data Quality
-            </h2>
-            <p className="text-sm text-yellow-700 dark:text-yellow-400 mb-2">
-              We detected <strong>{duplicateCount}</strong> duplicate events in your timeline data.
-            </p>
-            <p className="text-xs text-yellow-600/80 dark:text-yellow-500/80">
-              These duplicates are automatically hidden from your timeline view to keep it clean.
-            </p>
-          </div>
+          <>
+            <Separator />
+            <div>
+              <h2 className="text-lg font-semibold text-yellow-600 dark:text-yellow-500 mb-4 flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+                Data Quality
+              </h2>
+              <div className="space-y-2">
+                <p className="text-sm text-yellow-700 dark:text-yellow-400">
+                  We detected <strong>{duplicateCount}</strong> duplicate events in your timeline data.
+                </p>
+                <p className="text-xs text-yellow-600/80 dark:text-yellow-500/80">
+                  These duplicates are automatically hidden from your timeline view to keep it clean.
+                </p>
+              </div>
+            </div>
+          </>
         )}
       </div>
+
+      {/* Entity Add/Edit Modal */}
+      {entityModalOpen && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+          <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-semibold mb-4">
+              {editingEntity ? 'Edit Entity' : 'Add Entity'}
+            </h2>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  Name <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={entityFormData.name}
+                  onChange={(e) => setEntityFormData({ ...entityFormData, name: e.target.value })}
+                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                  placeholder="e.g., John Doe, Leptum, Work"
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Type</label>
+                <select
+                  value={entityFormData.type || ''}
+                  onChange={(e) => setEntityFormData({
+                    ...entityFormData,
+                    type: e.target.value === '' ? null : e.target.value as 'person' | 'project' | 'context'
+                  })}
+                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                >
+                  <option value="">Untyped</option>
+                  <option value="person">Person</option>
+                  <option value="project">Project</option>
+                  <option value="context">Context</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Description</label>
+                <textarea
+                  value={entityFormData.description}
+                  onChange={(e) => setEntityFormData({ ...entityFormData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                  placeholder="Optional description..."
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">Tags</label>
+                <input
+                  type="text"
+                  value={entityFormData.tags}
+                  onChange={(e) => setEntityFormData({ ...entityFormData, tags: e.target.value })}
+                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                  placeholder="comma, separated, tags"
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Enter tags separated by commas
+                </p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={handleSaveEntity}
+                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
+              >
+                {editingEntity ? 'Update' : 'Add'}
+              </button>
+              <button
+                onClick={handleCloseEntityModal}
+                className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

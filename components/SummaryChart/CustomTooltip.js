@@ -1,11 +1,12 @@
 import { capitalize } from "../../utils";
+import { mentionsToPlainText } from "../ui/mention-input";
 
 export default function CustomTooltip({ active, payload }) {
   if (!(active && payload && payload.length)) return null;
 
   return (
     <div className="bg-card border border-border p-4 rounded-lg">
-      <div className="text-lg text-foreground">{payload[0].payload.activity}</div>
+      <div className="text-lg text-foreground">{mentionsToPlainText(payload[0].payload.activity)}</div>
       <div className="tooltip-content">
         <ul>
           {payload

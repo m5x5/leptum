@@ -5,7 +5,7 @@ import {
   CogIcon,
   ChartBarIcon,
   HeartIcon,
-} from "@heroicons/react/outline";
+} from "@heroicons/react/solid";
 import Link from "next/link";
 import { useRouter } from "next/router";
 import {
@@ -51,10 +51,10 @@ export default function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton size="lg" asChild className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12">
               <Link href="/" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
+                <div className="flex aspect-square h-8 w-8 items-center justify-center">
                   <span
-                    className="text-2xl font-bold"
-                    style={{ fontFamily: "Rye" }}
+                    className="text-foreground text-2xl"
+                    style={{ fontFamily: "Rye", fontWeight: "normal" }}
                   >
                     L
                   </span>
@@ -83,7 +83,7 @@ export default function AppSidebar() {
                   className="py-3 group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12"
                 >
                   <Link href={path} className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                    <Icon className="size-6" aria-hidden={true} />
+                    <Icon className="h-6 w-6" aria-hidden={true} />
                     <span className="group-data-[collapsible=icon]:hidden">{label}</span>
                   </Link>
                 </SidebarMenuButton>
@@ -98,7 +98,7 @@ export default function AppSidebar() {
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings" className="py-3 group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12">
               <Link href="/settings" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                <CogIcon className="size-6" aria-hidden={true} />
+                <CogIcon className="h-6 w-6" aria-hidden={true} />
                 <span className="group-data-[collapsible=icon]:hidden">Settings</span>
               </Link>
             </SidebarMenuButton>

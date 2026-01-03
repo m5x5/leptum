@@ -4,7 +4,9 @@ import { useInsights, Insight, AffectedMetric } from "../utils/useInsights";
 import { PlusIcon, TrashIcon, PencilIcon } from "@heroicons/react/solid";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
+import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../components/ui/mention-input";
+import { useEntities } from "../utils/useEntities";
+import { useMentions } from "../utils/useMentions";
 import Modal from "../components/Modal";
 
 // Metric configuration matching impact.js
@@ -23,6 +25,8 @@ const AVAILABLE_METRICS = [
 
 export default function InsightsPage() {
   const { insights, loading, addInsight, updateInsight, deleteInsight } = useInsights();
+  const { entities } = useEntities();
+  const { updateMentionsForSource, deleteMentionsForSource } = useMentions();
   const [showModal, setShowModal] = useState(false);
   const [editingInsight, setEditingInsight] = useState<Insight | null>(null);
   const [formData, setFormData] = useState({
@@ -90,10 +94,22 @@ export default function InsightsPage() {
       return;
     }
 
+    let insightId: string;
     if (editingInsight) {
       await updateInsight(editingInsight.id, formData);
+      insightId = editingInsight.id;
     } else {
-      await addInsight(formData);
+      const newInsight = await addInsight(formData);
+      insightId = newInsight.id;
+    }
+
+    // Extract and save mentions from notes field
+    if (formData.notes) {
+      const mentionedEntityIds = extractMentionedEntityIds(formData.notes);
+      await updateMentionsForSource('insight', insightId, 'notes', mentionedEntityIds, formData.notes);
+    } else {
+      // If notes are empty, clear any existing mentions
+      await updateMentionsForSource('insight', insightId, 'notes', [], '');
     }
 
     setShowModal(false);
@@ -101,6 +117,7 @@ export default function InsightsPage() {
 
   const handleDelete = async (id: string) => {
     if (confirm('Are you sure you want to delete this insight?')) {
+      await deleteMentionsForSource('insight', id);
       await deleteInsight(id);
     }
   };
@@ -229,8 +246,8 @@ export default function InsightsPage() {
                 </div>
 
                 {insight.notes && (
-                  <p className="text-sm text-muted-foreground">
-                    {insight.notes}
+                  <p className="text-sm text-muted-foreground whitespace-pre-wrap">
+                    <HighlightedMentions text={insight.notes} />
                   </p>
                 )}
               </div>
@@ -294,11 +311,12 @@ export default function InsightsPage() {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Notes (optional)
                 </label>
-                <Textarea
-                  placeholder="When does this help? Any specific situations?"
+                <MentionInput
+                  placeholder="When does this help? Any specific situations? Use @ to mention people, projects, or contexts"
                   value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  className="min-h-[100px]"
+                  onChange={(value) => setFormData({ ...formData, notes: value })}
+                  entities={entities}
+                  multiline={true}
                 />
               </div>
             </div>

@@ -4,9 +4,9 @@ import { remoteStorageClient } from "../lib/remoteStorage";
 import { analyzeActivityPatterns } from "../utils/activityAnalysis";
 
 export default function DebugPatternsPage() {
-  const [impacts, setImpacts] = useState([]);
-  const [patterns, setPatterns] = useState([]);
-  const [debugInfo, setDebugInfo] = useState([]);
+  const [impacts, setImpacts] = useState<any[]>([]);
+  const [patterns, setPatterns] = useState<any[]>([]);
+  const [debugInfo, setDebugInfo] = useState<any[]>([]);
 
   useEffect(() => {
     loadAndAnalyze();
@@ -97,7 +97,7 @@ export default function DebugPatternsPage() {
                     {pattern.positiveEffects.length > 0 && (
                       <div className="mt-2">
                         <p className="text-xs font-medium text-green-600">Positive:</p>
-                        {pattern.positiveEffects.map(e => (
+                        {pattern.positiveEffects.map((e: any) => (
                           <span key={e.metric} className="text-xs mr-2">
                             {e.metric} +{e.change}
                           </span>
@@ -107,7 +107,7 @@ export default function DebugPatternsPage() {
                     {pattern.negativeEffects.length > 0 && (
                       <div className="mt-2">
                         <p className="text-xs font-medium text-red-600">Negative:</p>
-                        {pattern.negativeEffects.map(e => (
+                        {pattern.negativeEffects.map((e: any) => (
                           <span key={e.metric} className="text-xs mr-2">
                             {e.metric} {e.change}
                           </span>

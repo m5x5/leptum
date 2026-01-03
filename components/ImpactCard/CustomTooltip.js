@@ -1,4 +1,5 @@
 import { capitalize } from "../../utils";
+import { mentionsToPlainText } from "../ui/mention-input";
 
 export default function ({ active, payload, label }) {
   if (!(active && payload && payload.length)) return null;
@@ -6,7 +7,7 @@ export default function ({ active, payload, label }) {
   const item = payload[0];
   return (
     <div className="bg-card border border-border p-4 rounded-lg">
-      <div className="text-lg text-foreground">{item.payload.activity}</div>
+      <div className="text-lg text-foreground">{mentionsToPlainText(item.payload.activity)}</div>
       <div className="tooltip-content">
         <ul>
           <li key={item.id} className="flex items-center justify-start pt-1">

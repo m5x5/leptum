@@ -58,6 +58,7 @@ const GoalTypeSchema = {
 const ImpactSchema = {
   type: 'object',
   properties: {
+    id: { type: 'string' },
     activity: { type: 'string' },
     date: { type: 'number', default: Date.now() },
     stress: { type: ['string', 'number'] },
@@ -348,6 +349,59 @@ const PatternNotesCollectionSchema = {
   required: ['notes']
 };
 
+// Entity schemas
+const EntitySchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    type: { type: 'string' }, // 'person', 'project', 'context', or null for untyped
+    description: { type: 'string' },
+    tags: { type: 'array', items: { type: 'string' } },
+    createdAt: { type: 'number' },
+    updatedAt: { type: 'number' }
+  },
+  required: ['id', 'name', 'createdAt']
+};
+
+const EntitiesCollectionSchema = {
+  type: 'object',
+  properties: {
+    entities: {
+      type: 'array',
+      items: EntitySchema
+    }
+  },
+  required: ['entities']
+};
+
+// Mention schemas
+const MentionSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    sourceType: { type: 'string' }, // 'impact', 'insight', 'task', 'habit', 'goal', etc.
+    sourceId: { type: 'string' },
+    entityId: { type: 'string' },
+    context: { type: 'string' }, // Text snippet around the mention
+    position: { type: 'number' }, // Character position in source text
+    fieldName: { type: 'string' }, // Which field contains the mention (e.g., 'activity', 'notes')
+    createdAt: { type: 'number' }
+  },
+  required: ['id', 'sourceType', 'sourceId', 'entityId', 'createdAt']
+};
+
+const MentionsCollectionSchema = {
+  type: 'object',
+  properties: {
+    mentions: {
+      type: 'array',
+      items: MentionSchema
+    }
+  },
+  required: ['mentions']
+};
+
 export class RemoteStorageClient {
   private remoteStorage: any = null;
   private client: any = null;
@@ -416,6 +470,10 @@ export class RemoteStorageClient {
     this.client.declareType('InsightsCollection', InsightsCollectionSchema);
     this.client.declareType('PatternNote', PatternNoteSchema);
     this.client.declareType('PatternNotesCollection', PatternNotesCollectionSchema);
+    this.client.declareType('Entity', EntitySchema);
+    this.client.declareType('EntitiesCollection', EntitiesCollectionSchema);
+    this.client.declareType('Mention', MentionSchema);
+    this.client.declareType('MentionsCollection', MentionsCollectionSchema);
 
     // Setup todonna schema
     if (this.todonnaClient) {
@@ -1073,6 +1131,64 @@ export class RemoteStorageClient {
       return await this.client.storeObject('PatternNotesCollection', 'pattern-notes', { notes });
     } catch (error) {
       console.error('Failed to save pattern notes:', error);
+    }
+  }
+
+  // Entity operations
+  public async getEntities() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const result = await this.client.getObject('entities') || { entities: [] };
+      return result.entities || [];
+    } catch (error) {
+      console.error('Failed to get entities:', error);
+      return [];
+    }
+  }
+
+  public async saveEntities(entities: any[]) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('EntitiesCollection', 'entities', { entities });
+    } catch (error) {
+      console.error('Failed to save entities:', error);
+    }
+  }
+
+  // Mention operations
+  public async getMentions() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const result = await this.client.getObject('mentions') || { mentions: [] };
+      return result.mentions || [];
+    } catch (error) {
+      console.error('Failed to get mentions:', error);
+      return [];
+    }
+  }
+
+  public async saveMentions(mentions: any[]) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('MentionsCollection', 'mentions', { mentions });
+    } catch (error) {
+      console.error('Failed to save mentions:', error);
     }
   }
 

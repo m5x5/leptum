@@ -89,6 +89,34 @@ class ServiceWorkerManager {
     this.registration.waiting.postMessage({ type: 'SKIP_WAITING' });
   }
 
+  async unregister(): Promise<boolean> {
+    if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
+      return false;
+    }
+
+    try {
+      // Unregister all service workers
+      const registrations = await navigator.serviceWorker.getRegistrations();
+      await Promise.all(registrations.map(reg => reg.unregister()));
+      
+      // Clear all caches
+      if ('caches' in window) {
+        const cacheNames = await caches.keys();
+        await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
+      }
+
+      this.registration = null;
+      this.updateAvailable = false;
+      this.notifyListeners();
+
+      console.log('[SW Manager] Service Worker unregistered');
+      return true;
+    } catch (error) {
+      console.error('[SW Manager] Service Worker unregistration failed:', error);
+      return false;
+    }
+  }
+
   getState(): ServiceWorkerState {
     return {
       registration: this.registration,
@@ -114,3 +142,18 @@ class ServiceWorkerManager {
 }
 
 export const serviceWorkerManager = new ServiceWorkerManager();
+export { ServiceWorkerManager };
+// Helper functions for offline mode preference
+export function isOfflineModeEnabled(): boolean {
+  if (typeof window === 'undefined') {
+    return true; // Default to enabled for SSR
+  }
+  const stored = localStorage.getItem('offlineModeEnabled');
+  return stored === null ? true : stored === 'true'; // Default to enabled
+}
+
+export function setOfflineModeEnabled(enabled: boolean): void {
+  if (typeof window !== 'undefined') {
+    localStorage.setItem('offlineModeEnabled', enabled.toString());
+  }
+}

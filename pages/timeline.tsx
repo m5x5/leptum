@@ -1,11 +1,13 @@
 import Head from "next/head";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { PlusIcon, TrashIcon, UploadIcon } from "@heroicons/react/solid";
 import Modal from "../components/Modal";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
 import { useActivityWatch } from "../utils/useActivityWatch";
+import { useMentions } from "../utils/useMentions";
+import { extractMentionedEntityIds, HighlightedMentions } from "../components/ui/mention-input";
 import ImportActivityWatchModal from "../components/Modal/ImportActivityWatchModal";
 import AWEventDetailModal from "../components/Modal/AWEventDetailModal";
 import FilterControls from "../components/Timeline/FilterControls";
@@ -21,6 +23,7 @@ import { LiveActivityDuration } from "../components/Timeline/LiveActivityDuratio
 import { LiveSummaryBar } from "../components/Timeline/LiveSummaryBar";
 
 interface Impact {
+  id?: string;
   activity: string;
   date: number;
   goalId?: string;
@@ -29,6 +32,8 @@ interface Impact {
   motivation?: string | number;
   cleanliness?: string | number;
   energy?: string | number;
+  isVirtualContinuation?: boolean;
+  originalStartTime?: number;
   [key: string]: any;
 }
 
@@ -41,6 +46,8 @@ interface ActivitySummary {
 }
 
 export default function TimelinePage() {
+  console.log('[TimelinePage] Rendering');
+
   const [impacts, setImpacts] = useState<Impact[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -107,6 +114,7 @@ export default function TimelinePage() {
 
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
+  const { updateMentionsForSource, deleteMentionsForSource } = useMentions();
   const {
     awData,
     isLoading: awIsLoading,
@@ -138,19 +146,25 @@ export default function TimelinePage() {
 
   const saveImpacts = async (newImpacts: Impact[]) => {
     try {
-      await remoteStorageClient.saveImpacts(newImpacts);
-      const sortedData = [...newImpacts].sort((a, b) => b.date - a.date);
+      // Filter out virtual continuations before saving
+      const realImpacts = newImpacts.filter(imp => !imp.isVirtualContinuation);
+      await remoteStorageClient.saveImpacts(realImpacts);
+      const sortedData = [...realImpacts].sort((a, b) => b.date - a.date);
       setImpacts(sortedData);
     } catch (error) {
       console.error("Failed to save impacts:", error);
     }
   };
 
-  const addNewActivity = (formData: { activity: string; date: string; time: string; goalId: string }) => {
+  const addNewActivity = async (formData: { activity: string; date: string; time: string; goalId: string }) => {
     const dateTimeString = `${formData.date}T${formData.time}`;
     const timestamp = new Date(dateTimeString).getTime();
 
+    // Generate unique ID for the impact
+    const impactId = `impact-${timestamp}-${Math.random().toString(36).substr(2, 9)}`;
+
     const newImpact: Impact = {
+      id: impactId,
       activity: formData.activity,
       date: timestamp,
     };
@@ -160,7 +174,11 @@ export default function TimelinePage() {
     }
 
     const updatedImpacts = [...impacts, newImpact];
-    saveImpacts(updatedImpacts);
+    await saveImpacts(updatedImpacts);
+
+    // Track mentions
+    const entityIds = extractMentionedEntityIds(formData.activity);
+    await updateMentionsForSource('impact', impactId, 'activity', entityIds, formData.activity);
 
     setShowAddModal(false);
     setAddFormInitialData(null);
@@ -197,19 +215,29 @@ export default function TimelinePage() {
     setShowEditModal(true);
   };
 
-  const saveEditedActivity = (formData: { activity: string; date: string; time: string; goalId: string }) => {
+  const saveEditedActivity = async (formData: { activity: string; date: string; time: string; goalId: string }) => {
     const dateTimeString = `${formData.date}T${formData.time}`;
     const timestamp = new Date(dateTimeString).getTime();
 
     const updatedImpacts = [...impacts];
+    const existingImpact = updatedImpacts[editingIndex];
+
+    // Ensure the impact has an ID (for backwards compatibility with existing data)
+    const impactId = existingImpact.id || `impact-${existingImpact.date}-${Math.random().toString(36).substr(2, 9)}`;
+
     updatedImpacts[editingIndex] = {
-      ...updatedImpacts[editingIndex],
+      ...existingImpact,
+      id: impactId,
       activity: formData.activity,
       date: timestamp,
       goalId: formData.goalId || undefined,
     };
 
-    saveImpacts(updatedImpacts);
+    await saveImpacts(updatedImpacts);
+
+    // Track mentions
+    const entityIds = extractMentionedEntityIds(formData.activity);
+    await updateMentionsForSource('impact', impactId, 'activity', entityIds, formData.activity);
 
     setShowEditModal(false);
     setEditingImpact(null);
@@ -217,13 +245,21 @@ export default function TimelinePage() {
     setEditFormData(null);
   };
 
-  const deleteActivity = () => {
+  const deleteActivity = async () => {
     if (!confirm("Are you sure you want to delete this activity?")) {
       return;
     }
 
+    const impactToDelete = impacts[editingIndex];
+    const impactId = impactToDelete.id;
+
+    // Delete mentions if the impact has an ID
+    if (impactId) {
+      await deleteMentionsForSource('impact', impactId);
+    }
+
     const updatedImpacts = impacts.filter((_, index) => index !== editingIndex);
-    saveImpacts(updatedImpacts);
+    await saveImpacts(updatedImpacts);
 
     setShowEditModal(false);
     setEditingImpact(null);
@@ -289,15 +325,80 @@ export default function TimelinePage() {
   };
 
   const groupByDate = (impacts: Impact[]) => {
-    const grouped: { [key: string]: Impact[] } = {};
+    console.log('[groupByDate] Starting with', impacts.length, 'impacts');
 
-    impacts.forEach((impact) => {
-      const dateKey = formatDateKey(impact.date);
-      if (!grouped[dateKey]) {
-        grouped[dateKey] = [];
+    // Cache "now" and "today" to avoid repeated Date.now() calls
+    const now = Date.now();
+    const today = new Date();
+    const todayKey = formatDateKey(now);
+
+    // First, sort all impacts by time (descending - most recent first)
+    const sortedImpacts = [...impacts].sort((a, b) => b.date - a.date);
+
+    const grouped: { [key: string]: Impact[] } = {};
+    let virtualCount = 0;
+
+    // Process each impact and potentially split it across multiple days
+    sortedImpacts.forEach((impact, index) => {
+      // Calculate the end time for this impact
+      let endTime: number;
+
+      if (index === 0) {
+        // Most recent impact - extends to now (if today) or end of day
+        const impactDateKey = formatDateKey(impact.date);
+        if (impactDateKey === todayKey) {
+          endTime = now;
+        } else {
+          const dayEnd = new Date(impact.date);
+          dayEnd.setHours(24, 0, 0, 0);
+          endTime = dayEnd.getTime();
+        }
+      } else {
+        // Duration goes until the next activity (which is at index - 1 due to descending sort)
+        endTime = sortedImpacts[index - 1].date;
       }
-      grouped[dateKey].push(impact);
+
+      // Get the start day
+      const startDateKey = formatDateKey(impact.date);
+
+      // Get the end day
+      const endDateKey = formatDateKey(endTime);
+
+      // Add impact to its start day
+      if (!grouped[startDateKey]) {
+        grouped[startDateKey] = [];
+      }
+      grouped[startDateKey].push(impact);
+
+      // If the impact spans into the next day, create ONE virtual entry for the next day
+      // Only support spanning into the immediately next day (not multiple days)
+      if (startDateKey !== endDateKey) {
+        const nextDayStart = new Date(impact.date);
+        nextDayStart.setHours(24, 0, 0, 0); // Midnight of next day
+        const nextDateKey = formatDateKey(nextDayStart.getTime());
+
+        // Only create virtual entry if it's the actual next day
+        if (nextDateKey === endDateKey) {
+          // Create minimal virtual impact (don't spread entire object)
+          const virtualImpact: Impact = {
+            id: impact.id,
+            activity: impact.activity,
+            date: nextDayStart.getTime(),
+            goalId: impact.goalId,
+            isVirtualContinuation: true,
+            originalStartTime: impact.date,
+          };
+
+          if (!grouped[nextDateKey]) {
+            grouped[nextDateKey] = [];
+          }
+          grouped[nextDateKey].push(virtualImpact);
+          virtualCount++;
+        }
+      }
     });
+
+    console.log('[groupByDate] Created', virtualCount, 'virtual continuations');
 
     // Sort each day's impacts by time (descending - most recent first)
     Object.keys(grouped).forEach((key) => {
@@ -367,10 +468,10 @@ export default function TimelinePage() {
     return summaries;
   };
 
-  const groupedImpacts = groupByDate(impacts);
+  const groupedImpacts = useMemo(() => groupByDate(impacts), [impacts]);
 
   // Get all dates that have either manual impacts or AW events
-  const getAllDates = () => {
+  const allDates = useMemo(() => {
     const dateSet = new Set<string>(Object.keys(groupedImpacts));
 
     // Add dates from AW events if they exist
@@ -382,9 +483,8 @@ export default function TimelinePage() {
     }
 
     return Array.from(dateSet).sort().reverse();
-  };
+  }, [groupedImpacts, awData, filterSettings.showActivityWatch]);
 
-  const allDates = getAllDates();
   const dates = allDates.slice(0, daysToShow);
   const hasMoreDays = allDates.length > daysToShow;
 
@@ -472,6 +572,41 @@ export default function TimelinePage() {
     });
   };
 
+  // Calculate total active time across all visible days
+  const totalActiveTime = useMemo(() => {
+    if (!awData || !filterSettings.showActivityWatch) {
+      return 0;
+    }
+
+    let total = 0;
+
+    dates.forEach((dateKey) => {
+      const allAWEvents = getFilteredAWEventsForDate(dateKey);
+      const afkEvents = allAWEvents.filter(e => e.bucketType === 'afkstatus');
+
+      afkEvents.forEach(event => {
+        const isActive = event.displayName === 'Active' || event.eventData?.status === 'not-afk';
+        if (!isActive) return;
+
+        const eventStart = event.timestamp;
+        const eventEnd = eventStart + (event.duration * 1000);
+
+        const [y, m, d] = dateKey.split('-').map(Number);
+        const dayStart = new Date(y, m - 1, d).getTime();
+        const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
+
+        const effectiveStart = Math.max(eventStart, dayStart);
+        const effectiveEnd = Math.min(eventEnd, dayEnd);
+
+        if (effectiveEnd > effectiveStart) {
+          total += (effectiveEnd - effectiveStart);
+        }
+      });
+    });
+
+    return total;
+  }, [awData, filterSettings, dates]);
+
   return (
     <>
       <Head>
@@ -543,6 +678,8 @@ export default function TimelinePage() {
             buckets={awData.buckets}
             onUpdateFilters={updateFilterSettings}
             onToggleBucket={toggleBucket}
+            totalActiveTime={totalActiveTime}
+            formatDuration={formatDuration}
           />
         )}
 
@@ -1010,28 +1147,35 @@ export default function TimelinePage() {
 
                             {dayImpacts.map((impact, index) => {
                               const isFirstItem = index === 0;
-                              const isLive = isTodayFlag && isFirstItem;
+                              const isVirtualContinuation = impact.isVirtualContinuation || false;
+                              const isLive = isTodayFlag && isFirstItem && !isVirtualContinuation;
 
                               let duration = null;
                               let endTime: number;
                               let durationMs: number;
+                              let displayStartTime = impact.date;
+
+                              // For virtual continuations, the display starts from midnight of this day
+                              if (isVirtualContinuation) {
+                                displayStartTime = impact.date; // Already set to midnight by groupByDate
+                              }
 
                               if (isFirstItem && !isTodayFlag) {
                                 // For past days, calculate static duration
                                 const dayEnd = new Date(impact.date);
                                 dayEnd.setHours(24, 0, 0, 0);
                                 endTime = dayEnd.getTime();
-                                duration = getDuration(impact.date, endTime);
-                                durationMs = getDurationInMs(impact.date, endTime);
+                                duration = getDuration(displayStartTime, endTime);
+                                durationMs = getDurationInMs(displayStartTime, endTime);
                               } else if (!isFirstItem) {
                                 const nextActivity = dayImpacts[index - 1];
                                 endTime = nextActivity.date;
-                                duration = getDuration(impact.date, endTime);
-                                durationMs = getDurationInMs(impact.date, endTime);
+                                duration = getDuration(displayStartTime, endTime);
+                                durationMs = getDurationInMs(displayStartTime, endTime);
                               } else {
                                 // For live activities, we'll use LiveActivityDuration component
                                 // Calculate a temporary duration for bar height
-                                durationMs = Date.now() - impact.date;
+                                durationMs = Date.now() - displayStartTime;
                                 // For live activities, end time is effectively now
                                 endTime = Date.now();
                               }
@@ -1041,8 +1185,14 @@ export default function TimelinePage() {
                               const isShortActivity = durationMinutes < 15;
                               const isLongActivity = durationMinutes >= 60; // 1 hour or more
 
+                              // Find the actual (original) impact for editing
                               const actualIndex = impacts.findIndex(
-                                (imp) => imp.date === impact.date && imp.activity === impact.activity
+                                (imp) => {
+                                  if (isVirtualContinuation && impact.originalStartTime) {
+                                    return imp.date === impact.originalStartTime && imp.activity === impact.activity && !imp.isVirtualContinuation;
+                                  }
+                                  return imp.date === impact.date && imp.activity === impact.activity && !imp.isVirtualContinuation;
+                                }
                               );
 
                               return (
@@ -1066,7 +1216,7 @@ export default function TimelinePage() {
                                         const effectiveEndTime = isLive ? Date.now() : endTime;
                                         let currentSlotTime = effectiveEndTime - slotSize;
 
-                                        while (currentSlotTime > impact.date + (5 * 60 * 1000)) {
+                                        while (currentSlotTime > displayStartTime + (5 * 60 * 1000)) {
                                             const timeFromEnd = effectiveEndTime - currentSlotTime;
                                             const slotTop = (timeFromEnd / (1000 * 60)) * 2;
                                             const thisSlotTime = currentSlotTime;
@@ -1115,16 +1265,21 @@ export default function TimelinePage() {
                                     <div className={`flex items-center justify-between pr-2 rounded py-1 -my-1 ${isLongActivity ? 'sticky top-[7.7rem] z-10 bg-card' : ''}`}>
                                       <div className="flex items-center gap-3 flex-1 min-w-0">
                                         <span className={`text-sm font-mono whitespace-nowrap shrink-0 ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                                          {formatTime(impact.date)}
+                                          {formatTime(displayStartTime)}
                                         </span>
+                                        {isVirtualContinuation && (
+                                          <span className="text-xs px-2 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded whitespace-nowrap shrink-0 border border-amber-500/20" title={`Continued from ${formatTime(impact.originalStartTime || 0)}`}>
+                                            ↗ Continued
+                                          </span>
+                                        )}
                                         <h3 className={`text-base font-semibold truncate ${isLive ? 'text-primary' : 'text-foreground'}`}>
-                                          {impact.activity}
+                                          <HighlightedMentions text={impact.activity} />
                                         </h3>
                                         {isLive && <span className="text-xs text-primary whitespace-nowrap shrink-0">(Live)</span>}
                                       </div>
                                       {isLive ? (
                                         <LiveActivityDuration
-                                          startTime={impact.date}
+                                          startTime={displayStartTime}
                                           formatDuration={getDuration}
                                         />
                                       ) : duration && (
@@ -1493,15 +1648,15 @@ export default function TimelinePage() {
                         </div>
                       </div>
 
-                      {/* Online Presence Card */}
+                      {/* Online Presence Card - Mobile Only */}
                       {(() => {
                      const allAWEvents = getFilteredAWEventsForDate(dateKey);
                      const afkEvents = allAWEvents.filter(e => e.bucketType === 'afkstatus');
-                     
+
                      if (afkEvents.length === 0) return null;
 
-                     // Calculate total active time
-                     let totalActiveTime = 0;
+                     // Calculate active time for this day
+                     let dayActiveTime = 0;
 
                      afkEvents.forEach(event => {
                        const isActive = event.displayName === 'Active' || event.eventData.status === 'not-afk';
@@ -1513,23 +1668,23 @@ export default function TimelinePage() {
                        // Find all 15-minute blocks this event overlaps with (to match visual bar logic)
                        // Or we could just sum raw duration? The user asked for "Online Presence" which usually matches the bar.
                        // Let's sum raw duration for accuracy, but respecting the day boundaries.
-                       
+
                        const [y, m, d] = dateKey.split('-').map(Number);
                        const dayStart = new Date(y, m - 1, d).getTime();
                        const dayEnd = new Date(y, m - 1, d, 23, 59, 59, 999).getTime();
 
                        const effectiveStart = Math.max(eventStart, dayStart);
                        const effectiveEnd = Math.min(eventEnd, dayEnd);
-                       
+
                        if (effectiveEnd > effectiveStart) {
-                         totalActiveTime += (effectiveEnd - effectiveStart);
+                         dayActiveTime += (effectiveEnd - effectiveStart);
                        }
                      });
 
                      return (
-                       <div className="mt-2 flex">
+                       <div className="mt-2 flex md:hidden">
                          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md border border-green-500/20">
-                           <span className="text-sm font-medium">Online Presence: {formatDuration(totalActiveTime)}</span>
+                           <span className="text-sm font-medium">Online Presence: {formatDuration(dayActiveTime)}</span>
                          </div>
                        </div>
                      );

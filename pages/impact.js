@@ -10,6 +10,7 @@ import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
 import { useInsights } from "../utils/useInsights";
 import { usePatternNotes } from "../utils/usePatternNotes";
+import { useEntities } from "../utils/useEntities";
 import { TrashIcon, PencilIcon, ChartBarIcon, ChevronDownIcon } from "@heroicons/react/solid";
 import { analyzeActivityPatterns, getSuggestionsForMetrics } from "../utils/activityAnalysis";
 import {
@@ -23,6 +24,8 @@ import {
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
+import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../components/ui/mention-input";
+import { useMentions } from "../utils/useMentions";
 
 // Configuration for impact metrics
 const METRIC_CONFIG = {
@@ -74,6 +77,8 @@ export default function ImpactPage() {
   const { goalTypes } = useGoalTypes();
   const { insights, loading: insightsLoading, addInsight, updateInsight, deleteInsight } = useInsights();
   const { patternNotes, getPatternNote, savePatternNote, deletePatternNote } = usePatternNotes();
+  const { entities } = useEntities();
+  const { updateMentionsForSource, deleteMentionsForSource } = useMentions();
 
   // Form state for insights
   const [showInsightModal, setShowInsightModal] = useState(false);
@@ -120,6 +125,11 @@ export default function ImpactPage() {
   const saveCurrentPatternNote = async () => {
     if (editingPatternNote && patternNoteText.trim()) {
       await savePatternNote(editingPatternNote, patternNoteText.trim());
+
+      // Extract and save mentions
+      const entityIds = extractMentionedEntityIds(patternNoteText);
+      await updateMentionsForSource('patternNote', editingPatternNote, 'notes', entityIds, patternNoteText);
+
       setEditingPatternNote(null);
       setPatternNoteText("");
     }
@@ -128,6 +138,8 @@ export default function ImpactPage() {
   const handleDeletePatternNote = async (activity) => {
     if (confirm('Are you sure you want to delete your thoughts on this pattern?')) {
       await deletePatternNote(activity);
+      // Delete associated mentions
+      await deleteMentionsForSource('patternNote', activity);
       if (editingPatternNote === activity) {
         cancelEditingPatternNote();
       }
@@ -222,10 +234,11 @@ export default function ImpactPage() {
     setShowQuickLogModal(true);
   };
 
-  const saveQuickLog = () => {
+  const saveQuickLog = async () => {
     const newState = { ...state };
     // Add a new entry with the logged data
     const now = new Date();
+    const timestamp = Date.now();
     const defaultActivity = tempLogData.activity ||
       `Now - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
 
@@ -237,13 +250,34 @@ export default function ImpactPage() {
       }
     });
 
+    // Generate unique ID for the impact
+    const impactId = `impact-${timestamp}-${Math.random().toString(36).substr(2, 9)}`;
+
     const newEntry = {
+      id: impactId,
       activity: defaultActivity,
-      date: Date.now(),
+      date: timestamp,
       ...savedData
     };
     newState.impacts.push(newEntry);
     setState(newState);
+
+    // Extract and save mentions from activity field
+    if (defaultActivity) {
+      const activityEntityIds = extractMentionedEntityIds(defaultActivity);
+      if (activityEntityIds.length > 0) {
+        await updateMentionsForSource('impact', impactId, 'activity', activityEntityIds, defaultActivity);
+      }
+    }
+
+    // Extract and save mentions from notes field
+    if (savedData.notes) {
+      const notesEntityIds = extractMentionedEntityIds(savedData.notes);
+      if (notesEntityIds.length > 0) {
+        await updateMentionsForSource('impact', impactId, 'notes', notesEntityIds, savedData.notes);
+      }
+    }
+
     setActivityIndex(newState.impacts.length - 1);
     setShowQuickLogModal(false);
     setTempLogData({});
@@ -278,13 +312,20 @@ export default function ImpactPage() {
     setEditMode(!editMode);
   };
 
-  const deleteActivity = () => {
+  const deleteActivity = async () => {
     const result = confirm("Are you sure you want to delete this activity?");
     if (!result) return;
+
+    const impactToDelete = state.impacts[activityIndex];
     const newState = { ...state };
     newState.impacts.splice(activityIndex, 1);
     setState(newState);
-    
+
+    // Delete mentions if the impact has an ID
+    if (impactToDelete?.id) {
+      await deleteMentionsForSource('impact', impactToDelete.id);
+    }
+
     // Fix: Properly handle the new index after deletion
     if (newState.impacts.length === 0) {
       // No activities left, reset to 0
@@ -300,11 +341,23 @@ export default function ImpactPage() {
   };
 
 
-  const updateActivityName = (newName) => {
+  const updateActivityName = async (newName) => {
     const newState = { ...state };
     if (newState.impacts[activityIndex]) {
       newState.impacts[activityIndex].activity = newName;
+
+      // Ensure the impact has an ID
+      const impactId = newState.impacts[activityIndex].id ||
+        `impact-${newState.impacts[activityIndex].date}-${Math.random().toString(36).substr(2, 9)}`;
+      if (!newState.impacts[activityIndex].id) {
+        newState.impacts[activityIndex].id = impactId;
+      }
+
       setState(newState);
+
+      // Save mentions for activity field
+      const activityEntityIds = extractMentionedEntityIds(newName);
+      await updateMentionsForSource('impact', impactId, 'activity', activityEntityIds, newName);
     }
   };
 
@@ -391,10 +444,22 @@ export default function ImpactPage() {
       return;
     }
 
+    let insightId;
     if (editingInsight) {
       await updateInsight(editingInsight.id, insightFormData);
+      insightId = editingInsight.id;
     } else {
-      await addInsight(insightFormData);
+      const newInsight = await addInsight(insightFormData);
+      insightId = newInsight.id;
+    }
+
+    // Extract and save mentions from notes field
+    if (insightFormData.notes) {
+      const entityIds = extractMentionedEntityIds(insightFormData.notes);
+      await updateMentionsForSource('insight', insightId, 'notes', entityIds, insightFormData.notes);
+    } else {
+      // If notes are empty, clear any existing mentions
+      await updateMentionsForSource('insight', insightId, 'notes', [], '');
     }
 
     setShowInsightModal(false);
@@ -402,6 +467,7 @@ export default function ImpactPage() {
 
   const handleDeleteInsight = async (id) => {
     if (confirm('Are you sure you want to delete this insight?')) {
+      await deleteMentionsForSource('insight', id);
       await deleteInsight(id);
     }
   };
@@ -519,12 +585,12 @@ export default function ImpactPage() {
           <div className="space-y-4 mt-4">
             {/* Activity Name Input */}
             <div>
-              <Input
-                type="text"
-                placeholder="What are you doing? (optional)"
+              <MentionInput
+                placeholder="What are you doing? Use @ to mention (optional)"
                 className="text-lg"
                 value={tempLogData.activity || ""}
-                onChange={(e) => updateTempLogData("activity", e.target.value)}
+                onChange={(value) => updateTempLogData("activity", value)}
+                entities={entities}
               />
             </div>
 
@@ -562,11 +628,13 @@ export default function ImpactPage() {
               <label className="block text-sm font-medium text-foreground mb-2">
                 Notes / Diary Entry (optional)
               </label>
-              <Textarea
-                placeholder="How are you feeling? What happened today?"
-                className="min-h-[100px] resize-y"
+              <MentionInput
+                placeholder="How are you feeling? What happened today? Use @ to mention"
                 value={tempLogData.notes || ""}
-                onChange={(e) => updateTempLogData("notes", e.target.value)}
+                onChange={(value) => updateTempLogData("notes", value)}
+                entities={entities}
+                multiline={true}
+                rows={4}
               />
             </div>
 
@@ -798,11 +866,11 @@ export default function ImpactPage() {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Activity Name
                 </label>
-                <Input
-                  type="text"
+                <MentionInput
                   value={state.impacts[activityIndex]?.activity || ""}
-                  onChange={(e) => updateActivityName(e.target.value)}
-                  placeholder="Activity name"
+                  onChange={(value) => updateActivityName(value)}
+                  placeholder="Activity name (use @ to mention)"
+                  entities={entities}
                 />
               </div>
 
@@ -811,17 +879,27 @@ export default function ImpactPage() {
                 <label className="block text-sm font-medium text-foreground mb-2">
                   Notes / Diary Entry
                 </label>
-                <Textarea
-                  placeholder="How are you feeling? What happened?"
-                  className="min-h-[100px] resize-y"
+                <MentionInput
+                  placeholder="How are you feeling? What happened? Use @ to mention"
                   value={state.impacts[activityIndex]?.notes || ""}
-                  onChange={(e) => {
+                  onChange={(value) => {
                     const newState = { ...state };
                     if (newState.impacts[activityIndex]) {
-                      newState.impacts[activityIndex].notes = e.target.value;
+                      newState.impacts[activityIndex].notes = value;
                       setState(newState);
+                      // Save mentions for notes field
+                      const impactId = newState.impacts[activityIndex].id ||
+                        `impact-${newState.impacts[activityIndex].date}-${Math.random().toString(36).substr(2, 9)}`;
+                      if (!newState.impacts[activityIndex].id) {
+                        newState.impacts[activityIndex].id = impactId;
+                      }
+                      const notesEntityIds = extractMentionedEntityIds(value);
+                      updateMentionsForSource('impact', impactId, 'notes', notesEntityIds, value);
                     }
                   }}
+                  entities={entities}
+                  multiline={true}
+                  rows={4}
                 />
               </div>
 
@@ -1054,11 +1132,12 @@ export default function ImpactPage() {
                               <label className="block text-xs font-medium text-foreground">
                                 Your thoughts on this pattern:
                               </label>
-                              <Textarea
+                              <MentionInput
                                 value={patternNoteText}
-                                onChange={(e) => setPatternNoteText(e.target.value)}
-                                placeholder="What do you think about this pattern? Any insights or observations?"
-                                className="min-h-[80px] text-sm"
+                                onChange={(value) => setPatternNoteText(value)}
+                                placeholder="What do you think about this pattern? Use @ to mention people, projects, or contexts"
+                                entities={entities}
+                                multiline={true}
                               />
                               <div className="flex gap-2">
                                 <button
@@ -1100,8 +1179,8 @@ export default function ImpactPage() {
                                   </button>
                                 </div>
                               </div>
-                              <p className="text-sm text-muted-foreground bg-muted/50 rounded px-3 py-2">
-                                {existingNote.notes}
+                              <p className="text-sm text-muted-foreground bg-muted/50 rounded px-3 py-2 whitespace-pre-wrap">
+                                <HighlightedMentions text={existingNote.notes} />
                               </p>
                             </div>
                           );
@@ -1201,7 +1280,7 @@ export default function ImpactPage() {
 
                 {insight.notes && (
                   <p className="text-sm text-muted-foreground">
-                    {insight.notes}
+                    <HighlightedMentions text={insight.notes} />
                   </p>
                 )}
               </div>
@@ -1268,11 +1347,12 @@ export default function ImpactPage() {
               <label className="block text-sm font-medium text-foreground mb-2">
                 Notes (optional)
               </label>
-              <Textarea
-                placeholder="When does this help? Any specific situations?"
+              <MentionInput
+                placeholder="When does this help? Any specific situations? Use @ to mention people, projects, or contexts"
                 value={insightFormData.notes}
-                onChange={(e) => setInsightFormData({ ...insightFormData, notes: e.target.value })}
-                className="min-h-[100px]"
+                onChange={(value) => setInsightFormData({ ...insightFormData, notes: value })}
+                entities={entities}
+                multiline={true}
               />
             </div>
           </div>

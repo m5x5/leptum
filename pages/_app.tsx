@@ -6,7 +6,7 @@ import { ThemeProvider } from "next-themes"
 import { AppProps, AppContext } from "next/app"
 import { useEffect } from "react"
 import { remoteStorageClient } from "../lib/remoteStorage"
-import { serviceWorkerManager } from "../utils/serviceWorker"
+import { serviceWorkerManager, isOfflineModeEnabled } from "../utils/serviceWorker"
 import App from "next/app"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "../components/ui/sidebar"
 
@@ -18,8 +18,10 @@ function MyApp({ Component, pageProps }: AppProps) {
       console.log('Initializing RemoteStorage client');
       remoteStorageClient.getRemoteStorage(); // Ensures client is initialized
       
-      // Register service worker for offline support
-      serviceWorkerManager.register();
+      // Register service worker for offline support if enabled
+      if (isOfflineModeEnabled()) {
+        serviceWorkerManager.register();
+      }
       
       // Force theme-color to white for Android PWA (overrides Material You dynamic colors)
       // This ensures the system UI (status bar, navigation bar) stays white

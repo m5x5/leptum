@@ -1,7 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
-import { Input } from "../ui/input";
+import { MentionInput, HighlightedMentions } from "../ui/mention-input";
+import { useEntities } from "../../utils/useEntities";
 
 interface DraftTimelineEntryProps {
   startTime: number;
@@ -22,15 +23,8 @@ export default function DraftTimelineEntry({
   const [goalId, setGoalId] = useState("");
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
-  const inputRef = useRef<HTMLInputElement>(null);
+  const { entities } = useEntities();
   const containerRef = useRef<HTMLDivElement>(null);
-
-  // Focus input on mount
-  useEffect(() => {
-    if (inputRef.current) {
-      inputRef.current.focus();
-    }
-  }, []);
 
   // Handle click outside to cancel
   useEffect(() => {
@@ -91,7 +85,7 @@ export default function DraftTimelineEntry({
                 {formatTime(startTime)}
               </span>
               <h3 className="text-sm font-semibold text-foreground/80 italic truncate">
-                {activity || "New Activity..."}
+                {activity ? <HighlightedMentions text={activity} /> : "New Activity..."}
               </h3>
             </div>
             <span className="text-xs px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground whitespace-nowrap shrink-0">
@@ -104,16 +98,13 @@ export default function DraftTimelineEntry({
       {/* The Form Popover - Positioned Below */}
       <div className="absolute top-full left-0 right-0 mt-2 p-3 bg-popover shadow-xl rounded-lg border border-border animate-in fade-in slide-in-from-top-2 z-20">
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-            <Input
-              ref={inputRef}
-              type="text"
-              placeholder="Type activity name..."
-              className="text-base bg-muted/50"
+            <MentionInput
+              placeholder="Type activity name (use @ to mention)..."
+              className="text-base"
               value={activity}
-              onChange={(e) => setActivity(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === 'Escape') onCancel();
-              }}
+              onChange={(value) => setActivity(value)}
+              entities={entities}
+              autoFocus
             />
 
             <div className="flex items-center gap-2">

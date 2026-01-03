@@ -2,6 +2,8 @@ import { useState, useEffect } from "react";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
 import { Input } from "../ui/input";
+import { MentionInput } from "../ui/mention-input";
+import { useEntities } from "../../utils/useEntities";
 
 interface ActivityFormProps {
   initialData?: {
@@ -57,6 +59,7 @@ export default function ActivityForm({
 
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
+  const { entities } = useEntities();
 
   // Update form when initial data changes (for edit mode)
   useEffect(() => {
@@ -81,14 +84,14 @@ export default function ActivityForm({
         <label className="block text-sm font-medium text-foreground mb-2">
           Activity Name
         </label>
-        <Input
-          type="text"
-          placeholder="What were you doing?"
+        <MentionInput
+          placeholder="What were you doing? (use @ to mention)"
           className="text-lg"
           value={formData.activity}
-          onChange={(e) =>
-            setFormData({ ...formData, activity: e.target.value })
+          onChange={(value) =>
+            setFormData({ ...formData, activity: value })
           }
+          entities={entities}
         />
       </div>
       <div>

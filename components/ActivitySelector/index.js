@@ -1,4 +1,5 @@
 import { PencilIcon, TrashIcon } from "@heroicons/react/solid";
+import { mentionsToPlainText } from "../ui/mention-input";
 
 export default function ActivitySelector({ impacts, index, onChange, onDelete, onToggleEdit, editMode }) {
   const formatDateTime = (timestamp) => {
@@ -44,7 +45,7 @@ export default function ActivitySelector({ impacts, index, onChange, onDelete, o
         >
           {sortedImpactsWithIndex.map(({ impact, originalIndex }) => (
             <option key={originalIndex} value={originalIndex}>
-              {impact.activity} - {formatDateTime(impact.date)}
+              {mentionsToPlainText(impact.activity)} - {formatDateTime(impact.date)}
             </option>
           ))}
         </select>
