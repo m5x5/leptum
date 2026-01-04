@@ -24,6 +24,7 @@ export default function SettingsPage() {
   const [mounted, setMounted] = useState(false);
   const [isServiceWorkerSupported, setIsServiceWorkerSupported] = useState(false);
   const [offlineModeEnabled, setOfflineModeEnabledState] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   // Entity management state
   const [entityModalOpen, setEntityModalOpen] = useState(false);
@@ -40,7 +41,7 @@ export default function SettingsPage() {
     setMounted(true);
     setIsServiceWorkerSupported('serviceWorker' in navigator);
     setOfflineModeEnabledState(isOfflineModeEnabled());
-    
+
     // Attach RemoteStorage widget when settings page mounts
     remoteStorageClient.attachWidget('remotestorage-widget');
 
@@ -49,9 +50,28 @@ export default function SettingsPage() {
       setSwState(state);
     });
 
+    // Listen for RemoteStorage errors (including authorization failures)
+    const handleError = (error: Error) => {
+      console.error('RemoteStorage error:', error);
+      if (error.message?.includes('access denied') || error.message?.includes('Authorization failed')) {
+        setAuthError('Authorization failed. Please try connecting again.');
+      } else {
+        setAuthError(error.message || 'An error occurred with RemoteStorage.');
+      }
+    };
+
+    remoteStorageClient.onError(handleError);
+
+    // Clear error when connected successfully
+    const handleConnect = () => {
+      setAuthError(null);
+    };
+    remoteStorageClient.onConnect(handleConnect);
+
     // Cleanup on unmount
     return () => {
       remoteStorageClient.detachWidget();
+      remoteStorageClient.offError(handleError);
       unsubscribe();
     };
   }, []);
@@ -283,6 +303,25 @@ export default function SettingsPage() {
             <div>
               <p className="text-sm text-muted-foreground mb-4">Connect your RemoteStorage account to sync your data across devices.</p>
               <div id="remotestorage-widget"></div>
+              {authError && (
+                <div className="mt-4 border border-red-500/30 bg-red-500/10 rounded-lg p-3">
+                  <div className="flex items-start gap-2">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                    <div className="flex-1">
+                      <p className="text-sm text-red-700 dark:text-red-400 font-medium">Connection Error</p>
+                      <p className="text-sm text-red-600 dark:text-red-400/80 mt-1">{authError}</p>
+                      <button
+                        onClick={() => setAuthError(null)}
+                        className="mt-2 text-xs text-red-600 dark:text-red-400 hover:underline"
+                      >
+                        Dismiss
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button

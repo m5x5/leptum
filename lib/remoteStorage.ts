@@ -1216,8 +1216,30 @@ export class RemoteStorageClient {
       this.initialize();
     }
     if (!this.remoteStorage) return;
-    
+
     this.remoteStorage.on('disconnected', callback);
+  }
+
+  public onError(callback: (error: Error) => void) {
+    if (!this.remoteStorage) {
+      this.initialize();
+    }
+    if (!this.remoteStorage) return;
+
+    this.remoteStorage.on('error', callback);
+  }
+
+  public offError(callback: (error: Error) => void) {
+    if (!this.remoteStorage) return;
+
+    // RemoteStorage uses '_handlers' internally; we need to remove the listener
+    const handlers = this.remoteStorage._handlers?.error;
+    if (handlers) {
+      const index = handlers.indexOf(callback);
+      if (index > -1) {
+        handlers.splice(index, 1);
+      }
+    }
   }
 
   // Utility methods
