@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
 import { useEffect, useState, useRef } from "react";
-import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon } from "@heroicons/react/solid";
+import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "../utils/useStandaloneTasks";
 import { useRoutineScheduler } from "../utils/useRoutineScheduler";
 import { remoteStorageClient } from "../lib/remoteStorage";
@@ -21,6 +21,7 @@ import {
 } from "../components/ui/sheet";
 import {
   Drawer,
+  DrawerClose,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
@@ -247,7 +248,7 @@ export default function Home() {
     setShowMobileTaskDrawer(false);
   };
 
-  const TaskForm = ({ onCancel }: { onCancel: () => void }) => (
+  const TaskForm = () => (
     <form onSubmit={handleCreateTask} className="pt-2 space-y-3">
       <div>
         <label htmlFor="task-name" className="block text-sm font-medium text-foreground mb-2">
@@ -262,7 +263,7 @@ export default function Home() {
           autoFocus
         />
       </div>
-      <div>
+      <div className="pb-2">
         <label htmlFor="task-description" className="block text-sm font-medium text-foreground mb-2">
           Description <span className="text-muted-foreground font-normal">(optional)</span>
         </label>
@@ -274,21 +275,12 @@ export default function Home() {
           placeholder="Enter description..."
         />
       </div>
-      <div className="flex gap-2 justify-end pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-        >
-          Cancel
-        </button>
-        <button
-          type="submit"
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-        >
-          Add Task
-        </button>
-      </div>
+      <button
+        type="submit"
+        className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold mt-4"
+      >
+        Add Task
+      </button>
     </form>
   );
 
@@ -472,13 +464,7 @@ export default function Home() {
                       </button>
                     </>
                   ) : (
-                    <TaskForm 
-                      onCancel={() => {
-                        setShowTaskForm(false);
-                        if (taskNameRef.current) taskNameRef.current.value = "";
-                        if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
-                      }} 
-                    />
+                    <TaskForm />
                   )}
                 </div>
               </div>
@@ -813,17 +799,14 @@ export default function Home() {
 
       <Drawer open={showMobileTaskDrawer} onOpenChange={setShowMobileTaskDrawer}>
         <DrawerContent>
-          <DrawerHeader className="text-left">
+          <DrawerHeader className="text-left relative">
             <DrawerTitle>Add New Task</DrawerTitle>
+            <DrawerClose className="absolute right-4 top-4 p-1 text-muted-foreground hover:text-foreground transition-colors">
+              <XIcon className="w-5 h-5" />
+            </DrawerClose>
           </DrawerHeader>
           <div className="px-4 pb-8">
-            <TaskForm 
-              onCancel={() => {
-                setShowMobileTaskDrawer(false);
-                if (taskNameRef.current) taskNameRef.current.value = "";
-                if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
-              }} 
-            />
+            <TaskForm />
           </div>
         </DrawerContent>
       </Drawer>
