@@ -1,4 +1,4 @@
-import { Ollama } from "langchain/llms/ollama";
+import { Ollama } from "@langchain/ollama";
 
 export const ollama = new Ollama({
   baseUrl: "http://localhost:11434",

@@ -13,17 +13,17 @@ const ChatPage = () => {
 
   const getResponse = async () => {
     ollama
-      .call(input, {
+      .invoke(input, {
         callbacks: [
           {
-            handleLLMNewToken: (token) => {
+            handleLLMNewToken: (token: string) => {
               console.log(token);
               setText(text + token);
             },
           },
         ],
       })
-      .then((answer) => {
+      .then((answer: string) => {
         setText(answer);
       });
     setInput("");

@@ -144,10 +144,10 @@ function MyApp({ Component, pageProps }: AppProps) {
                 <SidebarTrigger />
                 <div className="flex-1" />
               </header>
-              <div className="flex-1 px-4 py-4 pb-20 md:pb-4 min-w-0 relative h-full overflow-hidden">
+              <div className="flex-1 py-4 pb-20 md:pb-4 min-w-0 relative h-full overflow-hidden">
                 <div className="mx-auto h-full relative">
                   {!mounted ? (
-                    <div style={{ viewTransitionName: 'page' } as any} className="h-full">
+                    <div style={{ viewTransitionName: 'page' } as any} className="h-full px-4">
                       <Component {...pageProps} />
                     </div>
                   ) : (
@@ -156,7 +156,7 @@ function MyApp({ Component, pageProps }: AppProps) {
                         <div 
                           key={path} 
                           className={cn(
-                            "h-full w-full overflow-y-auto bg-background",
+                            "h-full w-full overflow-y-auto bg-background px-4",
                             path === activePath ? "relative z-10 visible" : "absolute inset-0 z-0 invisible pointer-events-none"
                           )}
                           style={{ 
@@ -168,7 +168,7 @@ function MyApp({ Component, pageProps }: AppProps) {
                       ))}
                       {/* Ensure current page is always rendered even if not in cache yet */}
                       {activePath && !cache[activePath] && (
-                        <div style={{ viewTransitionName: 'page' } as any} className="h-full w-full relative overflow-y-auto bg-background">
+                        <div style={{ viewTransitionName: 'page' } as any} className="h-full w-full relative overflow-y-auto bg-background px-4">
                           <Component {...pageProps} />
                         </div>
                       )}
