@@ -158,7 +158,7 @@ export default function InsightsPage() {
         <title>Insights - Leptum</title>
       </Head>
 
-      <div className="max-w-4xl mx-auto pb-32 md:pb-0">
+      <div className="max-w-4xl mx-auto">
         <div className="mb-6 flex items-start justify-between">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">Insights</h1>

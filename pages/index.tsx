@@ -384,7 +384,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="max-w-6xl mx-auto pb-32 md:pb-0">
+      <div className="max-w-6xl mx-auto">
         {/* Mobile Logo - Full Leptum logo on mobile */}
         <div className="md:hidden mb-6 flex items-center justify-between">
           <Link href="/" className="inline-block">

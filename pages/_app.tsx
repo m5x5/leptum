@@ -5,6 +5,7 @@ import "../styles/global.css";
 import { ThemeProvider } from "next-themes"
 import { AppProps, AppContext } from "next/app"
 import { useEffect, useState, useRef, useLayoutEffect } from "react"
+import { flushSync } from "react-dom"
 import { useRouter } from "next/router"
 import { remoteStorageClient } from "../lib/remoteStorage"
 import { serviceWorkerManager, isOfflineModeEnabled } from "../utils/serviceWorker"
@@ -55,11 +56,13 @@ function MyApp({ Component, pageProps }: AppProps) {
         document.documentElement.removeAttribute("data-transition");
       }
 
-      setCache(prev => ({
-        ...prev,
-        [newPath]: { Component, props: pageProps }
-      }));
-      setActivePath(newPath);
+      flushSync(() => {
+        setCache(prev => ({
+          ...prev,
+          [newPath]: { Component, props: pageProps }
+        }));
+        setActivePath(newPath);
+      });
     };
 
     if (typeof document !== 'undefined' && 'startViewTransition' in document) {
@@ -104,16 +107,24 @@ function MyApp({ Component, pageProps }: AppProps) {
       
       // Control RemoteStorage widget visibility based on path
       const updateWidgetVisibility = () => {
-        const widget = document.querySelector('.rs-widget');
+        const widget = document.querySelector('remotestorage-widget');
         if (widget) {
           const isSettingsPage = router.asPath.split('?')[0].split('#')[0] === '/settings';
-          (widget as HTMLElement).style.visibility = isSettingsPage ? 'visible' : 'hidden';
-          (widget as HTMLElement).style.pointerEvents = isSettingsPage ? 'auto' : 'none';
+          if (isSettingsPage) {
+            (widget as HTMLElement).style.setProperty('display', 'block', 'important');
+            (widget as HTMLElement).style.setProperty('visibility', 'visible', 'important');
+            (widget as HTMLElement).style.setProperty('opacity', '1', 'important');
+            (widget as HTMLElement).style.setProperty('pointer-events', 'auto', 'important');
+          } else {
+            (widget as HTMLElement).style.setProperty('display', 'none', 'important');
+            (widget as HTMLElement).style.setProperty('visibility', 'hidden', 'important');
+            (widget as HTMLElement).style.setProperty('opacity', '0', 'important');
+            (widget as HTMLElement).style.setProperty('pointer-events', 'none', 'important');
+          }
         }
       };
 
-      // Run once widget is likely to be in DOM
-      const widgetInterval = setInterval(updateWidgetVisibility, 500);
+      const widgetInterval = setInterval(updateWidgetVisibility, 100);
       
       return () => {
         observer.disconnect();
@@ -145,7 +156,7 @@ function MyApp({ Component, pageProps }: AppProps) {
                         <div 
                           key={path} 
                           className={cn(
-                            "h-full w-full overflow-y-auto",
+                            "h-full w-full overflow-y-auto bg-background",
                             path === activePath ? "relative z-10 visible" : "absolute inset-0 z-0 invisible pointer-events-none"
                           )}
                           style={{ 
@@ -157,7 +168,7 @@ function MyApp({ Component, pageProps }: AppProps) {
                       ))}
                       {/* Ensure current page is always rendered even if not in cache yet */}
                       {activePath && !cache[activePath] && (
-                        <div style={{ viewTransitionName: 'page' } as any} className="h-full w-full relative overflow-y-auto">
+                        <div style={{ viewTransitionName: 'page' } as any} className="h-full w-full relative overflow-y-auto bg-background">
                           <Component {...pageProps} />
                         </div>
                       )}
