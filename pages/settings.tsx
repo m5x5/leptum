@@ -23,7 +23,7 @@ export default function SettingsPage() {
   const [isChecking, setIsChecking] = useState(false);
   const [mounted, setMounted] = useState(false);
   const [isServiceWorkerSupported, setIsServiceWorkerSupported] = useState(false);
-  const [offlineModeEnabled, setOfflineModeEnabledState] = useState(true);
+  const [offlineModeEnabled, setOfflineModeEnabledState] = useState(false);
 
   // Entity management state
   const [entityModalOpen, setEntityModalOpen] = useState(false);

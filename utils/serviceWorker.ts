@@ -146,10 +146,10 @@ export { ServiceWorkerManager };
 // Helper functions for offline mode preference
 export function isOfflineModeEnabled(): boolean {
   if (typeof window === 'undefined') {
-    return true; // Default to enabled for SSR
+    return false; // Default to disabled for SSR
   }
   const stored = localStorage.getItem('offlineModeEnabled');
-  return stored === null ? true : stored === 'true'; // Default to enabled
+  return stored === null ? false : stored === 'true'; // Default to disabled
 }
 
 export function setOfflineModeEnabled(enabled: boolean): void {
