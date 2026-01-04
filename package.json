@@ -49,7 +49,8 @@
     "worker-timers": "^7.0.37"
   },
   "devDependencies": {
-    "@types/react": "^17.0.34",
+    "@types/react": "^18.3.27",
+    "@types/react-dom": "^18.3.7",
     "@types/react-mentions": "^4.4.1",
     "autoprefixer": "^10.4.15",
     "babel-plugin-recharts": "^2.0.0",

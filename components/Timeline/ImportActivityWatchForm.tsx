@@ -1,10 +1,12 @@
 import { useState, useCallback } from 'react';
-import { Welcome, ImportPreview, ProcessingOptions } from '../../activity-watch.d';
+import { Welcome } from '../../activity-watch.d';
 import {
   parseActivityWatchJSON,
   getImportPreview,
   DEFAULT_DAYS_BACK,
   DEFAULT_MIN_DURATION_SECONDS,
+  ImportPreview,
+  ProcessingOptions,
 } from '../../utils/activityWatch';
 import { UploadIcon } from '@heroicons/react/outline';
 import { Input } from '../ui/input';
