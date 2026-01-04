@@ -168,7 +168,15 @@ export function mentionsToPlainText(text: string): string {
  * Component to render text with highlighted mentions
  * Converts @[Name](id) markup to highlighted @Name spans
  */
-export function HighlightedMentions({ text, className = '' }: { text: string; className?: string }) {
+export function HighlightedMentions({
+  text,
+  className = '',
+  mentionClassName = 'bg-primary/10 text-primary px-1 py-0.5 rounded font-medium'
+}: {
+  text: string;
+  className?: string;
+  mentionClassName?: string;
+}) {
   if (!text) return <>{text || ''}</>;
 
   // Check if text contains any mentions
@@ -216,7 +224,7 @@ export function HighlightedMentions({ text, className = '' }: { text: string; cl
         return (
           <span
             key={idx}
-            className="bg-primary/10 text-primary px-1 py-0.5 rounded font-medium"
+            className={mentionClassName}
           >
             @{part.name}
           </span>

@@ -25,6 +25,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "../components/ui/drawer";
+import { HighlightedMentions } from "../components/ui/mention-input";
 
 // Format duration in human readable form
 function formatDurationStatic(ms: number) {
@@ -398,7 +399,12 @@ export default function Home() {
         {currentActivity && (
           <div className="mb-4 inline-flex items-center gap-2 bg-primary/10 border border-primary rounded-full px-4 py-2">
             <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-primary">{currentActivity.name}</span>
+            <span className="text-sm font-medium text-primary">
+              <HighlightedMentions
+                text={currentActivity.name}
+                mentionClassName="bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-semibold"
+              />
+            </span>
             <span className="text-xs text-muted-foreground">•</span>
             <span className="text-sm font-semibold text-primary">
               <LiveDuration startTime={currentActivity.startTime} />
