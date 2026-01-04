@@ -4,27 +4,86 @@ import AppSidebar from "../components/Sidebar/new";
 import "../styles/global.css";
 import { ThemeProvider } from "next-themes"
 import { AppProps, AppContext } from "next/app"
-import { useEffect } from "react"
+import { useEffect, useState, useRef, useLayoutEffect } from "react"
+import { useRouter } from "next/router"
 import { remoteStorageClient } from "../lib/remoteStorage"
 import { serviceWorkerManager, isOfflineModeEnabled } from "../utils/serviceWorker"
 import App from "next/app"
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "../components/ui/sidebar"
+import { cn } from "../lib/utils"
+
+const PAGE_ORDER = ["/", "/timeline", "/impact", "/routines", "/goals", "/settings"];
 
 function MyApp({ Component, pageProps }: AppProps) {
+  const router = useRouter();
+  const [mounted, setMounted] = useState(false);
+  const [activePath, setActivePath] = useState(router.asPath.split('?')[0].split('#')[0]);
+  const [cache, setCache] = useState<Record<string, { Component: any, props: any }>>({});
+
   useEffect(() => {
-    // Initialize RemoteStorage client on app load (sync happens automatically once connected)
-    // Widget will only be displayed on the settings page
-    if (typeof window !== 'undefined') {
-      console.log('Initializing RemoteStorage client');
-      remoteStorageClient.getRemoteStorage(); // Ensures client is initialized
+    setMounted(true);
+    const initialPath = router.asPath.split('?')[0].split('#')[0];
+    setCache(prev => ({
+      ...prev,
+      [initialPath]: { Component, props: pageProps }
+    }));
+  }, []);
+
+  // Handle transitions and caching
+  useEffect(() => {
+    if (!mounted) return;
+
+    const newPath = router.asPath.split('?')[0].split('#')[0];
+    if (newPath === activePath) {
+      // Just update props for current page
+      setCache(prev => ({
+        ...prev,
+        [newPath]: { Component, props: pageProps }
+      }));
+      return;
+    }
+
+    const performTransition = () => {
+      // Set direction
+      const fromIndex = PAGE_ORDER.indexOf(activePath);
+      const toIndex = PAGE_ORDER.indexOf(newPath);
       
-      // Register service worker for offline support if enabled
+      if (fromIndex !== -1 && toIndex !== -1 && fromIndex !== toIndex) {
+        const direction = toIndex > fromIndex ? "slide-left" : "slide-right";
+        document.documentElement.setAttribute("data-transition", direction);
+      } else {
+        document.documentElement.removeAttribute("data-transition");
+      }
+
+      setCache(prev => ({
+        ...prev,
+        [newPath]: { Component, props: pageProps }
+      }));
+      setActivePath(newPath);
+    };
+
+    if (typeof document !== 'undefined' && 'startViewTransition' in document) {
+      const transition = (document as any).startViewTransition(() => {
+        performTransition();
+      });
+      
+      transition.finished.finally(() => {
+        document.documentElement.removeAttribute("data-transition");
+      });
+    } else {
+      performTransition();
+    }
+  }, [router.asPath, Component, pageProps, mounted]);
+
+  useEffect(() => {
+    // Initialize RemoteStorage client on app load
+    if (typeof window !== 'undefined') {
+      remoteStorageClient.getRemoteStorage();
+      
       if (isOfflineModeEnabled()) {
         serviceWorkerManager.register();
       }
       
-      // Force theme-color to white for Android PWA (overrides Material You dynamic colors)
-      // This ensures the system UI (status bar, navigation bar) stays white
       const setThemeColor = () => {
         let themeColorMeta = document.querySelector('meta[name="theme-color"]');
         if (!themeColorMeta) {
@@ -35,24 +94,33 @@ function MyApp({ Component, pageProps }: AppProps) {
         themeColorMeta.setAttribute('content', '#ffffff');
       };
       
-      // Set immediately on mount
       setThemeColor();
       
-      // Also update when theme changes (for next-themes dark/light mode switching)
-      const observer = new MutationObserver(() => {
-        setThemeColor();
-      });
+      const observer = new MutationObserver(() => setThemeColor());
       observer.observe(document.documentElement, {
         attributes: true,
         attributeFilter: ['class']
       });
       
-      // Cleanup observer on unmount
+      // Control RemoteStorage widget visibility based on path
+      const updateWidgetVisibility = () => {
+        const widget = document.querySelector('.rs-widget');
+        if (widget) {
+          const isSettingsPage = router.asPath.split('?')[0].split('#')[0] === '/settings';
+          (widget as HTMLElement).style.visibility = isSettingsPage ? 'visible' : 'hidden';
+          (widget as HTMLElement).style.pointerEvents = isSettingsPage ? 'auto' : 'none';
+        }
+      };
+
+      // Run once widget is likely to be in DOM
+      const widgetInterval = setInterval(updateWidgetVisibility, 500);
+      
       return () => {
         observer.disconnect();
+        clearInterval(widgetInterval);
       };
     }
-  }, []);
+  }, [router.asPath]);
 
   return (
     <>
@@ -65,9 +133,36 @@ function MyApp({ Component, pageProps }: AppProps) {
                 <SidebarTrigger />
                 <div className="flex-1" />
               </header>
-              <div className="flex-1 px-4 py-4 pb-20 md:pb-4 overflow-y-auto min-w-0">
-                <div className="mx-auto">
-                  <Component {...pageProps} />
+              <div className="flex-1 px-4 py-4 pb-20 md:pb-4 min-w-0 relative h-full overflow-hidden">
+                <div className="mx-auto h-full relative">
+                  {!mounted ? (
+                    <div style={{ viewTransitionName: 'page' } as any} className="h-full">
+                      <Component {...pageProps} />
+                    </div>
+                  ) : (
+                    <>
+                      {Object.entries(cache).map(([path, { Component: CachedComponent, props }]) => (
+                        <div 
+                          key={path} 
+                          className={cn(
+                            "h-full w-full overflow-y-auto",
+                            path === activePath ? "relative z-10 visible" : "absolute inset-0 z-0 invisible pointer-events-none"
+                          )}
+                          style={{ 
+                            viewTransitionName: path === activePath ? 'page' : 'none',
+                          } as any}
+                        >
+                          <CachedComponent {...props} />
+                        </div>
+                      ))}
+                      {/* Ensure current page is always rendered even if not in cache yet */}
+                      {activePath && !cache[activePath] && (
+                        <div style={{ viewTransitionName: 'page' } as any} className="h-full w-full relative overflow-y-auto">
+                          <Component {...pageProps} />
+                        </div>
+                      )}
+                    </>
+                  )}
                 </div>
               </div>
             </SidebarInset>
