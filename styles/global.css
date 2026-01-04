@@ -225,7 +225,7 @@ remotestorage-widget {
     z-index: 10;
   }
   [data-transition="slide-left"]::view-transition-group(page) {
-    filter: drop-shadow(-8px 0 16px rgba(0, 0, 0, 0.1));
+    /* no shadow */
   }
 
   /* Backward navigation: Old page slides out to right, new page slides in from left slightly */
@@ -237,7 +237,7 @@ remotestorage-widget {
     animation-name: slide-from-left-native, fade-in;
   }
   [data-transition="slide-right"]::view-transition-group(page) {
-    filter: drop-shadow(-8px 0 16px rgba(0, 0, 0, 0.1));
+    /* no shadow */
   }
 }
 
