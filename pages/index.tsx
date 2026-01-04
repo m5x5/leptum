@@ -19,6 +19,12 @@ import {
   SheetHeader,
   SheetTitle,
 } from "../components/ui/sheet";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "../components/ui/drawer";
 
 export default function Home() {
   const {
@@ -48,10 +54,12 @@ export default function Home() {
   const [showPastActivity, setShowPastActivity] = useState(false);
   const [showArchiveSheet, setShowArchiveSheet] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showMobileTaskDrawer, setShowMobileTaskDrawer] = useState(false);
   const [taskName, setTaskName] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
   const [goalProgress, setGoalProgress] = useState<Record<string, number>>({});
   const [showStartTaskModal, setShowStartTaskModal] = useState(false);
+  const [showMobileStartTaskDrawer, setShowMobileStartTaskDrawer] = useState(false);
   const [taskToStart, setTaskToStart] = useState<string>("");
   const [selectedGoalId, setSelectedGoalId] = useState<string>("");
 
@@ -80,7 +88,11 @@ export default function Home() {
   const openStartTaskModal = (taskName: string) => {
     setTaskToStart(taskName);
     setSelectedGoalId("");
-    setShowStartTaskModal(true);
+    if (window.innerWidth < 768) {
+      setShowMobileStartTaskDrawer(true);
+    } else {
+      setShowStartTaskModal(true);
+    }
   };
 
   const startTask = async (taskName: string, goalId?: string) => {
@@ -109,11 +121,73 @@ export default function Home() {
     }
 
     setShowStartTaskModal(false);
+    setShowMobileStartTaskDrawer(false);
   };
 
   const handleStartTask = () => {
     startTask(taskToStart, selectedGoalId || undefined);
   };
+
+  const StartTaskForm = ({ onCancel }: { onCancel: () => void }) => (
+    <div className="space-y-4">
+      <div>
+        <p className="text-lg font-medium text-foreground mb-4">
+          {taskToStart}
+        </p>
+      </div>
+
+      {/* Goal Selection */}
+      {goals && goals.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">
+            Related Goal (optional)
+          </label>
+          <select
+            className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+            value={selectedGoalId}
+            onChange={(e) => setSelectedGoalId(e.target.value)}
+          >
+            <option value="">No goal</option>
+            {goalTypes && goalTypes.map((goalType) => {
+              const typeGoals = goals.filter((g) => g.type === goalType.id);
+              if (typeGoals.length === 0) return null;
+              return (
+                <optgroup key={goalType.id} label={goalType.name}>
+                  {typeGoals.map((goal) => (
+                    <option key={goal.id} value={goal.id}>
+                      {goal.name}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+        </div>
+      )}
+
+      {goals && goals.length === 0 && (
+        <p className="text-sm text-muted-foreground">
+          No goals available. <a href="/goals" className="text-primary hover:underline">Create goals</a> to track progress.
+        </p>
+      )}
+
+      <div className="flex gap-2 justify-end pt-2">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleStartTask}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
+        >
+          <PlayIcon className="h-5 w-5" />
+          Start
+        </button>
+      </div>
+    </div>
+  );
 
   const stopTask = async () => {
     if (!activeTask) return;
@@ -129,13 +203,50 @@ export default function Home() {
     setTaskName("");
     setTaskDescription("");
     setShowTaskForm(false);
+    setShowMobileTaskDrawer(false);
   };
+
+  const TaskForm = ({ onCancel }: { onCancel: () => void }) => (
+    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
+      <Input
+        type="text"
+        value={taskName}
+        onChange={(e) => setTaskName(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Task name..."
+        autoFocus
+      />
+      <Input
+        type="text"
+        value={taskDescription}
+        onChange={(e) => setTaskDescription(e.target.value)}
+        onKeyDown={handleKeyDown}
+        placeholder="Description (optional)..."
+      />
+      <div className="flex gap-2 justify-end">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={handleCreateTask}
+          disabled={!taskName.trim()}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          Add Task
+        </button>
+      </div>
+    </div>
+  );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter') {
       handleCreateTask();
     } else if (e.key === 'Escape') {
       setShowTaskForm(false);
+      setShowMobileTaskDrawer(false);
       setTaskName("");
       setTaskDescription("");
     }
@@ -324,7 +435,7 @@ export default function Home() {
                       </button>
                       {/* Mobile Add Task Button */}
                       <button
-                        onClick={() => setShowTaskForm(true)}
+                        onClick={() => setShowMobileTaskDrawer(true)}
                         className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
                       >
                         <PlusIcon className="w-5 h-5" />
@@ -332,42 +443,13 @@ export default function Home() {
                       </button>
                     </>
                   ) : (
-                    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-                      <Input
-                        type="text"
-                        value={taskName}
-                        onChange={(e) => setTaskName(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Task name..."
-                        autoFocus
-                      />
-                      <Input
-                        type="text"
-                        value={taskDescription}
-                        onChange={(e) => setTaskDescription(e.target.value)}
-                        onKeyDown={handleKeyDown}
-                        placeholder="Description (optional)..."
-                      />
-                      <div className="flex gap-2 justify-end">
-                        <button
-                          onClick={() => {
-                            setShowTaskForm(false);
-                            setTaskName("");
-                            setTaskDescription("");
-                          }}
-                          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-                        >
-                          Cancel
-                        </button>
-                        <button
-                          onClick={handleCreateTask}
-                          disabled={!taskName.trim()}
-                          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          Add Task
-                        </button>
-                      </div>
-                    </div>
+                    <TaskForm 
+                      onCancel={() => {
+                        setShowTaskForm(false);
+                        setTaskName("");
+                        setTaskDescription("");
+                      }} 
+                    />
                   )}
                 </div>
               </div>
@@ -625,67 +707,22 @@ export default function Home() {
       >
         <Modal.Title>Start Activity</Modal.Title>
         <Modal.Body>
-          <div className="space-y-4 mt-4">
-            <div>
-              <p className="text-lg font-medium text-foreground mb-4">
-                {taskToStart}
-              </p>
-            </div>
-
-            {/* Goal Selection */}
-            {goals && goals.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Related Goal (optional)
-                </label>
-                <select
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
-                  value={selectedGoalId}
-                  onChange={(e) => setSelectedGoalId(e.target.value)}
-                >
-                  <option value="">No goal</option>
-                  {goalTypes && goalTypes.map((goalType) => {
-                    const typeGoals = goals.filter((g) => g.type === goalType.id);
-                    if (typeGoals.length === 0) return null;
-                    return (
-                      <optgroup key={goalType.id} label={goalType.name}>
-                        {typeGoals.map((goal) => (
-                          <option key={goal.id} value={goal.id}>
-                            {goal.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
-
-            {goals && goals.length === 0 && (
-              <p className="text-sm text-muted-foreground">
-                No goals available. <a href="/goals" className="text-primary hover:underline">Create goals</a> to track progress.
-              </p>
-            )}
+          <div className="mt-4">
+            <StartTaskForm onCancel={() => setShowStartTaskModal(false)} />
           </div>
         </Modal.Body>
-        <Modal.Footer>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => setShowStartTaskModal(false)}
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleStartTask}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
-            >
-              <PlayIcon className="h-5 w-5" />
-              Start
-            </button>
-          </div>
-        </Modal.Footer>
       </Modal>
+
+      <Drawer open={showMobileStartTaskDrawer} onOpenChange={setShowMobileStartTaskDrawer}>
+        <DrawerContent>
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Start Activity</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-8">
+            <StartTaskForm onCancel={() => setShowMobileStartTaskDrawer(false)} />
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       <Sheet open={showArchiveSheet} onOpenChange={setShowArchiveSheet}>
         <SheetContent side="bottom" className="h-[80vh] sm:h-[90vh]">
@@ -730,6 +767,23 @@ export default function Home() {
           </div>
         </SheetContent>
       </Sheet>
+
+      <Drawer open={showMobileTaskDrawer} onOpenChange={setShowMobileTaskDrawer}>
+        <DrawerContent>
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Add New Task</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-8">
+            <TaskForm 
+              onCancel={() => {
+                setShowMobileTaskDrawer(false);
+                setTaskName("");
+                setTaskDescription("");
+              }} 
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
     </>
   );
 }

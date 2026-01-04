@@ -3,13 +3,17 @@ import { useEffect, useState, useMemo } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { PlusIcon, TrashIcon, UploadIcon } from "@heroicons/react/solid";
 import Modal from "../components/Modal";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "../components/ui/drawer";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
 import { useActivityWatch } from "../utils/useActivityWatch";
 import { useMentions } from "../utils/useMentions";
 import { extractMentionedEntityIds, HighlightedMentions } from "../components/ui/mention-input";
-import ImportActivityWatchModal from "../components/Modal/ImportActivityWatchModal";
-import AWEventDetailModal from "../components/Modal/AWEventDetailModal";
 import FilterControls from "../components/Timeline/FilterControls";
       import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry, GapBlock } from "../components/Timeline/TimelineEntry";
 
@@ -18,6 +22,7 @@ import { groupAdjacentEvents, DEFAULT_GROUP_GAP_MINUTES } from "../utils/activit
       import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES } from "../utils/timeBlocks";
 
 import ActivityForm from "../components/Timeline/ActivityForm";
+import ImportActivityWatchForm from "../components/Timeline/ImportActivityWatchForm";
 import DraftTimelineEntry from "../components/Timeline/DraftTimelineEntry";
 import { LiveActivityDuration } from "../components/Timeline/LiveActivityDuration";
 import { LiveSummaryBar } from "../components/Timeline/LiveSummaryBar";
@@ -51,7 +56,9 @@ export default function TimelinePage() {
   const [impacts, setImpacts] = useState<Impact[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showMobileAddDrawer, setShowMobileAddDrawer] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showMobileEditDrawer, setShowMobileEditDrawer] = useState(false);
   const [editingImpact, setEditingImpact] = useState<Impact | null>(null);
   const [editingIndex, setEditingIndex] = useState<number>(-1);
   const [editFormData, setEditFormData] = useState<{
@@ -69,7 +76,9 @@ export default function TimelinePage() {
 
   // ActivityWatch state
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showMobileImportDrawer, setShowMobileImportDrawer] = useState(false);
   const [showAWDetailModal, setShowAWDetailModal] = useState(false);
+  const [showMobileAWDetailDrawer, setShowMobileAWDetailDrawer] = useState(false);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
 
   // State for collapsible detailed activities in timeline
@@ -181,6 +190,7 @@ export default function TimelinePage() {
     await updateMentionsForSource('impact', impactId, 'activity', entityIds, formData.activity);
 
     setShowAddModal(false);
+    setShowMobileAddDrawer(false);
     setAddFormInitialData(null);
   };
 
@@ -212,7 +222,11 @@ export default function TimelinePage() {
       goalId: impact.goalId || "",
     });
 
-    setShowEditModal(true);
+    if (window.innerWidth < 768) {
+      setShowMobileEditDrawer(true);
+    } else {
+      setShowEditModal(true);
+    }
   };
 
   const saveEditedActivity = async (formData: { activity: string; date: string; time: string; goalId: string }) => {
@@ -240,6 +254,7 @@ export default function TimelinePage() {
     await updateMentionsForSource('impact', impactId, 'activity', entityIds, formData.activity);
 
     setShowEditModal(false);
+    setShowMobileEditDrawer(false);
     setEditingImpact(null);
     setEditingIndex(-1);
     setEditFormData(null);
@@ -262,6 +277,7 @@ export default function TimelinePage() {
     await saveImpacts(updatedImpacts);
 
     setShowEditModal(false);
+    setShowMobileEditDrawer(false);
     setEditingImpact(null);
     setEditingIndex(-1);
     setEditFormData(null);
@@ -488,6 +504,72 @@ export default function TimelinePage() {
   const dates = allDates.slice(0, daysToShow);
   const hasMoreDays = allDates.length > daysToShow;
 
+  const AWEventDetailContent = ({ event, onCreateManualEntry, onClose }: { event: ProcessedAWEvent, onCreateManualEntry?: (event: ProcessedAWEvent) => void, onClose: () => void }) => {
+    return (
+      <div className="space-y-4 mt-4">
+        {/* Header Info */}
+        <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
+          <div className={`w-3 h-12 rounded-sm ${event.color}`} />
+          <div className="flex-1">
+            <h4 className="font-semibold text-foreground">{event.displayName}</h4>
+            <p className="text-sm text-muted-foreground">{event.bucketType}</p>
+          </div>
+        </div>
+
+        {/* Basic Info */}
+        <div className="space-y-2">
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Timestamp</p>
+              <p className="text-sm text-muted-foreground">
+                {new Date(event.timestamp).toLocaleString()}
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-start gap-2">
+            <div className="flex-1">
+              <p className="text-sm font-medium text-foreground">Duration</p>
+              <p className="text-sm text-muted-foreground">
+                {Math.floor(event.duration / 60)}m {Math.floor(event.duration % 60)}s
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Event Data */}
+        <div className="border-t border-border pt-4">
+          <h5 className="text-sm font-semibold text-foreground mb-2">Event Data</h5>
+          <div className="bg-background p-3 rounded-lg border border-border max-h-64 overflow-y-auto">
+            <pre className="text-xs text-foreground font-mono whitespace-pre-wrap break-words">
+              {JSON.stringify(event.eventData, null, 2)}
+            </pre>
+          </div>
+        </div>
+
+        <div className="flex gap-2 justify-between pt-4">
+          {onCreateManualEntry && (
+            <button
+              onClick={() => {
+                onCreateManualEntry(event);
+                onClose();
+              }}
+              className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold"
+            >
+              Create Manual Entry
+            </button>
+          )}
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 ml-auto"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    );
+  };
+
   const getActivityColor = (impact: Impact) => {
     // If the activity is associated with a goal, use the goal's color
     if (impact.goalId && goals) {
@@ -526,7 +608,11 @@ export default function TimelinePage() {
   // Handle ActivityWatch event click
   const handleAWEventClick = (event: ProcessedAWEvent) => {
     setSelectedAWEvent(event);
-    setShowAWDetailModal(true);
+    if (window.innerWidth < 768) {
+      setShowMobileAWDetailDrawer(true);
+    } else {
+      setShowAWDetailModal(true);
+    }
   };
 
   // Create manual entry from AW event
@@ -542,7 +628,11 @@ export default function TimelinePage() {
       goalId: "",
     });
 
-    setShowAddModal(true);
+    if (window.innerWidth < 768) {
+      setShowMobileAddDrawer(true);
+    } else {
+      setShowAddModal(true);
+    }
   };
 
   // Get filtered ActivityWatch events for a specific date
@@ -623,7 +713,13 @@ export default function TimelinePage() {
           </div>
           <div className="flex gap-2">
             <button
-              onClick={() => setShowImportModal(true)}
+              onClick={() => {
+                if (window.innerWidth < 768) {
+                  setShowMobileImportDrawer(true);
+                } else {
+                  setShowImportModal(true);
+                }
+              }}
               className="hidden md:flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold"
             >
               <UploadIcon className="w-5 h-5" />
@@ -641,7 +737,11 @@ export default function TimelinePage() {
                   time: timeStr,
                   goalId: "",
                 });
-                setShowAddModal(true);
+                if (window.innerWidth < 768) {
+                  setShowMobileAddDrawer(true);
+                } else {
+                  setShowAddModal(true);
+                }
               }}
               className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
             >
@@ -663,7 +763,7 @@ export default function TimelinePage() {
               time: timeStr,
               goalId: "",
             });
-            setShowAddModal(true);
+            setShowMobileAddDrawer(true);
           }}
           className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
         >
@@ -1716,19 +1816,116 @@ export default function TimelinePage() {
         )}
 
         {/* Import ActivityWatch Modal */}
-        <ImportActivityWatchModal
+        <Modal
           isOpen={showImportModal}
           closeModal={() => setShowImportModal(false)}
-          onImport={importData}
-        />
+        >
+          <Modal.Title>Import ActivityWatch Data</Modal.Title>
+          <Modal.Body>
+            <ImportActivityWatchForm 
+              onImport={async (file, options) => {
+                await importData(file, options);
+                setShowImportModal(false);
+              }}
+              onCancel={() => setShowImportModal(false)}
+            />
+          </Modal.Body>
+        </Modal>
+
+        <Drawer open={showMobileImportDrawer} onOpenChange={setShowMobileImportDrawer}>
+          <DrawerContent className="max-h-[90vh]">
+            <DrawerHeader className="text-left">
+              <DrawerTitle>Import ActivityWatch Data</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-8 overflow-y-auto">
+              <ImportActivityWatchForm 
+                onImport={async (file, options) => {
+                  await importData(file, options);
+                  setShowMobileImportDrawer(false);
+                }}
+                onCancel={() => setShowMobileImportDrawer(false)}
+              />
+            </div>
+          </DrawerContent>
+        </Drawer>
 
         {/* ActivityWatch Event Detail Modal */}
-        <AWEventDetailModal
+        <Modal
           isOpen={showAWDetailModal}
           closeModal={() => setShowAWDetailModal(false)}
-          event={selectedAWEvent}
-          onCreateManualEntry={handleCreateManualEntry}
-        />
+        >
+          <Modal.Title>ActivityWatch Event Details</Modal.Title>
+          <Modal.Body>
+            {selectedAWEvent && (
+              <AWEventDetailContent
+                event={selectedAWEvent}
+                onCreateManualEntry={handleCreateManualEntry}
+                onClose={() => setShowAWDetailModal(false)}
+              />
+            )}
+          </Modal.Body>
+        </Modal>
+
+        <Drawer open={showMobileAddDrawer} onOpenChange={setShowMobileAddDrawer}>
+          <DrawerContent>
+            <DrawerHeader className="text-left">
+              <DrawerTitle>Add Missing Activity</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-8 overflow-y-auto">
+              {addFormInitialData && (
+                <ActivityForm
+                  initialData={addFormInitialData}
+                  onSubmit={addNewActivity}
+                  onCancel={() => {
+                    setShowMobileAddDrawer(false);
+                    setAddFormInitialData(null);
+                  }}
+                  submitLabel="Add Activity"
+                />
+              )}
+            </div>
+          </DrawerContent>
+        </Drawer>
+
+        <Drawer open={showMobileEditDrawer} onOpenChange={setShowMobileEditDrawer}>
+          <DrawerContent>
+            <DrawerHeader className="text-left">
+              <DrawerTitle>Edit Activity</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-8 overflow-y-auto">
+              {editFormData && (
+                <ActivityForm
+                  initialData={editFormData}
+                  onSubmit={saveEditedActivity}
+                  onCancel={() => {
+                    setShowMobileEditDrawer(false);
+                    setEditFormData(null);
+                  }}
+                  submitLabel="Save Changes"
+                  showDelete={true}
+                  onDelete={deleteActivity}
+                />
+              )}
+            </div>
+          </DrawerContent>
+        </Drawer>
+
+        <Drawer open={showMobileAWDetailDrawer} onOpenChange={setShowMobileAWDetailDrawer}>
+          <DrawerContent className="max-h-[90vh]">
+            <DrawerHeader className="text-left">
+              <DrawerTitle>ActivityWatch Event Details</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-8 overflow-y-auto">
+              {selectedAWEvent && (
+                <AWEventDetailContent
+                  event={selectedAWEvent}
+                  onCreateManualEntry={handleCreateManualEntry}
+                  onClose={() => setShowMobileAWDetailDrawer(false)}
+                />
+              )}
+            </div>
+          </DrawerContent>
+        </Drawer>
       </div>
     </>
   );

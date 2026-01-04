@@ -5,6 +5,12 @@ import ActivitySelector from "../components/ActivitySelector";
 import ImpactCard from "../components/ImpactCard";
 import SummaryChart from "../components/SummaryChart";
 import Modal from "../components/Modal";
+import {
+  Drawer,
+  DrawerContent,
+  DrawerHeader,
+  DrawerTitle,
+} from "../components/ui/drawer";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
@@ -63,6 +69,7 @@ export default function ImpactPage() {
   const [activityIndex, setActivityIndex] = useState(0);
   const [editMode, setEditMode] = useState(true);
   const [showQuickLogModal, setShowQuickLogModal] = useState(false);
+  const [showMobileQuickLogDrawer, setShowMobileQuickLogDrawer] = useState(false);
   // Initialize with all available impact categories from METRIC_CONFIG
   const [selectedLines, setSelectedLines] = useState(() => Object.keys(METRIC_CONFIG));
   const [showTimespanSelect, setShowTimespanSelect] = useState(false);
@@ -82,6 +89,7 @@ export default function ImpactPage() {
 
   // Form state for insights
   const [showInsightModal, setShowInsightModal] = useState(false);
+  const [showMobileInsightDrawer, setShowMobileInsightDrawer] = useState(false);
   const [editingInsight, setEditingInsight] = useState(null);
   const [insightFormData, setInsightFormData] = useState({
     name: '',
@@ -231,7 +239,11 @@ export default function ImpactPage() {
       ...placeholderValues
     });
     setTouchedFields(new Set()); // Reset touched fields
-    setShowQuickLogModal(true);
+    if (window.innerWidth < 768) {
+      setShowMobileQuickLogDrawer(true);
+    } else {
+      setShowQuickLogModal(true);
+    }
   };
 
   const saveQuickLog = async () => {
@@ -280,6 +292,7 @@ export default function ImpactPage() {
 
     setActivityIndex(newState.impacts.length - 1);
     setShowQuickLogModal(false);
+    setShowMobileQuickLogDrawer(false);
     setTempLogData({});
     setTouchedFields(new Set());
   };
@@ -398,7 +411,11 @@ export default function ImpactPage() {
       category: '',
       affectedMetrics: []
     });
-    setShowInsightModal(true);
+    if (window.innerWidth < 768) {
+      setShowMobileInsightDrawer(true);
+    } else {
+      setShowInsightModal(true);
+    }
   };
 
   const openEditInsightModal = (insight) => {
@@ -409,7 +426,11 @@ export default function ImpactPage() {
       category: insight.category || '',
       affectedMetrics: insight.affectedMetrics
     });
-    setShowInsightModal(true);
+    if (window.innerWidth < 768) {
+      setShowMobileInsightDrawer(true);
+    } else {
+      setShowInsightModal(true);
+    }
   };
 
   const toggleInsightMetric = (metric) => {
@@ -463,6 +484,7 @@ export default function ImpactPage() {
     }
 
     setShowInsightModal(false);
+    setShowMobileInsightDrawer(false);
   };
 
   const handleDeleteInsight = async (id) => {
@@ -493,6 +515,243 @@ export default function ImpactPage() {
     if (!effect) return '';
     return effect === 'positive' ? ' ↑' : ' ↓';
   };
+
+  const QuickLogForm = ({ onSave, onCancel }) => (
+    <div className="space-y-4 mt-4">
+      {/* Activity Name Input */}
+      <div>
+        <MentionInput
+          placeholder="What are you doing? Use @ to mention (optional)"
+          className="text-lg"
+          value={tempLogData.activity || ""}
+          onChange={(value) => updateTempLogData("activity", value)}
+          entities={entities}
+        />
+      </div>
+
+      {/* Goal Selection */}
+      {goals && goals.length > 0 && (
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-2">
+            Related Goal (optional)
+          </label>
+          <select
+            className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+            value={tempLogData.goalId || ""}
+            onChange={(e) => updateTempLogData("goalId", e.target.value)}
+          >
+            <option value="">No goal</option>
+            {goalTypes && goalTypes.map((goalType) => {
+              const typeGoals = goals.filter((g) => g.type === goalType.id);
+              if (typeGoals.length === 0) return null;
+              return (
+                <optgroup key={goalType.id} label={goalType.name}>
+                  {typeGoals.map((goal) => (
+                    <option key={goal.id} value={goal.id}>
+                      {goal.name}
+                    </option>
+                  ))}
+                </optgroup>
+              );
+            })}
+          </select>
+        </div>
+      )}
+
+      {/* Notes/Diary */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Notes / Diary Entry (optional)
+        </label>
+        <MentionInput
+          placeholder="How are you feeling? What happened today? Use @ to mention"
+          value={tempLogData.notes || ""}
+          onChange={(value) => updateTempLogData("notes", value)}
+          entities={entities}
+          multiline={true}
+          rows={4}
+        />
+      </div>
+
+      {/* Emotion Sliders */}
+      {selectedLines
+        .filter((impact) => impact !== "activity")
+        .map((impact) => {
+          const metricConfig = METRIC_CONFIG[impact] || { min: 0, max: 100, allowsNegative: false };
+          const defaultValue = metricConfig.allowsNegative ? 0 : 50;
+          const placeholderValue = tempLogData[impact] !== undefined ? tempLogData[impact] : defaultValue;
+          const displayValue = touchedFields.has(impact) ? tempLogData[impact] : placeholderValue;
+
+          // Calculate gradient - red to green (or inverted for negative metrics)
+          const getSliderStyle = () => {
+            if (!metricConfig.showGradient) {
+              return {};
+            }
+            // Inverted gradient for metrics where lower is better (stress, shame, guilt)
+            if (metricConfig.inverted) {
+              return {
+                background: `linear-gradient(to right, #22c55e 0%, #fbbf24 50%, #ef4444 100%)`,
+                backgroundSize: '100% 100%',
+              };
+            }
+            // Normal gradient for metrics where higher is better
+            return {
+              background: `linear-gradient(to right, #ef4444 0%, #fbbf24 50%, #22c55e 100%)`,
+              backgroundSize: '100% 100%',
+            };
+          };
+
+          return (
+            <div key={impact}>
+              <label className="block text-sm font-medium text-foreground mb-2 capitalize">
+                {impact}
+                {metricConfig.allowsNegative && (
+                  <span className="ml-2 text-xs text-muted-foreground">
+                    (negative to positive)
+                  </span>
+                )}
+              </label>
+              <div className="flex items-center gap-3">
+                {metricConfig.allowsNegative ? (
+                  <div className="flex-grow flex items-center gap-2">
+                    <span className="text-xs text-foreground/70 font-medium">-100</span>
+                    <div className="flex-grow relative">
+                      <input
+                        type="range"
+                        min={metricConfig.min}
+                        max={metricConfig.max}
+                        step="10"
+                        value={displayValue}
+                        onChange={(e) => updateTempLogData(impact, e.target.value)}
+                        onMouseUp={handleSliderRelease}
+                        onTouchEnd={handleSliderRelease}
+                        className="w-full h-2 appearance-none cursor-pointer rounded-lg"
+                        style={getSliderStyle()}
+                      />
+                    </div>
+                    <span className="text-xs text-foreground/70 font-medium">+100</span>
+                  </div>
+                ) : (
+                  <div className="flex-grow flex items-center gap-2">
+                    <span className="text-xs text-foreground/70 font-medium">0</span>
+                    <div className="flex-grow relative">
+                      <input
+                        type="range"
+                        min={metricConfig.min}
+                        max={metricConfig.max}
+                        step="10"
+                        value={displayValue}
+                        onChange={(e) => updateTempLogData(impact, e.target.value)}
+                        onMouseUp={handleSliderRelease}
+                        onTouchEnd={handleSliderRelease}
+                        className="w-full h-2 appearance-none cursor-pointer rounded-lg"
+                        style={getSliderStyle()}
+                      />
+                    </div>
+                    <span className="text-xs text-foreground/70 font-medium">100</span>
+                  </div>
+                )}
+                <div className="w-20 p-2 bg-muted text-foreground text-center rounded border border-border select-none">
+                  {touchedFields.has(impact) ? tempLogData[impact] : placeholderValue}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      
+      <div className="flex gap-2 justify-end pt-4">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSave}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+        >
+          Save Log
+        </button>
+      </div>
+    </div>
+  );
+
+  const InsightForm = ({ onSave, onCancel }) => (
+    <div className="space-y-4 mt-4">
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Name *
+        </label>
+        <Input
+          type="text"
+          placeholder="e.g., Tea, Walk outside, Call a friend"
+          value={insightFormData.name}
+          onChange={(e) => setInsightFormData({ ...insightFormData, name: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Category (optional)
+        </label>
+        <Input
+          type="text"
+          placeholder="e.g., Self-care, Social, Physical"
+          value={insightFormData.category}
+          onChange={(e) => setInsightFormData({ ...insightFormData, category: e.target.value })}
+        />
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Affected Metrics *
+        </label>
+        <p className="text-xs text-muted-foreground mb-3">
+          Click once for positive effect (↑), twice for negative (↓), third to remove
+        </p>
+        <div className="grid grid-cols-2 gap-2">
+          {Object.keys(METRIC_CONFIG).map(metric => (
+            <button
+              key={metric}
+              type="button"
+              onClick={() => toggleInsightMetric(metric)}
+              className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition ${getInsightMetricButtonStyle(metric)}`}
+            >
+              {metric}{getInsightMetricSymbol(metric)}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Notes (optional)
+        </label>
+        <MentionInput
+          placeholder="When does this help? Any specific situations? Use @ to mention people, projects, or contexts"
+          value={insightFormData.notes}
+          onChange={(value) => setInsightFormData({ ...insightFormData, notes: value })}
+          entities={entities}
+          multiline={true}
+        />
+      </div>
+
+      <div className="flex gap-2 justify-end pt-4">
+        <button
+          onClick={onCancel}
+          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+        >
+          Cancel
+        </button>
+        <button
+          onClick={onSave}
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+        >
+          {editingInsight ? 'Save Changes' : 'Add Insight'}
+        </button>
+      </div>
+    </div>
+  );
 
   return (
     <>
@@ -582,166 +841,26 @@ export default function ImpactPage() {
       >
         <Modal.Title>Quick Log</Modal.Title>
         <Modal.Body>
-          <div className="space-y-4 mt-4">
-            {/* Activity Name Input */}
-            <div>
-              <MentionInput
-                placeholder="What are you doing? Use @ to mention (optional)"
-                className="text-lg"
-                value={tempLogData.activity || ""}
-                onChange={(value) => updateTempLogData("activity", value)}
-                entities={entities}
-              />
-            </div>
-
-            {/* Goal Selection */}
-            {goals && goals.length > 0 && (
-              <div>
-                <label className="block text-sm font-medium text-foreground mb-2">
-                  Related Goal (optional)
-                </label>
-                <select
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
-                  value={tempLogData.goalId || ""}
-                  onChange={(e) => updateTempLogData("goalId", e.target.value)}
-                >
-                  <option value="">No goal</option>
-                  {goalTypes && goalTypes.map((goalType) => {
-                    const typeGoals = goals.filter((g) => g.type === goalType.id);
-                    if (typeGoals.length === 0) return null;
-                    return (
-                      <optgroup key={goalType.id} label={goalType.name}>
-                        {typeGoals.map((goal) => (
-                          <option key={goal.id} value={goal.id}>
-                            {goal.name}
-                          </option>
-                        ))}
-                      </optgroup>
-                    );
-                  })}
-                </select>
-              </div>
-            )}
-
-            {/* Notes/Diary */}
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Notes / Diary Entry (optional)
-              </label>
-              <MentionInput
-                placeholder="How are you feeling? What happened today? Use @ to mention"
-                value={tempLogData.notes || ""}
-                onChange={(value) => updateTempLogData("notes", value)}
-                entities={entities}
-                multiline={true}
-                rows={4}
-              />
-            </div>
-
-            {/* Emotion Sliders */}
-            {selectedLines
-              .filter((impact) => impact !== "activity")
-              .map((impact) => {
-                const metricConfig = METRIC_CONFIG[impact] || { min: 0, max: 100, allowsNegative: false };
-                const defaultValue = metricConfig.allowsNegative ? 0 : 50;
-                const placeholderValue = tempLogData[impact] !== undefined ? tempLogData[impact] : defaultValue;
-                const displayValue = touchedFields.has(impact) ? tempLogData[impact] : placeholderValue;
-
-                // Calculate gradient - red to green (or inverted for negative metrics)
-                const getSliderStyle = () => {
-                  if (!metricConfig.showGradient) {
-                    return {};
-                  }
-                  // Inverted gradient for metrics where lower is better (stress, shame, guilt)
-                  if (metricConfig.inverted) {
-                    return {
-                      background: `linear-gradient(to right, #22c55e 0%, #fbbf24 50%, #ef4444 100%)`,
-                      backgroundSize: '100% 100%',
-                    };
-                  }
-                  // Normal gradient for metrics where higher is better
-                  return {
-                    background: `linear-gradient(to right, #ef4444 0%, #fbbf24 50%, #22c55e 100%)`,
-                    backgroundSize: '100% 100%',
-                  };
-                };
-
-                return (
-                  <div key={impact}>
-                    <label className="block text-sm font-medium text-foreground mb-2 capitalize">
-                      {impact}
-                      {metricConfig.allowsNegative && (
-                        <span className="ml-2 text-xs text-muted-foreground">
-                          (negative to positive)
-                        </span>
-                      )}
-                    </label>
-                    <div className="flex items-center gap-3">
-                      {metricConfig.allowsNegative ? (
-                        <div className="flex-grow flex items-center gap-2">
-                          <span className="text-xs text-foreground/70 font-medium">-100</span>
-                          <div className="flex-grow relative">
-                            <input
-                              type="range"
-                              min={metricConfig.min}
-                              max={metricConfig.max}
-                              step="10"
-                              value={displayValue}
-                              onChange={(e) => updateTempLogData(impact, e.target.value)}
-                              onMouseUp={handleSliderRelease}
-                              onTouchEnd={handleSliderRelease}
-                              className="w-full h-2 appearance-none cursor-pointer rounded-lg"
-                              style={getSliderStyle()}
-                            />
-                          </div>
-                          <span className="text-xs text-foreground/70 font-medium">+100</span>
-                        </div>
-                      ) : (
-                        <div className="flex-grow flex items-center gap-2">
-                          <span className="text-xs text-foreground/70 font-medium">0</span>
-                          <div className="flex-grow relative">
-                            <input
-                              type="range"
-                              min={metricConfig.min}
-                              max={metricConfig.max}
-                              step="10"
-                              value={displayValue}
-                              onChange={(e) => updateTempLogData(impact, e.target.value)}
-                              onMouseUp={handleSliderRelease}
-                              onTouchEnd={handleSliderRelease}
-                              className="w-full h-2 appearance-none cursor-pointer rounded-lg"
-                              style={getSliderStyle()}
-                            />
-                          </div>
-                          <span className="text-xs text-foreground/70 font-medium">100</span>
-                        </div>
-                      )}
-                      <div className="w-20 p-2 bg-muted text-foreground text-center rounded border border-border select-none">
-                        {touchedFields.has(impact) ? tempLogData[impact] : placeholderValue}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-          </div>
+          <QuickLogForm 
+            onSave={saveQuickLog} 
+            onCancel={() => setShowQuickLogModal(false)} 
+          />
         </Modal.Body>
-        <Modal.Footer>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => setShowQuickLogModal(false)}
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={saveQuickLog}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-            >
-              Save Log
-            </button>
-          </div>
-        </Modal.Footer>
       </Modal>
+
+      <Drawer open={showMobileQuickLogDrawer} onOpenChange={setShowMobileQuickLogDrawer}>
+        <DrawerContent className="max-h-[90vh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>Quick Log</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-8 overflow-y-auto">
+            <QuickLogForm 
+              onSave={saveQuickLog} 
+              onCancel={() => setShowMobileQuickLogDrawer(false)} 
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
 
       {/* Impact Tracking Tab Content */}
       {activeTab === 'impact' && (
@@ -1297,83 +1416,26 @@ export default function ImpactPage() {
           {editingInsight ? 'Edit Insight' : 'Add Insight'}
         </Modal.Title>
         <Modal.Body>
-          <div className="space-y-4 mt-4">
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Name *
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g., Tea, Walk outside, Call a friend"
-                value={insightFormData.name}
-                onChange={(e) => setInsightFormData({ ...insightFormData, name: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Category (optional)
-              </label>
-              <Input
-                type="text"
-                placeholder="e.g., Self-care, Social, Physical"
-                value={insightFormData.category}
-                onChange={(e) => setInsightFormData({ ...insightFormData, category: e.target.value })}
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Affected Metrics *
-              </label>
-              <p className="text-xs text-muted-foreground mb-3">
-                Click once for positive effect (↑), twice for negative (↓), third to remove
-              </p>
-              <div className="grid grid-cols-2 gap-2">
-                {Object.keys(METRIC_CONFIG).map(metric => (
-                  <button
-                    key={metric}
-                    type="button"
-                    onClick={() => toggleInsightMetric(metric)}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition ${getInsightMetricButtonStyle(metric)}`}
-                  >
-                    {metric}{getInsightMetricSymbol(metric)}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-foreground mb-2">
-                Notes (optional)
-              </label>
-              <MentionInput
-                placeholder="When does this help? Any specific situations? Use @ to mention people, projects, or contexts"
-                value={insightFormData.notes}
-                onChange={(value) => setInsightFormData({ ...insightFormData, notes: value })}
-                entities={entities}
-                multiline={true}
-              />
-            </div>
-          </div>
+          <InsightForm 
+            onSave={handleSaveInsight} 
+            onCancel={() => setShowInsightModal(false)} 
+          />
         </Modal.Body>
-        <Modal.Footer>
-          <div className="flex gap-2 justify-end">
-            <button
-              onClick={() => setShowInsightModal(false)}
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={handleSaveInsight}
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-            >
-              {editingInsight ? 'Save Changes' : 'Add Insight'}
-            </button>
-          </div>
-        </Modal.Footer>
       </Modal>
+
+      <Drawer open={showMobileInsightDrawer} onOpenChange={setShowMobileInsightDrawer}>
+        <DrawerContent className="max-h-[90vh]">
+          <DrawerHeader className="text-left">
+            <DrawerTitle>{editingInsight ? 'Edit Insight' : 'Add Insight'}</DrawerTitle>
+          </DrawerHeader>
+          <div className="px-4 pb-8 overflow-y-auto">
+            <InsightForm 
+              onSave={handleSaveInsight} 
+              onCancel={() => setShowMobileInsightDrawer(false)} 
+            />
+          </div>
+        </DrawerContent>
+      </Drawer>
       </div>
     </>
   );

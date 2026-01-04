@@ -45,6 +45,7 @@
     "tailwindcss-animate": "^1.0.6",
     "tailwindcss-ripple": "^0.7.1",
     "uuid": "^11.1.0",
+    "vaul": "^1.1.2",
     "worker-timers": "^7.0.37"
   },
   "devDependencies": {
