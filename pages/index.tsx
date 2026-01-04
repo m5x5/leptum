@@ -248,7 +248,7 @@ export default function Home() {
   };
 
   const TaskForm = ({ onCancel }: { onCancel: () => void }) => (
-    <form onSubmit={handleCreateTask} className="bg-card border border-border rounded-lg p-4 space-y-3">
+    <form onSubmit={handleCreateTask} className="pt-2 space-y-3">
       <div>
         <label htmlFor="task-name" className="block text-sm font-medium text-foreground mb-2">
           Task Name
