@@ -103,6 +103,8 @@ export default function ImpactPage() {
   const [expandedPatterns, setExpandedPatterns] = useState({});
   const [editingPatternNote, setEditingPatternNote] = useState(null);
   const [patternNoteText, setPatternNoteText] = useState("");
+  const [showDeleteThoughtConfirm, setShowDeleteThoughtConfirm] = useState(false);
+  const [thoughtToDelete, setThoughtToDelete] = useState(null);
 
   // Analyze activity patterns when impacts change
   useEffect(() => {
@@ -143,14 +145,21 @@ export default function ImpactPage() {
     }
   };
 
-  const handleDeletePatternNote = async (activity) => {
-    if (confirm('Are you sure you want to delete your thoughts on this pattern?')) {
-      await deletePatternNote(activity);
+  const handleDeletePatternNote = (activity) => {
+    setThoughtToDelete(activity);
+    setShowDeleteThoughtConfirm(true);
+  };
+
+  const confirmDeletePatternNote = async () => {
+    if (thoughtToDelete) {
+      await deletePatternNote(thoughtToDelete);
       // Delete associated mentions
-      await deleteMentionsForSource('patternNote', activity);
-      if (editingPatternNote === activity) {
+      await deleteMentionsForSource('patternNote', thoughtToDelete);
+      if (editingPatternNote === thoughtToDelete) {
         cancelEditingPatternNote();
       }
+      setShowDeleteThoughtConfirm(false);
+      setThoughtToDelete(null);
     }
   };
 
@@ -1429,13 +1438,46 @@ export default function ImpactPage() {
             <DrawerTitle>{editingInsight ? 'Edit Insight' : 'Add Insight'}</DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-8 overflow-y-auto">
-            <InsightForm 
-              onSave={handleSaveInsight} 
-              onCancel={() => setShowMobileInsightDrawer(false)} 
+            <InsightForm
+              onSave={handleSaveInsight}
+              onCancel={() => setShowMobileInsightDrawer(false)}
             />
           </div>
         </DrawerContent>
       </Drawer>
+
+      {/* Delete Thought Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteThoughtConfirm}
+        closeModal={() => {
+          setShowDeleteThoughtConfirm(false);
+          setThoughtToDelete(null);
+        }}
+      >
+        <Modal.Title>Delete Thought</Modal.Title>
+        <Modal.Body>
+          Are you sure you want to delete your thoughts on this pattern?
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => {
+                setShowDeleteThoughtConfirm(false);
+                setThoughtToDelete(null);
+              }}
+              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={confirmDeletePatternNote}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Delete
+            </button>
+          </div>
+        </Modal.Footer>
+      </Modal>
       </div>
     </>
   );

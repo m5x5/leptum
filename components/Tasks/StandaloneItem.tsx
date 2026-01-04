@@ -4,6 +4,7 @@ import { TrashIcon, PencilIcon } from "@heroicons/react/outline";
 import { PlayIcon } from "@heroicons/react/solid";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
+import Modal from "../Modal";
 
 interface Props {
   task: StandaloneTask;
@@ -27,6 +28,7 @@ export default function StandaloneTaskItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(task.name);
   const [editDescription, setEditDescription] = useState(task.description || '');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleToggleComplete = () => {
     if (task.status === 'completed') {
@@ -195,17 +197,42 @@ export default function StandaloneTaskItem({
         </button>
 
         <button
-          onClick={() => {
-            if (window.confirm('Are you sure you want to delete this task?')) {
-              onDelete(task.id);
-            }
-          }}
+          onClick={() => setShowDeleteConfirm(true)}
           className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
           title="Delete task"
         >
           <TrashIcon className="h-4 w-4" />
         </button>
       </div>
+
+      <Modal
+        isOpen={showDeleteConfirm}
+        closeModal={() => setShowDeleteConfirm(false)}
+      >
+        <Modal.Title>Delete Task</Modal.Title>
+        <Modal.Body>
+          Are you sure you want to delete "{task.name}"?
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => {
+                onDelete(task.id);
+                setShowDeleteConfirm(false);
+              }}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Delete
+            </button>
+          </div>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 } 

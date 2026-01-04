@@ -67,6 +67,7 @@ export default function TimelinePage() {
     time: string;
     goalId: string;
   } | null>(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addFormInitialData, setAddFormInitialData] = useState<{
     activity: string;
     date: string;
@@ -261,10 +262,6 @@ export default function TimelinePage() {
   };
 
   const deleteActivity = async () => {
-    if (!confirm("Are you sure you want to delete this activity?")) {
-      return;
-    }
-
     const impactToDelete = impacts[editingIndex];
     const impactId = impactToDelete.id;
 
@@ -276,6 +273,7 @@ export default function TimelinePage() {
     const updatedImpacts = impacts.filter((_, index) => index !== editingIndex);
     await saveImpacts(updatedImpacts);
 
+    setShowDeleteConfirm(false);
     setShowEditModal(false);
     setShowMobileEditDrawer(false);
     setEditingImpact(null);
@@ -845,10 +843,37 @@ export default function TimelinePage() {
                 }}
                 submitLabel="Save Changes"
                 showDelete={true}
-                onDelete={deleteActivity}
+                onDelete={() => setShowDeleteConfirm(true)}
               />
             )}
           </Modal.Body>
+        </Modal>
+
+        {/* Delete Activity Confirmation Modal */}
+        <Modal
+          isOpen={showDeleteConfirm}
+          closeModal={() => setShowDeleteConfirm(false)}
+        >
+          <Modal.Title>Delete Activity</Modal.Title>
+          <Modal.Body>
+            Are you sure you want to delete "{editingImpact?.activity}"?
+          </Modal.Body>
+          <Modal.Footer>
+            <div className="flex gap-2 justify-end">
+              <button
+                onClick={() => setShowDeleteConfirm(false)}
+                className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={deleteActivity}
+                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              >
+                Delete
+              </button>
+            </div>
+          </Modal.Footer>
         </Modal>
 
         {/* Timeline Content - Only show when data is loaded and exists */}

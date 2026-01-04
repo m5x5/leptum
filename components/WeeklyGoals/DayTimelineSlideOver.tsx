@@ -36,6 +36,7 @@ export function DayTimelineSlideOver({
 }: DayTimelineSlideOverProps) {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showAWDetailModal, setShowAWDetailModal] = useState(false);
   const [editingImpact, setEditingImpact] = useState<Impact | null>(null);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
@@ -154,10 +155,6 @@ export function DayTimelineSlideOver({
   };
 
   const deleteActivity = () => {
-    if (!confirm("Are you sure you want to delete this activity?")) {
-      return;
-    }
-
     const actualIndex = impacts.findIndex(
       (imp) => imp.date === editingImpact?.date && imp.activity === editingImpact?.activity
     );
@@ -167,6 +164,7 @@ export function DayTimelineSlideOver({
     const updatedImpacts = impacts.filter((_, index) => index !== actualIndex);
     onSaveImpacts(updatedImpacts);
 
+    setShowDeleteConfirm(false);
     setShowEditModal(false);
     setEditingImpact(null);
     setEditFormData(null);
@@ -307,10 +305,38 @@ export function DayTimelineSlideOver({
               }}
               submitLabel="Save Changes"
               showDelete={true}
-              onDelete={deleteActivity}
+              onDelete={() => setShowDeleteConfirm(true)}
             />
           )}
         </Modal.Body>
+      </Modal>
+
+      {/* Delete Activity Confirmation Modal */}
+      <Modal
+        isOpen={showDeleteConfirm}
+        closeModal={() => setShowDeleteConfirm(false)}
+        className="z-[70]"
+      >
+        <Modal.Title>Delete Activity</Modal.Title>
+        <Modal.Body>
+          Are you sure you want to delete "{editingImpact?.activity}"?
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setShowDeleteConfirm(false)}
+              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={deleteActivity}
+              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+            >
+              Delete
+            </button>
+          </div>
+        </Modal.Footer>
       </Modal>
 
       {/* ActivityWatch Event Detail Modal - Higher z-index to appear above slide-over */}

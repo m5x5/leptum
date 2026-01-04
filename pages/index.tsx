@@ -1,7 +1,7 @@
 import Head from "next/head";
 import Link from "next/link";
-import { useEffect, useState } from "react";
-import { PlusIcon, ClockIcon, PlayIcon, StopIcon, CheckCircleIcon, ArchiveIcon } from "@heroicons/react/solid";
+import { useEffect, useState, useRef } from "react";
+import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "../utils/useStandaloneTasks";
 import { useRoutineScheduler } from "../utils/useRoutineScheduler";
 import { remoteStorageClient } from "../lib/remoteStorage";
@@ -66,7 +66,6 @@ export default function Home() {
     uncompleteTask: uncompleteStandaloneTask,
     reload: reloadTasks
   } = useStandaloneTasks();
-  console.log("standaloneTasks", standaloneTasks);
 
   // Enable routine scheduler to automatically create tasks from scheduled routines
   useRoutineScheduler(() => {
@@ -84,12 +83,14 @@ export default function Home() {
   const [showArchiveSheet, setShowArchiveSheet] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showMobileTaskDrawer, setShowMobileTaskDrawer] = useState(false);
-  const [taskName, setTaskName] = useState("");
-  const [taskDescription, setTaskDescription] = useState("");
   const [showStartTaskModal, setShowStartTaskModal] = useState(false);
   const [showMobileStartTaskDrawer, setShowMobileStartTaskDrawer] = useState(false);
   const [taskToStart, setTaskToStart] = useState<string>("");
-  const [selectedGoalId, setSelectedGoalId] = useState<string>("");
+  
+  // Use refs for form inputs instead of state for better performance
+  const taskNameRef = useRef<HTMLInputElement>(null);
+  const taskDescriptionRef = useRef<HTMLInputElement>(null);
+  const selectedGoalRef = useRef<HTMLSelectElement>(null);
 
   // Load routines
   useEffect(() => {
@@ -107,7 +108,12 @@ export default function Home() {
 
   const openStartTaskModal = (taskName: string) => {
     setTaskToStart(taskName);
-    setSelectedGoalId("");
+    // Reset the goal selection when opening the modal
+    setTimeout(() => {
+      if (selectedGoalRef.current) {
+        selectedGoalRef.current.value = "";
+      }
+    }, 0);
     if (window.innerWidth < 768) {
       setShowMobileStartTaskDrawer(true);
     } else {
@@ -144,14 +150,19 @@ export default function Home() {
     setShowMobileStartTaskDrawer(false);
   };
 
-  const handleStartTask = () => {
-    startTask(taskToStart, selectedGoalId || undefined);
+  const handleStartTask = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const goalId = selectedGoalRef.current?.value;
+    startTask(taskToStart, goalId || undefined);
   };
 
   const StartTaskForm = ({ onCancel }: { onCancel: () => void }) => (
-    <div className="space-y-4">
+    <form onSubmit={handleStartTask} className="space-y-4">
       <div>
-        <p className="text-lg font-medium text-foreground mb-4">
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Activity
+        </label>
+        <p className="text-lg font-medium text-foreground px-3 py-2 bg-muted rounded-lg">
           {taskToStart}
         </p>
       </div>
@@ -159,13 +170,14 @@ export default function Home() {
       {/* Goal Selection */}
       {goals && goals.length > 0 && (
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
-            Related Goal (optional)
+          <label htmlFor="goal-selection" className="block text-sm font-medium text-foreground mb-2">
+            Related Goal <span className="text-muted-foreground font-normal">(optional)</span>
           </label>
           <select
+            ref={selectedGoalRef}
+            id="goal-selection"
             className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
-            value={selectedGoalId}
-            onChange={(e) => setSelectedGoalId(e.target.value)}
+            defaultValue=""
           >
             <option value="">No goal</option>
             {goalTypes && goalTypes.map((goalType) => {
@@ -193,20 +205,21 @@ export default function Home() {
 
       <div className="flex gap-2 justify-end pt-2">
         <button
+          type="button"
           onClick={onCancel}
           className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
         >
           Cancel
         </button>
         <button
-          onClick={handleStartTask}
+          type="submit"
           className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
         >
           <PlayIcon className="h-5 w-5" />
           Start
         </button>
       </div>
-    </div>
+    </form>
   );
 
   const stopTask = async () => {
@@ -216,59 +229,78 @@ export default function Home() {
     setActiveTaskStartTime(null);
   };
 
-  const handleCreateTask = () => {
-    if (!taskName.trim()) return;
+  const handleCreateTask = (e?: React.FormEvent) => {
+    e?.preventDefault();
+    
+    const name = taskNameRef.current?.value.trim();
+    const description = taskDescriptionRef.current?.value.trim();
+    
+    if (!name) return;
 
-    addStandaloneTask(taskName.trim(), taskDescription.trim());
-    setTaskName("");
-    setTaskDescription("");
+    addStandaloneTask(name, description || "");
+    
+    // Clear the input refs
+    if (taskNameRef.current) taskNameRef.current.value = "";
+    if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
+    
     setShowTaskForm(false);
     setShowMobileTaskDrawer(false);
   };
 
   const TaskForm = ({ onCancel }: { onCancel: () => void }) => (
-    <div className="bg-card border border-border rounded-lg p-4 space-y-3">
-      <Input
-        type="text"
-        value={taskName}
-        onChange={(e) => setTaskName(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Task name..."
-      />
-      <Input
-        type="text"
-        value={taskDescription}
-        onChange={(e) => setTaskDescription(e.target.value)}
-        onKeyDown={handleKeyDown}
-        placeholder="Description (optional)..."
-      />
-      <div className="flex gap-2 justify-end">
+    <form onSubmit={handleCreateTask} className="bg-card border border-border rounded-lg p-4 space-y-3">
+      <div>
+        <label htmlFor="task-name" className="block text-sm font-medium text-foreground mb-2">
+          Task Name
+        </label>
+        <Input
+          ref={taskNameRef}
+          id="task-name"
+          type="text"
+          onKeyDown={handleKeyDown}
+          placeholder="Enter task name..."
+          autoFocus
+        />
+      </div>
+      <div>
+        <label htmlFor="task-description" className="block text-sm font-medium text-foreground mb-2">
+          Description <span className="text-muted-foreground font-normal">(optional)</span>
+        </label>
+        <Input
+          ref={taskDescriptionRef}
+          id="task-description"
+          type="text"
+          onKeyDown={handleKeyDown}
+          placeholder="Enter description..."
+        />
+      </div>
+      <div className="flex gap-2 justify-end pt-2">
         <button
+          type="button"
           onClick={onCancel}
           className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
         >
           Cancel
         </button>
         <button
-          onClick={handleCreateTask}
-          disabled={!taskName.trim()}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+          type="submit"
+          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
         >
           Add Task
         </button>
       </div>
-    </div>
+    </form>
   );
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Enter') {
-      handleCreateTask();
-    } else if (e.key === 'Escape') {
+    if (e.key === 'Escape') {
       setShowTaskForm(false);
       setShowMobileTaskDrawer(false);
-      setTaskName("");
-      setTaskDescription("");
+      // Clear the refs
+      if (taskNameRef.current) taskNameRef.current.value = "";
+      if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
     }
+    // Enter key is now handled by form submit
   };
 
   const twoWeeksAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
@@ -443,8 +475,8 @@ export default function Home() {
                     <TaskForm 
                       onCancel={() => {
                         setShowTaskForm(false);
-                        setTaskName("");
-                        setTaskDescription("");
+                        if (taskNameRef.current) taskNameRef.current.value = "";
+                        if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
                       }} 
                     />
                   )}
@@ -788,8 +820,8 @@ export default function Home() {
             <TaskForm 
               onCancel={() => {
                 setShowMobileTaskDrawer(false);
-                setTaskName("");
-                setTaskDescription("");
+                if (taskNameRef.current) taskNameRef.current.value = "";
+                if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
               }} 
             />
           </div>
