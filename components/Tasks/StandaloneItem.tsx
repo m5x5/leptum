@@ -1,10 +1,17 @@
 import { useState } from "react";
 import { StandaloneTask } from "../../utils/useStandaloneTasks";
-import { TrashIcon, PencilIcon } from "@heroicons/react/outline";
+import { TrashIcon, PencilIcon, DotsVerticalIcon } from "@heroicons/react/outline";
 import { PlayIcon } from "@heroicons/react/solid";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import Modal from "../Modal";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 interface Props {
   task: StandaloneTask;
@@ -172,37 +179,46 @@ export default function StandaloneTaskItem({
         </div>
       </div>
 
-      <div className="flex items-center space-x-2 ml-3">
-        {onStart && (
-          <button
-            onClick={() => onStart(task.name)}
-            disabled={isActive}
-            className={`p-1 ${
-              isActive
-                ? 'text-primary cursor-not-allowed'
-                : 'text-gray-400 hover:text-primary dark:hover:text-primary'
-            }`}
-            title={isActive ? 'Currently active' : 'Start tracking'}
-          >
-            <PlayIcon className="h-4 w-4" />
-          </button>
-        )}
-
-        <button
-          onClick={() => setIsEditing(!isEditing)}
-          className="p-1 text-gray-400 hover:text-blue-600 dark:hover:text-blue-400"
-          title="Edit task"
-        >
-          <PencilIcon className="h-4 w-4" />
-        </button>
-
-        <button
-          onClick={() => setShowDeleteConfirm(true)}
-          className="p-1 text-gray-400 hover:text-red-600 dark:hover:text-red-400"
-          title="Delete task"
-        >
-          <TrashIcon className="h-4 w-4" />
-        </button>
+      <div className="ml-3">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-muted/50"
+              title="Task actions"
+            >
+              <DotsVerticalIcon className="h-5 w-5" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {onStart && (
+              <>
+                <DropdownMenuItem
+                  onClick={() => onStart(task.name)}
+                  disabled={isActive}
+                  className="cursor-pointer"
+                >
+                  <PlayIcon className="h-4 w-4 mr-2 text-primary" />
+                  {isActive ? 'Currently active' : 'Start tracking'}
+                </DropdownMenuItem>
+                <DropdownMenuSeparator />
+              </>
+            )}
+            <DropdownMenuItem
+              onClick={() => setIsEditing(true)}
+              className="cursor-pointer"
+            >
+              <PencilIcon className="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() => setShowDeleteConfirm(true)}
+              className="cursor-pointer text-red-600 focus:text-red-600"
+            >
+              <TrashIcon className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       <Modal
