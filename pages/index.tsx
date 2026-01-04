@@ -26,6 +26,35 @@ import {
   DrawerTitle,
 } from "../components/ui/drawer";
 
+// Format duration in human readable form
+function formatDurationStatic(ms: number) {
+  const seconds = Math.floor(ms / 1000);
+  const minutes = Math.floor(seconds / 60);
+  const hours = Math.floor(minutes / 60);
+
+  if (hours > 0) {
+    return `${hours}h ${minutes % 60}m`;
+  }
+  if (minutes > 0) {
+    return `${minutes}m ${seconds % 60}s`;
+  }
+  return `${seconds}s`;
+}
+
+// Self-contained timer component to avoid re-rendering the entire page every second
+function LiveDuration({ baseMs = 0, startTime }: { baseMs?: number; startTime?: number }) {
+  const [now, setNow] = useState(Date.now());
+
+  useEffect(() => {
+    if (!startTime) return; // No interval needed if no live tracking
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, [startTime]);
+
+  const liveOffset = startTime ? now - startTime : 0;
+  return <>{formatDurationStatic(baseMs + liveOffset)}</>;
+}
+
 export default function Home() {
   const {
     tasks: standaloneTasks,
@@ -50,26 +79,16 @@ export default function Home() {
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [activeTaskStartTime, setActiveTaskStartTime] = useState<number | null>(null);
-  const [currentTime, setCurrentTime] = useState(Date.now());
   const [showPastActivity, setShowPastActivity] = useState(false);
   const [showArchiveSheet, setShowArchiveSheet] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
   const [showMobileTaskDrawer, setShowMobileTaskDrawer] = useState(false);
   const [taskName, setTaskName] = useState("");
   const [taskDescription, setTaskDescription] = useState("");
-  const [goalProgress, setGoalProgress] = useState<Record<string, number>>({});
   const [showStartTaskModal, setShowStartTaskModal] = useState(false);
   const [showMobileStartTaskDrawer, setShowMobileStartTaskDrawer] = useState(false);
   const [taskToStart, setTaskToStart] = useState<string>("");
   const [selectedGoalId, setSelectedGoalId] = useState<string>("");
-
-  // Update current time every second for active task timer
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentTime(Date.now());
-    }, 1000);
-    return () => clearInterval(interval);
-  }, []);
 
   // Load routines
   useEffect(() => {
@@ -214,7 +233,6 @@ export default function Home() {
         onChange={(e) => setTaskName(e.target.value)}
         onKeyDown={handleKeyDown}
         placeholder="Task name..."
-        autoFocus
       />
       <Input
         type="text"
@@ -250,20 +268,6 @@ export default function Home() {
       setTaskName("");
       setTaskDescription("");
     }
-  };
-
-  const formatDuration = (ms: number) => {
-    const seconds = Math.floor(ms / 1000);
-    const minutes = Math.floor(seconds / 60);
-    const hours = Math.floor(minutes / 60);
-
-    if (hours > 0) {
-      return `${hours}h ${minutes % 60}m`;
-    }
-    if (minutes > 0) {
-      return `${minutes}m ${seconds % 60}s`;
-    }
-    return `${seconds}s`;
   };
 
   const twoWeeksAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
@@ -310,12 +314,14 @@ export default function Home() {
       return dateB - dateA; // Most recent first
     });
 
-  // Calculate total time tracked today from impacts
-  const [todayTotalTime, setTodayTotalTime] = useState(0);
+  // Calculate base time tracked today from impacts (completed activities only)
+  // Live time for current activity is handled by LiveDuration components
+  const [baseTotalTime, setBaseTotalTime] = useState(0);
+  const [baseGoalProgress, setBaseGoalProgress] = useState<Record<string, number>>({});
   const [currentActivity, setCurrentActivity] = useState<{name: string, startTime: number, goalId?: string} | null>(null);
 
   useEffect(() => {
-    const calculateTodayTime = async () => {
+    const calculateBaseTimes = async () => {
       try {
         const impacts = await remoteStorageClient.getImpacts();
         const todayStart = new Date();
@@ -338,7 +344,7 @@ export default function Home() {
           setCurrentActivity(null);
         }
 
-        // Calculate total time between consecutive activities
+        // Calculate base time between consecutive activities (completed only)
         let totalMs = 0;
         const goalTimeMap: Record<string, number> = {};
 
@@ -352,30 +358,15 @@ export default function Home() {
           }
         }
 
-        // Add current activity time
-        if (todayImpacts.length > 0) {
-          const lastImpact = todayImpacts[todayImpacts.length - 1];
-          const currentActivityTime = Date.now() - lastImpact.date;
-          totalMs += currentActivityTime;
-
-          // Add current activity time to goal if it has one
-          if (lastImpact.goalId) {
-            goalTimeMap[lastImpact.goalId] = (goalTimeMap[lastImpact.goalId] || 0) + currentActivityTime;
-          }
-        }
-
-        setTodayTotalTime(totalMs);
-        setGoalProgress(goalTimeMap);
+        setBaseTotalTime(totalMs);
+        setBaseGoalProgress(goalTimeMap);
       } catch (error) {
         console.error("Failed to calculate today's time:", error);
       }
     };
 
-    calculateTodayTime();
-    // Update every second for live tracking
-    const interval = setInterval(calculateTodayTime, 1000);
-    return () => clearInterval(interval);
-  }, [currentTime]);
+    calculateBaseTimes();
+  }, []);
 
   return (
     <>
@@ -410,7 +401,7 @@ export default function Home() {
             <span className="text-sm font-medium text-primary">{currentActivity.name}</span>
             <span className="text-xs text-muted-foreground">•</span>
             <span className="text-sm font-semibold text-primary">
-              {formatDuration(currentTime - currentActivity.startTime)}
+              <LiveDuration startTime={currentActivity.startTime} />
             </span>
           </div>
         )}
@@ -648,46 +639,60 @@ export default function Home() {
                 <div className="flex justify-between">
                   <span className="text-sm text-muted-foreground">Total Time Tracked</span>
                   <span className="text-sm font-semibold text-primary">
-                    {formatDuration(todayTotalTime)}
+                    <LiveDuration baseMs={baseTotalTime} startTime={currentActivity?.startTime} />
                   </span>
                 </div>
               </div>
             </div>
 
             {/* Goal Progress */}
-            {goals && goals.length > 0 && Object.keys(goalProgress).length > 0 && (
+            {goals && goals.length > 0 && (Object.keys(baseGoalProgress).length > 0 || currentActivity?.goalId) && (
               <div className="bg-card border border-border rounded-lg p-4">
                 <h3 className="text-sm font-semibold text-foreground mb-3">Goal Progress Today</h3>
                 <div className="space-y-3">
-                  {Object.entries(goalProgress)
-                    .sort(([, timeA], [, timeB]) => timeB - timeA)
-                    .map(([goalId, time]) => {
-                      const goal = goals.find(g => g.id === goalId);
-                      if (!goal) return null;
-                      const goalType = goalTypes?.find(gt => gt.id === goal.type);
+                  {(() => {
+                    // Get all goal IDs that have progress (including current activity's goal)
+                    const goalIds = new Set(Object.keys(baseGoalProgress));
+                    if (currentActivity?.goalId) goalIds.add(currentActivity.goalId);
 
-                      return (
-                        <div key={goalId} className="space-y-1">
-                          <div className="flex justify-between items-start">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-foreground truncate">{goal.name}</p>
-                              {goalType && (
-                                <p className="text-xs text-muted-foreground">{goalType.name}</p>
-                              )}
+                    return Array.from(goalIds)
+                      .map(goalId => ({
+                        goalId,
+                        baseTime: baseGoalProgress[goalId] || 0,
+                        isCurrentGoal: goalId === currentActivity?.goalId
+                      }))
+                      .sort((a, b) => b.baseTime - a.baseTime)
+                      .map(({ goalId, baseTime, isCurrentGoal }) => {
+                        const goal = goals.find(g => g.id === goalId);
+                        if (!goal) return null;
+                        const goalType = goalTypes?.find(gt => gt.id === goal.type);
+
+                        return (
+                          <div key={goalId} className="space-y-1">
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-foreground truncate">{goal.name}</p>
+                                {goalType && (
+                                  <p className="text-xs text-muted-foreground">{goalType.name}</p>
+                                )}
+                              </div>
+                              <span className="text-sm font-semibold text-primary ml-2 whitespace-nowrap">
+                                <LiveDuration
+                                  baseMs={baseTime}
+                                  startTime={isCurrentGoal ? currentActivity?.startTime : undefined}
+                                />
+                              </span>
                             </div>
-                            <span className="text-sm font-semibold text-primary ml-2 whitespace-nowrap">
-                              {formatDuration(time)}
-                            </span>
+                            <div className="w-full bg-muted rounded-full h-2">
+                              <div
+                                className="bg-primary rounded-full h-2 transition-all"
+                                style={{ width: `${Math.min((baseTime / (4 * 60 * 60 * 1000)) * 100, 100)}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="w-full bg-muted rounded-full h-2">
-                            <div
-                              className="bg-primary rounded-full h-2 transition-all"
-                              style={{ width: `${Math.min((time / (4 * 60 * 60 * 1000)) * 100, 100)}%` }}
-                            />
-                          </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      });
+                  })()}
                 </div>
               </div>
             )}
