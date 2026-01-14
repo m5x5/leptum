@@ -851,6 +851,7 @@ export class RemoteStorageClient {
       todo_item_text: task.name,
       todo_item_status: todonnaStatus,
       todo_item_id: task.id,
+      date: new Date(task.createdAt).toISOString(),
       '@context': 'http://remotestorage.io/spec/modules/todonna/aTodoItem'
     };
   }
