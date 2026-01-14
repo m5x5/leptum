@@ -17,7 +17,6 @@ class ServiceWorkerManager {
 
   async register(): Promise<ServiceWorkerRegistration | null> {
     if (typeof window === 'undefined' || !('serviceWorker' in navigator)) {
-      console.log('[SW Manager] Service Workers not supported');
       return null;
     }
 
@@ -30,7 +29,6 @@ class ServiceWorkerManager {
       this.setupListeners(registration);
       this.notifyListeners();
 
-      console.log('[SW Manager] Service Worker registered:', registration.scope);
       return registration;
     } catch (error) {
       console.error('[SW Manager] Service Worker registration failed:', error);
@@ -44,7 +42,6 @@ class ServiceWorkerManager {
 
     // Listen for updates
     registration.addEventListener('updatefound', () => {
-      console.log('[SW Manager] Update found');
       const newWorker = registration.installing;
       
       if (newWorker) {
@@ -53,7 +50,6 @@ class ServiceWorkerManager {
             // New service worker is waiting
             this.updateAvailable = true;
             this.notifyListeners();
-            console.log('[SW Manager] New service worker available');
           }
         });
       }
@@ -61,7 +57,6 @@ class ServiceWorkerManager {
 
     // Listen for controller change (when new SW takes over)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      console.log('[SW Manager] Controller changed - reloading page');
       window.location.reload();
     });
   }
@@ -109,7 +104,6 @@ class ServiceWorkerManager {
       this.updateAvailable = false;
       this.notifyListeners();
 
-      console.log('[SW Manager] Service Worker unregistered');
       return true;
     } catch (error) {
       console.error('[SW Manager] Service Worker unregistration failed:', error);

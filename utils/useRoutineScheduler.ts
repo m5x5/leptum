@@ -69,8 +69,6 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
 
   const triggerRoutine = async (routine: Routine) => {
     try {
-      console.log('Triggering routine:', routine.name);
-
       // Create a unique instance ID for this routine trigger
       const routineInstanceId = `${routine.id}-${Date.now()}`;
 

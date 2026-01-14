@@ -65,7 +65,6 @@ const defaultState = {
 
 export default function ImpactPage() {
   const [state, setState] = useState(defaultState);
-  console.log("state", state);
   const [activityIndex, setActivityIndex] = useState(0);
   const [editMode, setEditMode] = useState(true);
   const [showQuickLogModal, setShowQuickLogModal] = useState(false);
@@ -167,7 +166,6 @@ export default function ImpactPage() {
     const loadImpacts = async () => {
       try {
         const impacts = await remoteStorageClient.getImpacts();
-        console.log("impacts", impacts);
         if (impacts.length > 0) {
           setState({ impacts });
           setActivityIndex(impacts.length - 1);
@@ -192,7 +190,6 @@ export default function ImpactPage() {
     
     const saveImpacts = async () => {
       try {
-        console.log("saving impacts", state.impacts);
         await remoteStorageClient.saveImpacts(state.impacts);
       } catch (error) {
         console.error("Failed to save impacts:", error);

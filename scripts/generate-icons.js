@@ -36,8 +36,6 @@ async function generateIcons() {
     { size: 512, name: 'icon-512.png' },
   ];
 
-  console.log('Generating icons from SVG...');
-
   for (const { size, name } of sizes) {
     const outputPath = path.join(publicDir, name);
     
@@ -62,13 +60,10 @@ async function generateIcons() {
           .toFile(outputPath);
       }
       
-      console.log(`✓ Generated ${name} (${size}x${size})`);
     } catch (error) {
       console.error(`Error generating ${name}:`, error.message);
     }
   }
-
-  console.log('\nAll icons generated successfully!');
 }
 
 generateIcons().catch(console.error);

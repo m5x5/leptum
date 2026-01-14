@@ -19,7 +19,6 @@ const EditJobModal = ({ isOpen, onHide, prevCron, prevName }) => {
 
   useEffect(() => {
     setCRON(prevCron);
-    console.log(prevCron);
   }, [prevCron]);
 
   useEffect(() => {

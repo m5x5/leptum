@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { PlusIcon, TrashIcon } from '@heroicons/react/solid';
+import { PlusIcon, TrashIcon, CheckCircleIcon } from '@heroicons/react/solid';
 import { WeeklyGoalItem } from '../../utils/useWeeklyGoals';
 import { formatMinutesToReadable, Impact } from '../../utils/timeCalculations';
 import { DailyActivityBar } from './DailyActivityBar';
@@ -120,11 +120,19 @@ export function DayCard({
         {goalItems.map((item, index) => {
           const goalInfo = getGoalInfo(item);
           const trackedMinutes = goalInfo.goalId ? timeBreakdown[goalInfo.goalId] || 0 : 0;
+          const isCompleted = goalInfo.targetMinutes && trackedMinutes >= goalInfo.targetMinutes;
+          const completionPercentage = goalInfo.targetMinutes 
+            ? Math.round((trackedMinutes / goalInfo.targetMinutes) * 100) 
+            : 0;
 
           return (
             <div
               key={index}
-              className="group flex flex-col gap-1 p-2 bg-background border border-border rounded hover:border-primary transition"
+              className={`group flex flex-col gap-1 p-2 rounded transition ${
+                isCompleted 
+                  ? 'bg-green-500/10 border-2 border-green-500 hover:border-green-600' 
+                  : 'bg-background border border-border hover:border-primary'
+              }`}
             >
               {editingIndex === index ? (
                 <Input
@@ -160,16 +168,21 @@ export function DayCard({
                   {!goalInfo.isLegacy && (
                     <div className="ml-5 space-y-1">
                       {trackedMinutes > 0 && (
-                        <div className="text-xs text-muted-foreground">
-                          Tracked: {formatMinutesToReadable(trackedMinutes)}
-                          {goalInfo.targetMinutes && (
-                            <span className="ml-1">
-                              / {formatMinutesToReadable(goalInfo.targetMinutes)} target
-                              <span className="ml-1">
-                                ({Math.round((trackedMinutes / goalInfo.targetMinutes) * 100)}%)
-                              </span>
-                            </span>
+                        <div className={`text-xs flex items-center gap-1 ${isCompleted ? 'text-green-600 dark:text-green-400 font-semibold' : 'text-muted-foreground'}`}>
+                          {isCompleted && (
+                            <CheckCircleIcon className="w-4 h-4 text-green-500" />
                           )}
+                          <span>
+                            Tracked: {formatMinutesToReadable(trackedMinutes)}
+                            {goalInfo.targetMinutes && (
+                              <span className="ml-1">
+                                / {formatMinutesToReadable(goalInfo.targetMinutes)} target
+                                <span className="ml-1">
+                                  ({completionPercentage}%)
+                                </span>
+                              </span>
+                            )}
+                          </span>
                         </div>
                       )}
 
@@ -182,10 +195,10 @@ export function DayCard({
                       {trackedMinutes > 0 && goalInfo.targetMinutes && (
                         <div className="w-full bg-muted rounded-full h-1.5">
                           <div
-                            className="h-1.5 rounded-full transition-all"
+                            className={`h-1.5 rounded-full transition-all ${isCompleted ? 'shadow-[0_0_8px_rgba(34,197,94,0.5)]' : ''}`}
                             style={{
                               width: `${Math.min((trackedMinutes / goalInfo.targetMinutes) * 100, 100)}%`,
-                              backgroundColor: goalInfo.color
+                              backgroundColor: isCompleted ? '#22c55e' : goalInfo.color
                             }}
                           />
                         </div>

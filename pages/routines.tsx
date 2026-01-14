@@ -98,7 +98,6 @@ export default function RoutinesPage() {
       }
 
       setRoutines(migratedRoutines);
-      console.log("Migration complete: Migrated", migratedRoutines.length, "routines");
     } catch (error) {
       console.error("Failed to migrate old data:", error);
     }

@@ -63,7 +63,6 @@ export function JobContextProvider({ children }: Props) {
   const getJobs = async () => {
     if (typeof window === "undefined") return [];
     const jobs = await remoteStorageClient.getJobs();
-    console.log({ jobs });
     return jobs;
   };
 

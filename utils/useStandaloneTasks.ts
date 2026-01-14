@@ -134,7 +134,6 @@ export function useStandaloneTasks() {
           };
 
           await remoteStorageClient.addRoutineCompletion(completion);
-          console.log('Routine completed:', (routine as any).name);
         }
       }
     } catch (error) {
@@ -169,7 +168,6 @@ export function useStandaloneTasks() {
     if (task && task.routineInstanceId) {
       try {
         await remoteStorageClient.deleteRoutineCompletion(task.routineInstanceId);
-        console.log('Routine completion deleted for:', task.routineInstanceId);
       } catch (error) {
         console.error('Failed to delete routine completion:', error);
       }

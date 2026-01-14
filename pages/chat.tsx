@@ -17,7 +17,6 @@ const ChatPage = () => {
         callbacks: [
           {
             handleLLMNewToken: (token: string) => {
-              console.log(token);
               setText(text + token);
             },
           },

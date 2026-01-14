@@ -53,7 +53,6 @@ interface ActivitySummary {
 }
 
 export default function TimelinePage() {
-  console.log('[TimelinePage] Rendering');
 
   const [impacts, setImpacts] = useState<Impact[]>([]);
   const [isDataLoaded, setIsDataLoaded] = useState(false);
@@ -350,7 +349,6 @@ export default function TimelinePage() {
   };
 
   const groupByDate = (impacts: Impact[]) => {
-    console.log('[groupByDate] Starting with', impacts.length, 'impacts');
 
     // Cache "now" and "today" to avoid repeated Date.now() calls
     const now = Date.now();
@@ -422,8 +420,6 @@ export default function TimelinePage() {
         }
       }
     });
-
-    console.log('[groupByDate] Created', virtualCount, 'virtual continuations');
 
     // Sort each day's impacts by time (descending - most recent first)
     Object.keys(grouped).forEach((key) => {
