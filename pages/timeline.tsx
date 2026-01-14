@@ -1,7 +1,7 @@
 import Head from "next/head";
 import { useEffect, useState, useMemo } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
-import { PlusIcon, TrashIcon, UploadIcon } from "@heroicons/react/solid";
+import { PlusIcon, TrashIcon, UploadIcon, FilterIcon } from "@heroicons/react/solid";
 import Modal from "../components/Modal";
 import {
   Drawer,
@@ -9,6 +9,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "../components/ui/drawer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
 import { useActivityWatch } from "../utils/useActivityWatch";
@@ -26,6 +27,7 @@ import ImportActivityWatchForm from "../components/Timeline/ImportActivityWatchF
 import DraftTimelineEntry from "../components/Timeline/DraftTimelineEntry";
 import { LiveActivityDuration } from "../components/Timeline/LiveActivityDuration";
 import { LiveSummaryBar } from "../components/Timeline/LiveSummaryBar";
+import { TimelineScheduleView } from "../components/Timeline/TimelineScheduleView";
 
 interface Impact {
   id?: string;
@@ -81,6 +83,7 @@ export default function TimelinePage() {
   const [showAWDetailModal, setShowAWDetailModal] = useState(false);
   const [showMobileAWDetailDrawer, setShowMobileAWDetailDrawer] = useState(false);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
+  const [showMobileFiltersDrawer, setShowMobileFiltersDrawer] = useState(false);
 
   // State for collapsible detailed activities in timeline
   const [expandedBlockStart, setExpandedBlockStart] = useState<number | null>(null);
@@ -121,6 +124,14 @@ export default function TimelinePage() {
 
   // Pagination state
   const [daysToShow, setDaysToShow] = useState(3);
+
+  // View mode state - default to schedule on mobile, day on desktop
+  const [viewMode, setViewMode] = useState<"day" | "schedule">(() => {
+    if (typeof window !== 'undefined') {
+      return window.innerWidth < 768 ? "schedule" : "day";
+    }
+    return "day";
+  });
 
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
@@ -603,6 +614,41 @@ export default function TimelinePage() {
     return date.getTime();
   };
 
+  // Handle add activity for a specific date
+  const handleAddActivityForDate = (dateKey: string) => {
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const now = new Date();
+    
+    // If it's today, use current time rounded to 15 minutes
+    const isDateToday = 
+      year === now.getFullYear() &&
+      month === now.getMonth() + 1 &&
+      day === now.getDate();
+    
+    let timestamp: number;
+    if (isDateToday) {
+      timestamp = roundToNearest15Minutes(Date.now());
+    } else {
+      // For other days, default to 9:00 AM
+      timestamp = new Date(year, month - 1, day, 9, 0, 0).getTime();
+    }
+    
+    const { dateStr, timeStr } = getLocalDateTimeStrings(timestamp);
+    
+    setAddFormInitialData({
+      activity: "",
+      date: dateStr,
+      time: timeStr,
+      goalId: "",
+    });
+    
+    if (window.innerWidth < 768) {
+      setShowMobileAddDrawer(true);
+    } else {
+      setShowAddModal(true);
+    }
+  };
+
   // Handle ActivityWatch event click
   const handleAWEventClick = (event: ProcessedAWEvent) => {
     setSelectedAWEvent(event);
@@ -701,15 +747,16 @@ export default function TimelinePage() {
         <title>Timeline - Leptum</title>
       </Head>
 
-      <div className="w-full mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Timeline</h1>
-            <p className="text-sm text-muted-foreground mt-1">
-              Daily breakdown of your activities
-            </p>
-          </div>
-          <div className="flex gap-2">
+      <div className="w-full mx-auto pb-32 md:pb-8">
+        <div className="flex flex-col gap-4 mb-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-bold text-foreground">Timeline</h1>
+              <p className="text-sm text-muted-foreground mt-1">
+                Daily breakdown of your activities
+              </p>
+            </div>
+            <div className="flex gap-2">
             <button
               onClick={() => {
                 if (window.innerWidth < 768) {
@@ -747,6 +794,15 @@ export default function TimelinePage() {
               <span>Add Activity</span>
             </button>
           </div>
+          </div>
+
+          {/* View Tabs */}
+          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "day" | "schedule")} className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="day">Day View</TabsTrigger>
+              <TabsTrigger value="schedule">Schedule View</TabsTrigger>
+            </TabsList>
+          </Tabs>
         </div>
 
         {/* Mobile Add Activity Button */}
@@ -769,16 +825,34 @@ export default function TimelinePage() {
           <span>Add Activity</span>
         </button>
 
-        {/* Filter Controls */}
+        {/* Mobile Filter Button - Only show in day view */}
+        {viewMode === "day" && awData && awData.buckets.length > 0 && (
+          <button
+            onClick={() => setShowMobileFiltersDrawer(true)}
+            className="md:hidden w-full flex items-center justify-center gap-2 px-4 py-3 bg-card border border-border rounded-lg hover:bg-muted/50 transition mb-6"
+          >
+            <FilterIcon className="w-5 h-5 text-muted-foreground" />
+            <span className="font-semibold text-foreground">Filters</span>
+            {totalActiveTime > 0 && (
+              <span className="ml-auto text-sm text-green-700 dark:text-green-400">
+                {formatDuration(totalActiveTime)}
+              </span>
+            )}
+          </button>
+        )}
+
+        {/* Filter Controls - Desktop Only */}
         {awData && awData.buckets.length > 0 && (
-          <FilterControls
-            filterSettings={filterSettings}
-            buckets={awData.buckets}
-            onUpdateFilters={updateFilterSettings}
-            onToggleBucket={toggleBucket}
-            totalActiveTime={totalActiveTime}
-            formatDuration={formatDuration}
-          />
+          <div className="hidden md:block">
+            <FilterControls
+              filterSettings={filterSettings}
+              buckets={awData.buckets}
+              onUpdateFilters={updateFilterSettings}
+              onToggleBucket={toggleBucket}
+              totalActiveTime={totalActiveTime}
+              formatDuration={formatDuration}
+            />
+          </div>
         )}
 
         {/* Error Display */}
@@ -879,6 +953,20 @@ export default function TimelinePage() {
         {/* Timeline Content - Only show when data is loaded and exists */}
         {isDataLoaded && impacts.length > 0 && (
           <>
+            {/* Schedule View */}
+            {viewMode === "schedule" && (
+              <TimelineScheduleView
+                impacts={impacts}
+                goals={goals}
+                onEditActivity={openEditModal}
+                onAddActivity={handleAddActivityForDate}
+                daysToShow={daysToShow}
+              />
+            )}
+
+            {/* Day View */}
+            {viewMode === "day" && (
+              <>
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
           {dates.map((dateKey) => {
             const dayImpacts = groupedImpacts[dateKey] || [];
@@ -1837,6 +1925,23 @@ export default function TimelinePage() {
             </button>
           </div>
         )}
+              </>
+            )}
+
+            {/* Load More Button - Schedule View */}
+            {viewMode === "schedule" && hasMoreDays && (
+              <div className="flex justify-center mt-8 mb-4">
+                <button
+                  onClick={() => setDaysToShow(prev => prev + 5)}
+                  className="px-6 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg font-semibold transition-colors flex items-center gap-2"
+                >
+                  Load Next 5 Days
+                  <span className="text-xs text-muted-foreground">
+                    ({allDates.length - daysToShow} remaining)
+                  </span>
+                </button>
+              </div>
+            )}
           </>
         )}
 
@@ -1947,6 +2052,30 @@ export default function TimelinePage() {
                   onCreateManualEntry={handleCreateManualEntry}
                   onClose={() => setShowMobileAWDetailDrawer(false)}
                 />
+              )}
+            </div>
+          </DrawerContent>
+        </Drawer>
+
+        {/* Mobile Filters Drawer */}
+        <Drawer open={showMobileFiltersDrawer} onOpenChange={setShowMobileFiltersDrawer}>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader className="text-left">
+              <DrawerTitle>Filters</DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-8 overflow-y-auto">
+              {awData && awData.buckets.length > 0 && (
+                <div className="bg-card rounded-lg">
+                  <FilterControls
+                    filterSettings={filterSettings}
+                    buckets={awData.buckets}
+                    onUpdateFilters={updateFilterSettings}
+                    onToggleBucket={toggleBucket}
+                    totalActiveTime={totalActiveTime}
+                    formatDuration={formatDuration}
+                    forceExpanded={true}
+                  />
+                </div>
               )}
             </div>
           </DrawerContent>

@@ -71,7 +71,7 @@ export default function DebugPatternsPage() {
         <title>Debug Patterns - Leptum</title>
       </Head>
 
-      <div className="max-w-6xl mx-auto p-6">
+      <div className="max-w-6xl mx-auto p-6 pb-32 md:pb-8">
         <h1 className="text-2xl font-bold text-foreground mb-6">Pattern Analysis Debug</h1>
 
         <div className="space-y-6">

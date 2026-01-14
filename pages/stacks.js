@@ -111,7 +111,7 @@ export default function StacksPage() {
 
   return (
     <>
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-32 md:pb-8">
       <div className="flex flex-row w-full justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Stacks</h1>

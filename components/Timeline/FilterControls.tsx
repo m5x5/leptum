@@ -10,6 +10,7 @@ interface FilterControlsProps {
   onToggleBucket?: (bucketId: string) => void;
   totalActiveTime?: number;
   formatDuration?: (ms: number) => string;
+  forceExpanded?: boolean; // When true, always show expanded and hide collapse controls
 }
 
 export default function FilterControls({
@@ -19,6 +20,7 @@ export default function FilterControls({
   onToggleBucket,
   totalActiveTime,
   formatDuration,
+  forceExpanded = false,
 }: FilterControlsProps) {
   const {
     showManual,
@@ -43,40 +45,45 @@ export default function FilterControls({
     return () => window.removeEventListener('resize', checkScreenSize);
   }, []);
 
+  // If forceExpanded is true, always show expanded
+  const isExpanded = forceExpanded || !isCollapsed;
+
   return (
     <div className="bg-card border border-border rounded-lg p-4 mb-6">
-      <div
-        className="flex items-center justify-between cursor-pointer md:cursor-default"
-        onClick={() => setIsCollapsed(!isCollapsed)}
-      >
-        <div className="flex items-center gap-2 md:gap-4">
-          <FilterIcon className="w-5 h-5 text-muted-foreground" />
-          <h3 className="font-semibold text-foreground">Filters</h3>
-
-          {/* Time Tracking Pill - Desktop Only */}
-          {totalActiveTime !== undefined && formatDuration && totalActiveTime > 0 && (
-            <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md border border-green-500/20">
-              <span className="text-sm font-medium">Online Presence: {formatDuration(totalActiveTime)}</span>
-            </div>
-          )}
-        </div>
-        <button
-          className="md:hidden p-1 hover:bg-muted rounded"
-          onClick={(e) => {
-            e.stopPropagation();
-            setIsCollapsed(!isCollapsed);
-          }}
-          aria-label={isCollapsed ? "Expand filters" : "Collapse filters"}
+      {!forceExpanded && (
+        <div
+          className="flex items-center justify-between cursor-pointer md:cursor-default"
+          onClick={() => setIsCollapsed(!isCollapsed)}
         >
-          {isCollapsed ? (
-            <ChevronDownIcon className="w-5 h-5 text-muted-foreground" />
-          ) : (
-            <ChevronUpIcon className="w-5 h-5 text-muted-foreground" />
-          )}
-        </button>
-      </div>
+          <div className="flex items-center gap-2 md:gap-4">
+            <FilterIcon className="w-5 h-5 text-muted-foreground" />
+            <h3 className="font-semibold text-foreground">Filters</h3>
 
-      {!isCollapsed && (
+            {/* Time Tracking Pill - Desktop Only */}
+            {totalActiveTime !== undefined && formatDuration && totalActiveTime > 0 && (
+              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md border border-green-500/20">
+                <span className="text-sm font-medium">Online Presence: {formatDuration(totalActiveTime)}</span>
+              </div>
+            )}
+          </div>
+          <button
+            className="md:hidden p-1 hover:bg-muted rounded"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCollapsed(!isCollapsed);
+            }}
+            aria-label={isCollapsed ? "Expand filters" : "Collapse filters"}
+          >
+            {isCollapsed ? (
+              <ChevronDownIcon className="w-5 h-5 text-muted-foreground" />
+            ) : (
+              <ChevronUpIcon className="w-5 h-5 text-muted-foreground" />
+            )}
+          </button>
+        </div>
+      )}
+
+      {isExpanded && (
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-4">
             {/* Source Toggles */}

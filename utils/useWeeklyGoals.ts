@@ -31,7 +31,12 @@ export function getMonday(date: Date = new Date()): string {
   const diff = d.getDate() - day + (day === 0 ? -6 : 1); // adjust when day is sunday
   const monday = new Date(d.setDate(diff));
   monday.setHours(0, 0, 0, 0);
-  return monday.toISOString().split('T')[0];
+  
+  // Format as YYYY-MM-DD without timezone conversion
+  const year = monday.getFullYear();
+  const month = String(monday.getMonth() + 1).padStart(2, '0');
+  const dayNum = String(monday.getDate()).padStart(2, '0');
+  return `${year}-${month}-${dayNum}`;
 }
 
 export function useWeeklyGoals() {
@@ -168,7 +173,9 @@ export function useWeeklyGoals() {
   };
 
   const navigateWeek = (direction: 'prev' | 'next') => {
-    const currentDate = new Date(currentWeekStart);
+    // Parse the date string manually to avoid timezone issues
+    const [year, month, day] = currentWeekStart.split('-').map(Number);
+    const currentDate = new Date(year, month - 1, day);
     const offset = direction === 'next' ? 7 : -7;
     currentDate.setDate(currentDate.getDate() + offset);
     const newWeekStart = getMonday(currentDate);

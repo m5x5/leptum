@@ -177,7 +177,9 @@ export function splitMidnightActivity(
  * Get start and end dates for a week (Monday to Sunday)
  */
 export function getWeekDateRange(weekStart: string): { startDate: Date; endDate: Date } {
-  const startDate = new Date(weekStart);
+  // Parse the date string manually to avoid timezone issues
+  const [year, month, day] = weekStart.split('-').map(Number);
+  const startDate = new Date(year, month - 1, day);
   startDate.setHours(0, 0, 0, 0);
 
   const endDate = new Date(startDate);

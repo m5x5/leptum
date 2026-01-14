@@ -27,7 +27,7 @@ const DAYS = [
 ] as const;
 
 export default function GoalsPage() {
-  const [activeTab, setActiveTab] = useState<'general' | 'weekly'>('general');
+  const [activeTab, setActiveTab] = useState<'general' | 'weekly'>('weekly');
   const { goals, isError } = useGoals();
   const { goalTypes, isError: isErrorGoalTypes, addGoalType } = useGoalTypes();
 
@@ -130,7 +130,9 @@ export default function GoalsPage() {
   if (!goalTypes) return <div>loading...</div>;
 
   const formatWeekDisplay = (weekStart: string) => {
-    const start = new Date(weekStart);
+    // Parse the date string manually to avoid timezone issues
+    const [year, month, day] = weekStart.split('-').map(Number);
+    const start = new Date(year, month - 1, day);
     const end = new Date(start);
     end.setDate(end.getDate() + 6);
 
@@ -143,9 +145,14 @@ export default function GoalsPage() {
 
   const isCurrentWeek = () => {
     const today = new Date();
-    const monday = new Date(currentWeekStart);
+    today.setHours(0, 0, 0, 0); // Normalize to start of day
+    
+    // Parse the date string manually to avoid timezone issues
+    const [year, month, day] = currentWeekStart.split('-').map(Number);
+    const monday = new Date(year, month - 1, day);
     const sunday = new Date(monday);
     sunday.setDate(sunday.getDate() + 6);
+    sunday.setHours(23, 59, 59, 999); // End of Sunday
 
     return today >= monday && today <= sunday;
   };
@@ -216,15 +223,19 @@ export default function GoalsPage() {
 
   // Calculate date key for each day of the week
   const getDayDateKey = (dayKey: typeof DAYS[number]['key']): string => {
-    const weekStart = new Date(currentWeekStart);
+    // Parse the date string manually to avoid timezone issues
+    // When using new Date("2026-01-13"), it's treated as UTC which can shift the day in local timezone
+    const [year, month, day] = currentWeekStart.split('-').map(Number);
+    const weekStart = new Date(year, month - 1, day);
+    
     const dayIndex = DAYS.findIndex(d => d.key === dayKey);
     const dayDate = new Date(weekStart);
     dayDate.setDate(dayDate.getDate() + dayIndex);
 
-    const year = dayDate.getFullYear();
-    const month = String(dayDate.getMonth() + 1).padStart(2, '0');
-    const day = String(dayDate.getDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+    const yearResult = dayDate.getFullYear();
+    const monthResult = String(dayDate.getMonth() + 1).padStart(2, '0');
+    const dayResult = String(dayDate.getDate()).padStart(2, '0');
+    return `${yearResult}-${monthResult}-${dayResult}`;
   };
 
   return (
@@ -232,7 +243,7 @@ export default function GoalsPage() {
       <Head>
         <title>Goals - Leptum</title>
       </Head>
-      <div className="max-w-7xl mx-auto">
+      <div className="max-w-7xl mx-auto pb-32 md:pb-8">
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Goals</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -244,16 +255,6 @@ export default function GoalsPage() {
       <div className="mb-6 border-b border-border">
         <div className="flex gap-6">
           <button
-            onClick={() => setActiveTab('general')}
-            className={`pb-3 px-1 border-b-2 transition ${
-              activeTab === 'general'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-muted-foreground hover:text-foreground'
-            }`}
-          >
-            General Goals
-          </button>
-          <button
             onClick={() => setActiveTab('weekly')}
             className={`pb-3 px-1 border-b-2 transition ${
               activeTab === 'weekly'
@@ -263,10 +264,20 @@ export default function GoalsPage() {
           >
             Weekly Goals
           </button>
+          <button
+            onClick={() => setActiveTab('general')}
+            className={`pb-3 px-1 border-b-2 transition ${
+              activeTab === 'general'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            Goal Settings
+          </button>
         </div>
       </div>
 
-      {/* General Goals Tab */}
+      {/* Goal Settings Tab */}
       {activeTab === 'general' && (
         <>
           <div className="mb-4 flex justify-end">

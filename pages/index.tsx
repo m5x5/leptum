@@ -400,7 +400,7 @@ export default function Home() {
         <link rel="icon" href="/favicon.ico" />
       </Head>
 
-      <div className="max-w-6xl mx-auto pb-[50px]">
+      <div className="max-w-6xl mx-auto pb-32 md:pb-8">
         {/* Mobile Logo - Full Leptum logo on mobile */}
         <div className="md:hidden mb-6 flex items-center justify-between">
           <Link href="/" className="inline-block">
@@ -565,7 +565,7 @@ export default function Home() {
 
           {/* Sidebar - Upcoming Routines */}
           <div className="w-full lg:w-80 space-y-4">
-            <div>
+            <div className="hidden md:block">
               <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
                 Upcoming Routines
               </h2>
@@ -647,7 +647,7 @@ export default function Home() {
             </div>
 
             {/* Quick Stats */}
-            <div className="bg-card border border-border rounded-lg p-4">
+            <div className="hidden md:block bg-card border border-border rounded-lg p-4">
               <h3 className="text-sm font-semibold text-foreground mb-3">Today's Progress</h3>
               <div className="space-y-2">
                 <div className="flex justify-between">
@@ -722,7 +722,7 @@ export default function Home() {
             )}
 
             {/* Insights Widget */}
-            <div className="pt-6">
+            <div className="hidden md:block pt-6">
               <InsightsWidget />
             </div>
           </div>

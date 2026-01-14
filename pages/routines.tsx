@@ -211,7 +211,7 @@ export default function RoutinesPage() {
         <title>Routines - Leptum</title>
       </Head>
 
-      <div className="max-w-4xl mx-auto">
+      <div className="max-w-4xl mx-auto pb-32 md:pb-8">
         <div className="flex flex-row w-full justify-between items-center mb-6">
           <div>
             <h1 className="text-2xl md:text-3xl font-bold text-foreground">Routines</h1>
@@ -243,8 +243,7 @@ export default function RoutinesPage() {
         {/* Scheduled Routines */}
         {scheduledRoutines.length > 0 && (
           <div className="mb-8">
-            <h2 className="text-xl font-semibold text-foreground mb-4 flex items-center gap-2">
-              <ClockIcon className="h-5 w-5 text-primary" />
+            <h2 className="text-xl font-semibold text-foreground mb-4">
               Scheduled Routines
             </h2>
             <div className="space-y-3">
@@ -388,7 +387,6 @@ export default function RoutinesPage() {
                   value={formData.cron}
                   onChange={(e) => setFormData({ ...formData, cron: e.target.value })}
                   placeholder="0 8 * * * (CRON expression) - leave empty for no schedule"
-                  className="font-mono text-sm"
                 />
                 {formData.cron && (
                   <p className="text-xs text-muted-foreground mt-1">
@@ -444,7 +442,7 @@ export default function RoutinesPage() {
                     />
                     <button
                       onClick={addTaskToForm}
-                      className="p-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
+                      className="p-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
                     >
                       <PlusIcon className="h-5 w-5" />
                     </button>

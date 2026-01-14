@@ -768,7 +768,7 @@ export default function ImpactPage() {
         <title>Wellbeing - Leptum</title>
       </Head>
 
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-6xl mx-auto pb-32 md:pb-8">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Wellbeing</h1>
@@ -1146,7 +1146,7 @@ export default function ImpactPage() {
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1">
                         <h3 className="text-base font-semibold text-foreground mb-1">
-                          {pattern.activity}
+                          <HighlightedMentions text={pattern.activity} />
                         </h3>
                         <p className="text-xs text-muted-foreground">
                           Logged {pattern.totalLogs} {pattern.totalLogs === 1 ? 'time' : 'times'}
