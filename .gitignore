@@ -35,3 +35,13 @@ yarn-error.log*
 
 # editor files
 .idea
+.cursor/
+
+# build artifacts
+*.tsbuildinfo
+
+# test reports
+playwright-report/
+
+# automation tools (contains personal paths)
+.automaker/

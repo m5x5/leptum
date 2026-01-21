@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
+import { calculateStreaks, StreakInfo } from './streakUtils';
 
 export interface RoutineCompletion {
   routineId: string;
@@ -45,12 +46,18 @@ export function useRoutineCompletions() {
     return completions.filter(c => c.completedAt >= startDate && c.completedAt <= endDate);
   }, [completions]);
 
+  const getStreaksForRoutine = useCallback((routineId: string): StreakInfo => {
+    const routineCompletions = completions.filter(c => c.routineId === routineId);
+    return calculateStreaks(routineCompletions);
+  }, [completions]);
+
   return {
     completions,
     loading,
     addCompletion,
     getCompletionsForRoutine,
     getCompletionsForDateRange,
+    getStreaksForRoutine,
     reload: loadCompletions
   };
 }

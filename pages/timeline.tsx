@@ -14,6 +14,7 @@ import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
 import { useActivityWatch } from "../utils/useActivityWatch";
 import { useMentions } from "../utils/useMentions";
+import { usePhotoAttachments, PhotoAttachment } from "../utils/usePhotoAttachments";
 import { extractMentionedEntityIds, HighlightedMentions } from "../components/ui/mention-input";
 import FilterControls from "../components/Timeline/FilterControls";
       import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry, GapBlock } from "../components/Timeline/TimelineEntry";
@@ -28,6 +29,7 @@ import DraftTimelineEntry from "../components/Timeline/DraftTimelineEntry";
 import { LiveActivityDuration } from "../components/Timeline/LiveActivityDuration";
 import { LiveSummaryBar } from "../components/Timeline/LiveSummaryBar";
 import { TimelineScheduleView } from "../components/Timeline/TimelineScheduleView";
+import { TimelineWeekView } from "../components/Timeline/TimelineWeekView";
 
 interface Impact {
   id?: string;
@@ -41,6 +43,7 @@ interface Impact {
   energy?: string | number;
   isVirtualContinuation?: boolean;
   originalStartTime?: number;
+  photoIds?: string[];
   [key: string]: any;
 }
 
@@ -125,16 +128,44 @@ export default function TimelinePage() {
   const [daysToShow, setDaysToShow] = useState(3);
 
   // View mode state - default to schedule on mobile, day on desktop
-  const [viewMode, setViewMode] = useState<"day" | "schedule">(() => {
+  const [viewMode, setViewMode] = useState<"day" | "schedule" | "week">(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth < 768 ? "schedule" : "day";
     }
     return "day";
   });
 
+  // Active date for navigation highlighting
+  const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
+
+  // Scroll to a specific date
+  const scrollToDate = (dateKey: string) => {
+    const element = document.getElementById(`day-${dateKey}`);
+    if (element) {
+      // Get the offset position accounting for sticky header
+      const elementPosition = element.getBoundingClientRect().top;
+      const offsetPosition = elementPosition + window.pageYOffset - 120; // 120px for sticky nav + padding
+      
+      window.scrollTo({
+        top: offsetPosition,
+        behavior: 'smooth'
+      });
+      
+      setActiveDateKey(dateKey);
+    }
+  };
+
+
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
   const { updateMentionsForSource, deleteMentionsForSource } = useMentions();
+  const {
+    photos,
+    addPhoto,
+    deletePhoto,
+    deletePhotosForImpact,
+    getPhotosForImpact,
+  } = usePhotoAttachments();
   const {
     awData,
     isLoading: awIsLoading,
@@ -176,7 +207,13 @@ export default function TimelinePage() {
     }
   };
 
-  const addNewActivity = async (formData: { activity: string; date: string; time: string; goalId: string }) => {
+  const addNewActivity = async (formData: {
+    activity: string;
+    date: string;
+    time: string;
+    goalId: string;
+    pendingPhotos?: Array<{ id: string; file: File; thumbnail: string; width: number; height: number }>;
+  }) => {
     const dateTimeString = `${formData.date}T${formData.time}`;
     const timestamp = new Date(dateTimeString).getTime();
 
@@ -191,6 +228,20 @@ export default function TimelinePage() {
 
     if (formData.goalId) {
       newImpact.goalId = formData.goalId;
+    }
+
+    // Handle photo uploads
+    if (formData.pendingPhotos && formData.pendingPhotos.length > 0) {
+      const photoIds: string[] = [];
+      for (const pendingPhoto of formData.pendingPhotos) {
+        const photo = await addPhoto(impactId, pendingPhoto.file);
+        if (photo) {
+          photoIds.push(photo.id);
+        }
+      }
+      if (photoIds.length > 0) {
+        newImpact.photoIds = photoIds;
+      }
     }
 
     const updatedImpacts = [...impacts, newImpact];
@@ -240,7 +291,13 @@ export default function TimelinePage() {
     }
   };
 
-  const saveEditedActivity = async (formData: { activity: string; date: string; time: string; goalId: string }) => {
+  const saveEditedActivity = async (formData: {
+    activity: string;
+    date: string;
+    time: string;
+    goalId: string;
+    pendingPhotos?: Array<{ id: string; file: File; thumbnail: string; width: number; height: number }>;
+  }) => {
     const dateTimeString = `${formData.date}T${formData.time}`;
     const timestamp = new Date(dateTimeString).getTime();
 
@@ -250,12 +307,24 @@ export default function TimelinePage() {
     // Ensure the impact has an ID (for backwards compatibility with existing data)
     const impactId = existingImpact.id || `impact-${existingImpact.date}-${Math.random().toString(36).substr(2, 9)}`;
 
+    // Handle new photo uploads
+    let photoIds = existingImpact.photoIds || [];
+    if (formData.pendingPhotos && formData.pendingPhotos.length > 0) {
+      for (const pendingPhoto of formData.pendingPhotos) {
+        const photo = await addPhoto(impactId, pendingPhoto.file);
+        if (photo) {
+          photoIds.push(photo.id);
+        }
+      }
+    }
+
     updatedImpacts[editingIndex] = {
       ...existingImpact,
       id: impactId,
       activity: formData.activity,
       date: timestamp,
       goalId: formData.goalId || undefined,
+      photoIds: photoIds.length > 0 ? photoIds : undefined,
     };
 
     await saveImpacts(updatedImpacts);
@@ -271,6 +340,27 @@ export default function TimelinePage() {
     setEditFormData(null);
   };
 
+  // Handle photo deletion from edit form
+  const handleDeletePhotoFromImpact = async (photoId: string) => {
+    if (!editingImpact || editingIndex < 0) return;
+
+    // Delete the photo
+    await deletePhoto(photoId);
+
+    // Update the impact's photoIds
+    const updatedImpacts = [...impacts];
+    const existingImpact = updatedImpacts[editingIndex];
+    const updatedPhotoIds = (existingImpact.photoIds || []).filter(id => id !== photoId);
+
+    updatedImpacts[editingIndex] = {
+      ...existingImpact,
+      photoIds: updatedPhotoIds.length > 0 ? updatedPhotoIds : undefined,
+    };
+
+    await saveImpacts(updatedImpacts);
+    setEditingImpact(updatedImpacts[editingIndex]);
+  };
+
   const deleteActivity = async () => {
     const impactToDelete = impacts[editingIndex];
     const impactId = impactToDelete.id;
@@ -278,6 +368,8 @@ export default function TimelinePage() {
     // Delete mentions if the impact has an ID
     if (impactId) {
       await deleteMentionsForSource('impact', impactId);
+      // Delete associated photos
+      await deletePhotosForImpact(impactId);
     }
 
     const updatedImpacts = impacts.filter((_, index) => index !== editingIndex);
@@ -508,6 +600,58 @@ export default function TimelinePage() {
 
   const dates = allDates.slice(0, daysToShow);
   const hasMoreDays = allDates.length > daysToShow;
+
+  // Track which date is currently in view
+  useEffect(() => {
+    if (viewMode !== "day" || dates.length === 0) return;
+
+    // Set initial active date to the first (most recent) date
+    if (!activeDateKey && dates.length > 0) {
+      setActiveDateKey(dates[0]);
+    }
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        // Find the entry that's most visible in the upper portion of viewport
+        const visibleEntries = entries.filter(e => e.isIntersecting);
+        if (visibleEntries.length > 0) {
+          // Sort by intersection ratio, prefer entries higher in viewport
+          const sorted = visibleEntries.sort((a, b) => {
+            const aTop = a.boundingClientRect.top;
+            const bTop = b.boundingClientRect.top;
+            // Prefer entries closer to top of viewport
+            if (Math.abs(aTop - 100) < Math.abs(bTop - 100)) return -1;
+            if (Math.abs(aTop - 100) > Math.abs(bTop - 100)) return 1;
+            return b.intersectionRatio - a.intersectionRatio;
+          });
+          
+          const mostVisible = sorted[0];
+          const dateKey = mostVisible.target.id.replace('day-', '');
+          setActiveDateKey(dateKey);
+        }
+      },
+      {
+        rootMargin: '-100px 0px -60% 0px', // Consider date "active" when it's near the top of viewport
+        threshold: [0, 0.1, 0.5],
+      }
+    );
+
+    dates.forEach((dateKey) => {
+      const element = document.getElementById(`day-${dateKey}`);
+      if (element) {
+        observer.observe(element);
+      }
+    });
+
+    return () => {
+      dates.forEach((dateKey) => {
+        const element = document.getElementById(`day-${dateKey}`);
+        if (element) {
+          observer.unobserve(element);
+        }
+      });
+    };
+  }, [dates, viewMode, activeDateKey]);
 
   const AWEventDetailContent = ({ event, onCreateManualEntry, onClose }: { event: ProcessedAWEvent, onCreateManualEntry?: (event: ProcessedAWEvent) => void, onClose: () => void }) => {
     return (
@@ -793,10 +937,11 @@ export default function TimelinePage() {
           </div>
 
           {/* View Tabs */}
-          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "day" | "schedule")} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-2">
+          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "day" | "schedule" | "week")} className="w-full">
+            <TabsList className="grid w-full max-w-md grid-cols-3">
               <TabsTrigger value="day">Day View</TabsTrigger>
               <TabsTrigger value="schedule">Schedule View</TabsTrigger>
+              <TabsTrigger value="week">Week View</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -914,6 +1059,8 @@ export default function TimelinePage() {
                 submitLabel="Save Changes"
                 showDelete={true}
                 onDelete={() => setShowDeleteConfirm(true)}
+                existingPhotos={editingImpact?.id ? getPhotosForImpact(editingImpact.id) : []}
+                onDeletePhoto={handleDeletePhotoFromImpact}
               />
             )}
           </Modal.Body>
@@ -963,6 +1110,62 @@ export default function TimelinePage() {
             {/* Day View */}
             {viewMode === "day" && (
               <>
+                {/* Date Navigation Bar */}
+                {allDates.length > 0 && (
+                  <div className="mb-6 sticky top-0 z-30 bg-background/95 backdrop-blur-sm pb-4 border-b border-border">
+                    <div className="overflow-x-auto scrollbar-hide pb-2 -mb-2">
+                      <div className="flex gap-2 min-w-max px-1">
+                        {allDates.map((dateKey) => {
+                          const [year, month, day] = dateKey.split('-').map(Number);
+                          const dateTimestamp = new Date(year, month - 1, day).getTime();
+                          const isDateToday = isToday(dateTimestamp);
+                          const isActive = activeDateKey === dateKey;
+                          const isVisible = dates.includes(dateKey);
+
+                          return (
+                            <button
+                              key={dateKey}
+                              onClick={() => {
+                                // If date is not yet loaded, load more days first
+                                if (!isVisible) {
+                                  const dateIndex = allDates.indexOf(dateKey);
+                                  setDaysToShow(Math.max(daysToShow, dateIndex + 1));
+                                  // Wait for render then scroll
+                                  setTimeout(() => scrollToDate(dateKey), 100);
+                                } else {
+                                  scrollToDate(dateKey);
+                                }
+                              }}
+                              className={`
+                                px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition-all
+                                flex flex-col items-center gap-0.5 min-w-[70px]
+                                ${isActive
+                                  ? 'bg-primary text-primary-foreground shadow-md scale-105'
+                                  : isDateToday
+                                  ? 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
+                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                                }
+                                ${!isVisible ? 'opacity-60' : ''}
+                              `}
+                              title={formatDate(dateTimestamp)}
+                            >
+                              <span className={`text-xs ${isActive ? 'opacity-90' : 'opacity-70'}`}>
+                                {new Date(dateTimestamp).toLocaleDateString('en-US', { weekday: 'short' })}
+                              </span>
+                              <span className="font-semibold">
+                                {new Date(dateTimestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                              </span>
+                              {isDateToday && (
+                                <span className={`text-[10px] ${isActive ? 'opacity-90' : 'opacity-70'}`}>Today</span>
+                              )}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
           {dates.map((dateKey) => {
             const dayImpacts = groupedImpacts[dateKey] || [];
@@ -983,7 +1186,7 @@ export default function TimelinePage() {
             }
 
             return (
-              <div key={dateKey} className="space-y-4">
+              <div key={dateKey} id={`day-${dateKey}`} className="space-y-4 scroll-mt-32">
                 <div className="sticky top-0 bg-background z-20 pb-3 border-b border-border">
                   <h2 className="text-xl font-semibold text-foreground mb-3">
                     {displayDate}
@@ -1497,6 +1700,19 @@ export default function TimelinePage() {
                                         </span>
                                       )}
                                     </div>
+                                    {/* Photo thumbnails */}
+                                    {impact.id && getPhotosForImpact(impact.id).length > 0 && (
+                                      <div className="flex gap-2 mt-2 pl-[4.5rem] overflow-x-auto">
+                                        {getPhotosForImpact(impact.id).map((photo) => (
+                                          <img
+                                            key={photo.id}
+                                            src={photo.thumbnail}
+                                            alt="Activity photo"
+                                            className="w-12 h-12 object-cover rounded border border-border flex-shrink-0"
+                                          />
+                                        ))}
+                                      </div>
+                                    )}
                                   </div>
                                 </div>
                               );
@@ -1938,6 +2154,21 @@ export default function TimelinePage() {
                 </button>
               </div>
             )}
+
+            {/* Week View */}
+            {viewMode === "week" && (
+              <TimelineWeekView
+                impacts={impacts}
+                goals={goals}
+                onEditActivity={openEditModal}
+                onAddActivity={handleAddActivityForDate}
+                getActivityColor={getActivityColor}
+                formatDate={formatDate}
+                formatTime={formatTime}
+                isToday={isToday}
+                getDurationInMs={getDurationInMs}
+              />
+            )}
           </>
         )}
 
@@ -2030,6 +2261,8 @@ export default function TimelinePage() {
                   submitLabel="Save Changes"
                   showDelete={true}
                   onDelete={deleteActivity}
+                  existingPhotos={editingImpact?.id ? getPhotosForImpact(editingImpact.id) : []}
+                  onDeletePhoto={handleDeletePhotoFromImpact}
                 />
               )}
             </div>

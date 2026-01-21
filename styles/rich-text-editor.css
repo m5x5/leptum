@@ -1,0 +1,131 @@
+/* Rich Text Editor Styles - Matches app theme */
+
+.rich-text-editor .EasyMDEContainer {
+  border-radius: 0.5rem;
+}
+
+.rich-text-editor .EasyMDEContainer .CodeMirror {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  border: 1px solid hsl(var(--input));
+  border-radius: 0.5rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.25rem;
+}
+
+.rich-text-editor .EasyMDEContainer .CodeMirror-cursor {
+  border-left-color: hsl(var(--foreground));
+}
+
+.rich-text-editor .EasyMDEContainer .CodeMirror-selected {
+  background-color: hsl(var(--accent));
+}
+
+.rich-text-editor .editor-toolbar {
+  background-color: hsl(var(--background));
+  border: 1px solid hsl(var(--input));
+  border-bottom: none;
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+  opacity: 1;
+}
+
+.rich-text-editor .editor-toolbar button {
+  color: hsl(var(--foreground)) !important;
+  opacity: 0.7;
+}
+
+.rich-text-editor .editor-toolbar button:hover,
+.rich-text-editor .editor-toolbar button.active {
+  background-color: hsl(var(--accent));
+  border-color: hsl(var(--border));
+  opacity: 1;
+}
+
+.rich-text-editor .editor-toolbar i.separator {
+  border-left-color: hsl(var(--border));
+  border-right-color: hsl(var(--border));
+}
+
+.rich-text-editor .editor-toolbar.fullscreen {
+  background-color: hsl(var(--background));
+}
+
+.rich-text-editor .CodeMirror-fullscreen {
+  background-color: hsl(var(--background));
+  z-index: 9999;
+}
+
+.rich-text-editor .editor-preview {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.rich-text-editor .editor-preview-side {
+  background-color: hsl(var(--background));
+  border-left-color: hsl(var(--border));
+}
+
+/* Placeholder text */
+.rich-text-editor .CodeMirror-placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+/* Focus state */
+.rich-text-editor .CodeMirror-focused {
+  outline: none;
+  border-color: hsl(var(--ring));
+  box-shadow: 0 0 0 2px hsl(var(--ring) / 0.2);
+}
+
+/* Preview styles */
+.rich-text-editor .editor-preview h1,
+.rich-text-editor .editor-preview h2,
+.rich-text-editor .editor-preview h3,
+.rich-text-editor .editor-preview h4,
+.rich-text-editor .editor-preview h5,
+.rich-text-editor .editor-preview h6 {
+  color: hsl(var(--foreground));
+  font-weight: 600;
+  margin-top: 1em;
+  margin-bottom: 0.5em;
+}
+
+.rich-text-editor .editor-preview a {
+  color: hsl(var(--primary));
+  text-decoration: underline;
+}
+
+.rich-text-editor .editor-preview code {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  padding: 0.125rem 0.25rem;
+  border-radius: 0.25rem;
+  font-size: 0.875em;
+}
+
+.rich-text-editor .editor-preview pre {
+  background-color: hsl(var(--muted));
+  color: hsl(var(--foreground));
+  padding: 1rem;
+  border-radius: 0.5rem;
+  overflow-x: auto;
+}
+
+.rich-text-editor .editor-preview blockquote {
+  border-left: 3px solid hsl(var(--border));
+  padding-left: 1rem;
+  color: hsl(var(--muted-foreground));
+  font-style: italic;
+}
+
+.rich-text-editor .editor-preview ul,
+.rich-text-editor .editor-preview ol {
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.rich-text-editor .editor-preview li {
+  margin: 0.25rem 0;
+}

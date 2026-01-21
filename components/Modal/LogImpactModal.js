@@ -1,15 +1,13 @@
 import {useState} from "react";
 import Modal from ".";
-import {Slider} from "../ui/slider";
+import EmotionSelector, { Emotion } from "../ui/emotion-selector";
 import { remoteStorageClient } from "../../lib/remoteStorage";
 
 const LogImpactModal = ({onCreate, isOpen, name}) => {
-    let [motivation, setMotivation] = useState("");
-    let [stress, setStress] = useState("");
-    let [cleanliness, setCleanliness] = useState("");
-    let [fulfillment, setFulfillment] = useState(0);
+    const [selectedEmotions, setSelectedEmotions] = useState([]);
 
     function closeModal() {
+        setSelectedEmotions([]);
         onCreate();
     }
 
@@ -18,13 +16,10 @@ const LogImpactModal = ({onCreate, isOpen, name}) => {
             // Get current impacts from RemoteStorage
             const impacts = await remoteStorageClient.getImpacts();
             
-            // Add new impact
+            // Add new impact with emotions
             const newImpact = {
                 activity: name,
-                motivation,
-                stress,
-                cleanliness,
-                fulfillment,
+                emotions: selectedEmotions,
                 date: Date.now()
             };
             
@@ -37,66 +32,13 @@ const LogImpactModal = ({onCreate, isOpen, name}) => {
         }
     }
 
-    const onChange = (e, name) => {
-        name = name || e.target.name;
-        const value = typeof e ===  "number"? e : e.target.value;
-        if (name === "motivation") {
-            setMotivation(value);
-        } else if (name === "stress") {
-            setStress(value);
-        } else if (name === "cleanliness") {
-            setCleanliness(value);
-        } else if (name === "fulfillment") {
-            setFulfillment(value);
-        }
-    };
-
     return (
         <Modal isOpen={isOpen} closeModal={closeModal}>
             <Modal.Title>How was "{name}"?</Modal.Title>
-            <Modal.Body className="w-full flex">
-                <label>Motivation</label>
-                <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    name="motivation"
-                    value={motivation}
-                    onChange={onChange}
-                    className="block"
-                />
-                <label>Stress</label>
-                <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    name="stress"
-                    value={stress}
-                    onChange={onChange}
-                    className="block"
-                />
-                <label>Cleanliness</label>
-                <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    step="1"
-                    name="cleanliness"
-                    value={cleanliness}
-                    onChange={onChange}
-                    className="block"
-                />
-                <label>Fulfillment</label>
-                <Slider
-                    type="range"
-                    min={0}
-                    max={100}
-                    step={1}
-                    name="fulfillment"
-                    onValueChange={(values) => onChange(values[0], "fulfillment")}
-                    className="w-full"
+            <Modal.Body className="w-full">
+                <EmotionSelector
+                    selectedEmotions={selectedEmotions}
+                    onChange={setSelectedEmotions}
                 />
             </Modal.Body>
             <Modal.Footer>

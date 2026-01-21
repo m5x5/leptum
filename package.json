@@ -26,6 +26,7 @@
     "cronr": "^2.2.1",
     "cronstrue": "^1.117.0",
     "distinct-colors": "^3.0.0",
+    "easymde": "^2.20.0",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.5",
     "langchain": "^0.3.37",
@@ -40,9 +41,12 @@
     "react-dom": "^18.2.0",
     "react-markdown": "^8.0.7",
     "react-mentions": "^4.4.10",
+    "react-simplemde-editor": "^5.2.0",
     "recharts": "^2.0.0-beta.8",
+    "remark-gfm": "^4.0.1",
     "remotestorage-widget": "^1.7.0",
     "remotestoragejs": "^2.0.0-beta.7",
+    "simplemde": "^1.11.2",
     "swr": "^2.2.1",
     "tailwind-merge": "^1.14.0",
     "tailwindcss-animate": "^1.0.6",
@@ -52,6 +56,7 @@
     "worker-timers": "^7.0.37"
   },
   "devDependencies": {
+    "@playwright/test": "^1.57.0",
     "@types/node": "25.0.3",
     "@types/react": "^18.3.27",
     "@types/react-dom": "^18.3.7",

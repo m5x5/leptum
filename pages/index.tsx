@@ -13,6 +13,9 @@ import { useGoalTypes } from "../utils/useGoalTypes";
 import Modal from "../components/Modal";
 import { Input } from "../components/ui/input";
 import InsightsWidget from "../components/InsightsWidget";
+import VelocityTracker from "../components/VelocityTracker";
+import TaskCompletionModal from "../components/Modal/TaskCompletionModal";
+import { Emotion } from "../components/ui/emotion-selector";
 import {
   Sheet,
   SheetContent,
@@ -27,6 +30,8 @@ import {
   DrawerTitle,
 } from "../components/ui/drawer";
 import { HighlightedMentions } from "../components/ui/mention-input";
+import OnboardingModal from "../components/Modal/OnboardingModal";
+import { v4 as uuidv4 } from "uuid";
 
 // Format duration in human readable form
 function formatDurationStatic(ms: number) {
@@ -87,16 +92,48 @@ export default function Home() {
   const [showStartTaskModal, setShowStartTaskModal] = useState(false);
   const [showMobileStartTaskDrawer, setShowMobileStartTaskDrawer] = useState(false);
   const [taskToStart, setTaskToStart] = useState<string>("");
-  
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showCompletionModal, setShowCompletionModal] = useState(false);
+  const [showMobileCompletionDrawer, setShowMobileCompletionDrawer] = useState(false);
+  const [taskToComplete, setTaskToComplete] = useState<{ id: string; name: string } | null>(null);
+
   // Use refs for form inputs instead of state for better performance
   const taskNameRef = useRef<HTMLInputElement>(null);
   const taskDescriptionRef = useRef<HTMLInputElement>(null);
+  const taskTshirtSizeRef = useRef<HTMLSelectElement>(null);
+  const taskNumericEstimateRef = useRef<HTMLInputElement>(null);
   const selectedGoalRef = useRef<HTMLSelectElement>(null);
 
   // Load routines
   useEffect(() => {
     loadRoutines();
   }, []);
+
+  // Check if first-time user and show onboarding
+  useEffect(() => {
+    const checkFirstTimeUser = async () => {
+      // Skip if already completed onboarding
+      if (typeof window !== 'undefined') {
+        const hasCompletedOnboarding = localStorage.getItem('leptum_onboarding_completed');
+        if (hasCompletedOnboarding) return;
+
+        // Check if user has any data
+        const hasNoTasks = standaloneTasks.length === 0;
+        const hasNoGoals = !goals || goals.length === 0;
+        const hasNoRoutines = routines.length === 0;
+
+        // Show onboarding if no data exists
+        if (hasNoTasks && hasNoGoals && hasNoRoutines) {
+          setShowOnboarding(true);
+        }
+      }
+    };
+
+    // Only check after data has loaded
+    if (standaloneTasks !== undefined && goals !== undefined && routines.length >= 0) {
+      checkFirstTimeUser();
+    }
+  }, [standaloneTasks, goals, routines]);
 
   const loadRoutines = async () => {
     try {
@@ -155,6 +192,26 @@ export default function Home() {
     e?.preventDefault();
     const goalId = selectedGoalRef.current?.value;
     startTask(taskToStart, goalId || undefined);
+  };
+
+  // Handle task completion with emotion selection
+  const handleTaskComplete = (taskId: string) => {
+    const task = standaloneTasks.find(t => t.id === taskId);
+    if (task) {
+      setTaskToComplete({ id: taskId, name: task.name });
+      if (window.innerWidth < 768) {
+        setShowMobileCompletionDrawer(true);
+      } else {
+        setShowCompletionModal(true);
+      }
+    }
+  };
+
+  const handleCompleteWithEmotions = (emotions: Emotion[]) => {
+    if (taskToComplete) {
+      completeStandaloneTask(taskToComplete.id, emotions);
+      setTaskToComplete(null);
+    }
   };
 
   const StartTaskForm = ({ onCancel }: { onCancel: () => void }) => (
@@ -232,20 +289,111 @@ export default function Home() {
 
   const handleCreateTask = (e?: React.FormEvent) => {
     e?.preventDefault();
-    
+
     const name = taskNameRef.current?.value.trim();
     const description = taskDescriptionRef.current?.value.trim();
-    
+    const tshirtSize = taskTshirtSizeRef.current?.value;
+    const numericEstimateStr = taskNumericEstimateRef.current?.value.trim();
+
     if (!name) return;
 
-    addStandaloneTask(name, description || "");
-    
+    const options: { tshirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL', numericEstimate?: number } = {};
+
+    if (tshirtSize) {
+      options.tshirtSize = tshirtSize as 'XS' | 'S' | 'M' | 'L' | 'XL';
+    }
+
+    if (numericEstimateStr) {
+      const numericValue = parseFloat(numericEstimateStr);
+      if (!isNaN(numericValue)) {
+        options.numericEstimate = numericValue;
+      }
+    }
+
+    addStandaloneTask(name, description || "", Object.keys(options).length > 0 ? options : undefined);
+
     // Clear the input refs
     if (taskNameRef.current) taskNameRef.current.value = "";
     if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
-    
+    if (taskTshirtSizeRef.current) taskTshirtSizeRef.current.value = "";
+    if (taskNumericEstimateRef.current) taskNumericEstimateRef.current.value = "";
+    if (selectedGoalRef.current) selectedGoalRef.current.value = "";
+
     setShowTaskForm(false);
     setShowMobileTaskDrawer(false);
+  };
+
+  const handleOnboardingComplete = async (sampleData: {
+    goal: { name: string; color: string; description: string };
+    task: { name: string; description: string };
+    routine: { name: string; cron: string; tasks: string[] };
+    impact: { activity: string; date: number };
+  }) => {
+    try {
+      // 1. Create goal type first
+      const goalTypeId = uuidv4();
+      await remoteStorageClient.saveGoalType({
+        id: goalTypeId,
+        name: "Personal Growth",
+        description: "Goals related to self-improvement and learning"
+      });
+
+      // 2. Create sample goal
+      const goalId = uuidv4();
+      await remoteStorageClient.saveGoal({
+        id: goalId,
+        name: sampleData.goal.name,
+        type: goalTypeId,
+        color: sampleData.goal.color,
+        description: sampleData.goal.description,
+        createdAt: Date.now(),
+        status: 'active'
+      });
+
+      // 3. Create sample task
+      await addStandaloneTask(sampleData.task.name, sampleData.task.description);
+
+      // 4. Create sample routine
+      const routineId = `routine-${Date.now()}`;
+      await remoteStorageClient.saveRoutine({
+        id: routineId,
+        name: sampleData.routine.name,
+        cron: sampleData.routine.cron,
+        status: "pending",
+        index: 0,
+        tasks: sampleData.routine.tasks.map((taskName, index) => ({
+          id: `task-${Date.now()}-${index}`,
+          name: taskName,
+          routineId,
+          index,
+          status: "pending"
+        }))
+      });
+
+      // 5. Create sample timeline entry
+      const impacts = await remoteStorageClient.getImpacts();
+      impacts.push({
+        activity: sampleData.impact.activity,
+        date: sampleData.impact.date,
+        goalId
+      });
+      await remoteStorageClient.saveImpacts(impacts);
+
+      // Mark onboarding as completed
+      localStorage.setItem('leptum_onboarding_completed', 'true');
+      setShowOnboarding(false);
+
+      // Reload data
+      await loadRoutines();
+      await reloadTasks();
+    } catch (error) {
+      console.error("Failed to complete onboarding:", error);
+    }
+  };
+
+  const handleOnboardingSkip = () => {
+    localStorage.setItem('leptum_onboarding_completed', 'true');
+    setShowOnboarding(false);
   };
 
   const TaskForm = () => (
@@ -275,6 +423,39 @@ export default function Home() {
           placeholder="Enter description..."
         />
       </div>
+      <div className="grid grid-cols-2 gap-2 pb-2">
+        <div>
+          <label htmlFor="task-tshirt-size" className="block text-sm font-medium text-foreground mb-2">
+            T-shirt Size <span className="text-muted-foreground font-normal">(optional)</span>
+          </label>
+          <select
+            ref={taskTshirtSizeRef}
+            id="task-tshirt-size"
+            className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+          >
+            <option value="">None</option>
+            <option value="XS">XS (Extra Small)</option>
+            <option value="S">S (Small)</option>
+            <option value="M">M (Medium)</option>
+            <option value="L">L (Large)</option>
+            <option value="XL">XL (Extra Large)</option>
+          </select>
+        </div>
+        <div>
+          <label htmlFor="task-numeric-estimate" className="block text-sm font-medium text-foreground mb-2">
+            Numeric Points <span className="text-muted-foreground font-normal">(optional)</span>
+          </label>
+          <Input
+            ref={taskNumericEstimateRef}
+            id="task-numeric-estimate"
+            type="number"
+            onKeyDown={handleKeyDown}
+            placeholder="e.g., 2.5"
+            min="0"
+            step="0.1"
+          />
+        </div>
+      </div>
       <button
         type="submit"
         className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold mt-4"
@@ -291,6 +472,8 @@ export default function Home() {
       // Clear the refs
       if (taskNameRef.current) taskNameRef.current.value = "";
       if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
+      if (taskTshirtSizeRef.current) taskTshirtSizeRef.current.value = "";
+      if (taskNumericEstimateRef.current) taskNumericEstimateRef.current.value = "";
     }
     // Enter key is now handled by form submit
   };
@@ -486,7 +669,7 @@ export default function Home() {
                             <StandaloneTaskItem
                               key={task.id}
                               task={task}
-                              onComplete={completeStandaloneTask}
+                              onComplete={handleTaskComplete}
                               onUncomplete={uncompleteStandaloneTask}
                               onDelete={deleteStandaloneTask}
                               onUpdate={updateStandaloneTask}
@@ -547,7 +730,7 @@ export default function Home() {
                               <StandaloneTaskItem
                                 key={task.id}
                                 task={task}
-                                onComplete={completeStandaloneTask}
+                                onComplete={handleTaskComplete}
                                 onUncomplete={uncompleteStandaloneTask}
                                 onDelete={deleteStandaloneTask}
                                 onUpdate={updateStandaloneTask}
@@ -725,6 +908,11 @@ export default function Home() {
             <div className="hidden md:block pt-6">
               <InsightsWidget />
             </div>
+
+            {/* Velocity Tracker */}
+            <div className="hidden md:block pt-6">
+              <VelocityTracker />
+            </div>
           </div>
         </div>
       </div>
@@ -775,7 +963,7 @@ export default function Home() {
                           <StandaloneTaskItem
                             key={task.id}
                             task={task}
-                            onComplete={completeStandaloneTask}
+                            onComplete={handleTaskComplete}
                             onUncomplete={uncompleteStandaloneTask}
                             onDelete={deleteStandaloneTask}
                             onUpdate={updateStandaloneTask}
@@ -797,6 +985,32 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
+      {/* Task Completion Modal */}
+      {taskToComplete && (
+        <>
+          <TaskCompletionModal
+            isOpen={showCompletionModal}
+            onClose={() => {
+              setShowCompletionModal(false);
+              setTaskToComplete(null);
+            }}
+            taskName={taskToComplete.name}
+            onComplete={handleCompleteWithEmotions}
+            isMobile={false}
+          />
+          <TaskCompletionModal
+            isOpen={showMobileCompletionDrawer}
+            onClose={() => {
+              setShowMobileCompletionDrawer(false);
+              setTaskToComplete(null);
+            }}
+            taskName={taskToComplete.name}
+            onComplete={handleCompleteWithEmotions}
+            isMobile={true}
+          />
+        </>
+      )}
+
       <Drawer open={showMobileTaskDrawer} onOpenChange={setShowMobileTaskDrawer}>
         <DrawerContent>
           <DrawerHeader className="text-left relative">
@@ -810,6 +1024,13 @@ export default function Home() {
           </div>
         </DrawerContent>
       </Drawer>
+
+      {/* Onboarding Modal for first-time users */}
+      <OnboardingModal
+        isOpen={showOnboarding}
+        onComplete={handleOnboardingComplete}
+        onSkip={handleOnboardingSkip}
+      />
     </>
   );
 }

@@ -32,6 +32,7 @@ import { Input } from "../components/ui/input";
 import { Textarea } from "../components/ui/textarea";
 import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../components/ui/mention-input";
 import { useMentions } from "../utils/useMentions";
+import EmotionSelector, { Emotion } from "../components/ui/emotion-selector";
 
 // Configuration for impact metrics
 const METRIC_CONFIG = {
@@ -75,8 +76,9 @@ export default function ImpactPage() {
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [tempLogData, setTempLogData] = useState({});
   const [touchedFields, setTouchedFields] = useState(new Set());
-  const [dateFilter, setDateFilter] = useState("day"); // "day", "week", "month", "year", "all"
+  const [dateFilter, setDateFilter] = useState("day"); // "day", "week", "month", "year", "all", or specific date string "YYYY-MM-DD"
   const [activeTab, setActiveTab] = useState("impact"); // "impact" or "insights"
+  const [activeDateKey, setActiveDateKey] = useState(null); // For date navigation highlighting
   const activities = state.impacts.map((impact) => impact.activity);
 
   const { goals } = useGoals();
@@ -264,9 +266,19 @@ export default function ImpactPage() {
     const savedData = {};
     touchedFields.forEach(field => {
       if (tempLogData[field] !== undefined) {
-        savedData[field] = tempLogData[field];
+        // For emotions array, include even if empty
+        if (field === 'emotions') {
+          savedData[field] = tempLogData[field] || [];
+        } else {
+          savedData[field] = tempLogData[field];
+        }
       }
     });
+    
+    // Always include emotions if they exist (even if not in touchedFields)
+    if (tempLogData.emotions && tempLogData.emotions.length > 0) {
+      savedData.emotions = tempLogData.emotions;
+    }
 
     // Generate unique ID for the impact
     const impactId = `impact-${timestamp}-${Math.random().toString(36).substr(2, 9)}`;
@@ -308,7 +320,7 @@ export default function ImpactPage() {
       ...tempLogData,
       [field]: value
     });
-    // Mark this field as touched
+    // Mark this field as touched (for emotions array, always mark as touched)
     setTouchedFields(prev => new Set([...prev, field]));
   };
 
@@ -380,10 +392,36 @@ export default function ImpactPage() {
     }
   };
 
+  const formatDateKey = (timestamp) => {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const isToday = (timestamp) => {
+    const date = new Date(timestamp);
+    const today = new Date();
+    return (
+      date.getDate() === today.getDate() &&
+      date.getMonth() === today.getMonth() &&
+      date.getFullYear() === today.getFullYear()
+    );
+  };
+
   const getFilteredImpacts = () => {
     const now = Date.now();
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
+
+    // Check if dateFilter is a specific date (YYYY-MM-DD format)
+    if (dateFilter.match(/^\d{4}-\d{2}-\d{2}$/)) {
+      const [year, month, day] = dateFilter.split('-').map(Number);
+      const dayStart = new Date(year, month - 1, day).getTime();
+      const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+      return state.impacts.filter(impact => impact.date >= dayStart && impact.date <= dayEnd);
+    }
 
     switch (dateFilter) {
       case "day":
@@ -407,6 +445,9 @@ export default function ImpactPage() {
   };
 
   const filteredImpacts = getFilteredImpacts();
+
+  // Get all unique dates that have impacts
+  const allDates = [...new Set(state.impacts.map(impact => formatDateKey(impact.date)))].sort().reverse();
 
   // Insights management functions
   const openAddInsightModal = () => {
@@ -579,91 +620,11 @@ export default function ImpactPage() {
         />
       </div>
 
-      {/* Emotion Sliders */}
-      {selectedLines
-        .filter((impact) => impact !== "activity")
-        .map((impact) => {
-          const metricConfig = METRIC_CONFIG[impact] || { min: 0, max: 100, allowsNegative: false };
-          const defaultValue = metricConfig.allowsNegative ? 0 : 50;
-          const placeholderValue = tempLogData[impact] !== undefined ? tempLogData[impact] : defaultValue;
-          const displayValue = touchedFields.has(impact) ? tempLogData[impact] : placeholderValue;
-
-          // Calculate gradient - red to green (or inverted for negative metrics)
-          const getSliderStyle = () => {
-            if (!metricConfig.showGradient) {
-              return {};
-            }
-            // Inverted gradient for metrics where lower is better (stress, shame, guilt)
-            if (metricConfig.inverted) {
-              return {
-                background: `linear-gradient(to right, #22c55e 0%, #fbbf24 50%, #ef4444 100%)`,
-                backgroundSize: '100% 100%',
-              };
-            }
-            // Normal gradient for metrics where higher is better
-            return {
-              background: `linear-gradient(to right, #ef4444 0%, #fbbf24 50%, #22c55e 100%)`,
-              backgroundSize: '100% 100%',
-            };
-          };
-
-          return (
-            <div key={impact}>
-              <label className="block text-sm font-medium text-foreground mb-2 capitalize">
-                {impact}
-                {metricConfig.allowsNegative && (
-                  <span className="ml-2 text-xs text-muted-foreground">
-                    (negative to positive)
-                  </span>
-                )}
-              </label>
-              <div className="flex items-center gap-3">
-                {metricConfig.allowsNegative ? (
-                  <div className="flex-grow flex items-center gap-2">
-                    <span className="text-xs text-foreground/70 font-medium">-100</span>
-                    <div className="flex-grow relative">
-                      <input
-                        type="range"
-                        min={metricConfig.min}
-                        max={metricConfig.max}
-                        step="10"
-                        value={displayValue}
-                        onChange={(e) => updateTempLogData(impact, e.target.value)}
-                        onMouseUp={handleSliderRelease}
-                        onTouchEnd={handleSliderRelease}
-                        className="w-full h-2 appearance-none cursor-pointer rounded-lg"
-                        style={getSliderStyle()}
-                      />
-                    </div>
-                    <span className="text-xs text-foreground/70 font-medium">+100</span>
-                  </div>
-                ) : (
-                  <div className="flex-grow flex items-center gap-2">
-                    <span className="text-xs text-foreground/70 font-medium">0</span>
-                    <div className="flex-grow relative">
-                      <input
-                        type="range"
-                        min={metricConfig.min}
-                        max={metricConfig.max}
-                        step="10"
-                        value={displayValue}
-                        onChange={(e) => updateTempLogData(impact, e.target.value)}
-                        onMouseUp={handleSliderRelease}
-                        onTouchEnd={handleSliderRelease}
-                        className="w-full h-2 appearance-none cursor-pointer rounded-lg"
-                        style={getSliderStyle()}
-                      />
-                    </div>
-                    <span className="text-xs text-foreground/70 font-medium">100</span>
-                  </div>
-                )}
-                <div className="w-20 p-2 bg-muted text-foreground text-center rounded border border-border select-none">
-                  {touchedFields.has(impact) ? tempLogData[impact] : placeholderValue}
-                </div>
-              </div>
-            </div>
-          );
-        })}
+      {/* Emotion Selector */}
+      <EmotionSelector
+        selectedEmotions={tempLogData.emotions || []}
+        onChange={(emotions) => updateTempLogData("emotions", emotions)}
+      />
       
       <div className="flex gap-2 justify-end pt-4">
         <button
@@ -871,6 +832,59 @@ export default function ImpactPage() {
       {/* Impact Tracking Tab Content */}
       {activeTab === 'impact' && (
         <>
+      {/* Date Navigation Bar */}
+      {allDates.length > 0 && (
+        <div className="mb-6 sticky top-0 z-30 bg-background/95 backdrop-blur-sm pb-4 border-b border-border">
+          <div className="overflow-x-auto scrollbar-hide pb-2 -mb-2">
+            <div className="flex gap-2 min-w-max px-1">
+              {allDates.map((dateKey) => {
+                const [year, month, day] = dateKey.split('-').map(Number);
+                const dateTimestamp = new Date(year, month - 1, day).getTime();
+                const isDateToday = isToday(dateTimestamp);
+                const isActive = dateFilter === dateKey || (dateFilter === "day" && isDateToday);
+                const dateImpacts = state.impacts.filter(impact => formatDateKey(impact.date) === dateKey);
+
+                return (
+                  <button
+                    key={dateKey}
+                    onClick={() => {
+                      setDateFilter(dateKey);
+                      setActiveDateKey(dateKey);
+                    }}
+                    className={`
+                      px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition-all
+                      flex flex-col items-center gap-0.5 min-w-[70px]
+                      ${isActive
+                        ? 'bg-primary text-primary-foreground shadow-md scale-105'
+                        : isDateToday
+                        ? 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
+                        : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                      }
+                    `}
+                    title={`${dateImpacts.length} ${dateImpacts.length === 1 ? 'entry' : 'entries'}`}
+                  >
+                    <span className={`text-xs ${isActive ? 'opacity-90' : 'opacity-70'}`}>
+                      {new Date(dateTimestamp).toLocaleDateString('en-US', { weekday: 'short' })}
+                    </span>
+                    <span className="font-semibold">
+                      {new Date(dateTimestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                    </span>
+                    {isDateToday && (
+                      <span className={`text-[10px] ${isActive ? 'opacity-90' : 'opacity-70'}`}>Today</span>
+                    )}
+                    {dateImpacts.length > 0 && (
+                      <span className={`text-[10px] ${isActive ? 'opacity-90' : 'opacity-70'}`}>
+                        {dateImpacts.length}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Timespan and Category Selectors */}
       <div className="flex gap-2 mb-4">
         {/* Timespan Dropdown */}
@@ -880,11 +894,13 @@ export default function ImpactPage() {
             className="px-4 py-2 bg-card border border-border text-foreground rounded-lg hover:bg-muted transition-colors flex items-center gap-2"
           >
             <span>
-              {dateFilter === "day" ? "Today" :
-               dateFilter === "week" ? "Week" :
-               dateFilter === "month" ? "Month" :
-               dateFilter === "year" ? "Year" :
-               "All Time"}
+              {dateFilter.match(/^\d{4}-\d{2}-\d{2}$/) 
+                ? new Date(dateFilter + 'T00:00:00').toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+                : dateFilter === "day" ? "Today" :
+                 dateFilter === "week" ? "Week" :
+                 dateFilter === "month" ? "Month" :
+                 dateFilter === "year" ? "Year" :
+                 "All Time"}
             </span>
             <svg
               className={`w-4 h-4 transition-transform ${showTimespanSelect ? 'rotate-180' : ''}`}
@@ -957,13 +973,237 @@ export default function ImpactPage() {
         </DropdownMenu>
       </div>
 
-      <SummaryChart
-        impacts={filteredImpacts}
-        activities={state.activities}
-        selectedLines={selectedLines}
-        dateFilter={dateFilter}
-        currentActivityTimestamp={state.impacts[activityIndex]?.date}
-      />
+      {/* Summary Chart - Only show when there's data */}
+      {filteredImpacts.length > 0 && (
+        <SummaryChart
+          impacts={filteredImpacts}
+          activities={state.activities}
+          selectedLines={selectedLines}
+          dateFilter={dateFilter}
+          currentActivityTimestamp={state.impacts[activityIndex]?.date}
+        />
+      )}
+
+      {/* Empty State with Recent Entries */}
+      {filteredImpacts.length === 0 && (
+        <div className="mt-8 space-y-6">
+          {/* Main Empty State */}
+          <div className="bg-card border border-border rounded-lg p-8 md:p-12 text-center">
+            <div className="max-w-md mx-auto space-y-4">
+              <div className="w-16 h-16 mx-auto bg-primary/10 rounded-full flex items-center justify-center">
+                <svg className="w-8 h-8 text-primary" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <h2 className="text-xl md:text-2xl font-semibold text-foreground">
+                {dateFilter.match(/^\d{4}-\d{2}-\d{2}$/)
+                  ? `No entries on ${new Date(dateFilter + 'T00:00:00').toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })}`
+                  : dateFilter === 'day' ? "No entries today yet" : 
+                   dateFilter === 'week' ? "No entries this week" :
+                   dateFilter === 'month' ? "No entries this month" :
+                   dateFilter === 'year' ? "No entries this year" :
+                   "No entries found"}
+              </h2>
+              <p className="text-muted-foreground">
+                {dateFilter === 'day' || dateFilter.match(/^\d{4}-\d{2}-\d{2}$/)
+                  ? "Start tracking your wellbeing by logging how you're feeling and what you're doing."
+                  : "Try adjusting the time filter or add your first wellbeing entry."}
+              </p>
+              <button
+                onClick={openQuickLogModal}
+                className="mt-4 px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition font-medium inline-flex items-center gap-2"
+              >
+                <PlusIcon className="w-5 h-5" />
+                <span>{state.impacts.length === 0 ? "Add Your First Log" : "Add New Log"}</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Recent Entries from Previous Days */}
+          {(() => {
+            // Get entries from previous days (excluding current filter period)
+            const now = Date.now();
+            const todayStart = new Date();
+            todayStart.setHours(0, 0, 0, 0);
+            
+            let recentImpacts = [];
+            
+            if (dateFilter === 'day') {
+              // Show last 5 days excluding today
+              recentImpacts = state.impacts
+                .filter(impact => impact.date < todayStart.getTime())
+                .sort((a, b) => b.date - a.date)
+                .slice(0, 5);
+            } else if (dateFilter === 'week') {
+              // Show entries from before this week
+              const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+              weekAgo.setHours(0, 0, 0, 0);
+              recentImpacts = state.impacts
+                .filter(impact => impact.date < weekAgo.getTime())
+                .sort((a, b) => b.date - a.date)
+                .slice(0, 5);
+            } else if (dateFilter === 'month') {
+              // Show entries from before this month
+              const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+              monthAgo.setHours(0, 0, 0, 0);
+              recentImpacts = state.impacts
+                .filter(impact => impact.date < monthAgo.getTime())
+                .sort((a, b) => b.date - a.date)
+                .slice(0, 5);
+            }
+
+            if (recentImpacts.length === 0) {
+              return null;
+            }
+
+            // Group by day
+            const groupedByDay = {};
+            recentImpacts.forEach(impact => {
+              const date = new Date(impact.date);
+              const dateKey = date.toLocaleDateString('en-US', { 
+                weekday: 'short', 
+                month: 'short', 
+                day: 'numeric' 
+              });
+              if (!groupedByDay[dateKey]) {
+                groupedByDay[dateKey] = [];
+              }
+              groupedByDay[dateKey].push(impact);
+            });
+
+            return (
+              <div className="bg-card border border-border rounded-lg p-6">
+                <h3 className="text-lg font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <svg className="w-5 h-5 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  Recent Entries
+                </h3>
+                <div className="space-y-4">
+                  {Object.entries(groupedByDay).map(([dateKey, impacts]) => (
+                    <div key={dateKey} className="border-b border-border last:border-0 pb-4 last:pb-0">
+                      <h4 className="text-sm font-medium text-muted-foreground mb-2">{dateKey}</h4>
+                      <div className="space-y-2">
+                        {impacts.map((impact, idx) => {
+                          const time = new Date(impact.date).toLocaleTimeString('en-US', {
+                            hour: 'numeric',
+                            minute: '2-digit',
+                            hour12: true
+                          });
+                          
+                          // Get metric values to show
+                          const metrics = selectedLines
+                            .filter(line => line !== 'activity' && impact[line] !== undefined && impact[line] !== '')
+                            .slice(0, 3)
+                            .map(metric => {
+                              const value = parseInt(impact[metric]);
+                              const config = METRIC_CONFIG[metric];
+                              const isGood = config?.inverted 
+                                ? value < 50 
+                                : (config?.allowsNegative ? value > 0 : value > 50);
+                              return { metric, value, isGood };
+                            });
+
+                          return (
+                            <div 
+                              key={idx}
+                              className="flex items-start justify-between p-3 bg-muted/30 rounded-lg hover:bg-muted/50 transition cursor-pointer"
+                              onClick={() => {
+                                const originalIndex = state.impacts.findIndex(imp => imp === impact);
+                                if (originalIndex !== -1) {
+                                  onChangeActivity(originalIndex);
+                                  // Switch to "all" filter to see this entry
+                                  if (dateFilter !== 'all') {
+                                    setDateFilter('all');
+                                  }
+                                }
+                              }}
+                            >
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="text-xs text-muted-foreground font-mono">{time}</span>
+                                  <span className="text-sm font-medium text-foreground truncate">
+                                    {impact.activity || 'Untitled entry'}
+                                  </span>
+                                </div>
+                                {metrics.length > 0 && (
+                                  <div className="flex flex-wrap gap-1.5 mt-2">
+                                    {metrics.map(({ metric, value, isGood }) => (
+                                      <span
+                                        key={metric}
+                                        className={`text-xs px-2 py-0.5 rounded-full font-medium capitalize ${
+                                          isGood
+                                            ? 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300'
+                                            : 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300'
+                                        }`}
+                                      >
+                                        {metric}: {value}
+                                      </span>
+                                    ))}
+                                  </div>
+                                )}
+                                {impact.notes && (
+                                  <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
+                                    {impact.notes}
+                                  </p>
+                                )}
+                              </div>
+                              <svg className="w-4 h-4 text-muted-foreground ml-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                              </svg>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {state.impacts.length > recentImpacts.length && (
+                  <button
+                    onClick={() => setDateFilter('all')}
+                    className="mt-4 w-full text-sm text-primary hover:underline"
+                  >
+                    View all {state.impacts.length} entries →
+                  </button>
+                )}
+              </div>
+            );
+          })()}
+
+          {/* Statistics Summary */}
+          {state.impacts.length > 0 && (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="text-2xl font-bold text-foreground">{state.impacts.length}</div>
+                <div className="text-sm text-muted-foreground mt-1">Total entries</div>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="text-2xl font-bold text-foreground">
+                  {(() => {
+                    const uniqueActivities = new Set(state.impacts.map(i => i.activity)).size;
+                    return uniqueActivities;
+                  })()}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">Unique activities</div>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-4">
+                <div className="text-2xl font-bold text-foreground">
+                  {(() => {
+                    const daysWithEntries = new Set(
+                      state.impacts.map(i => {
+                        const d = new Date(i.date);
+                        return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+                      })
+                    ).size;
+                    return daysWithEntries;
+                  })()}
+                </div>
+                <div className="text-sm text-muted-foreground mt-1">Days tracked</div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Activity Selector and Edit Panel */}
       {filteredImpacts.length > 0 && (
@@ -1028,91 +1268,19 @@ export default function ImpactPage() {
                 />
               </div>
 
-              {/* Emotion Sliders */}
+              {/* Emotion Selector */}
               <div className="space-y-4">
-                <h3 className="text-sm font-medium text-foreground">Emotion Metrics</h3>
-                {selectedLines
-                  .filter((impact) => impact !== "activity")
-                  .map((impact) => {
-                    const metricConfig = METRIC_CONFIG[impact] || { min: 0, max: 100, allowsNegative: false, showGradient: false, inverted: false };
-                    const currentValue = state.impacts[activityIndex]?.[impact] || 0;
-
-                    // Calculate gradient - red to green (or inverted for negative metrics)
-                    const getSliderStyle = () => {
-                      if (!metricConfig.showGradient) {
-                        return {};
-                      }
-                      // Inverted gradient for metrics where lower is better (stress, shame, guilt)
-                      if (metricConfig.inverted) {
-                        return {
-                          background: `linear-gradient(to right, #22c55e 0%, #fbbf24 50%, #ef4444 100%)`,
-                          backgroundSize: '100% 100%',
-                        };
-                      }
-                      // Normal gradient for metrics where higher is better
-                      return {
-                        background: `linear-gradient(to right, #ef4444 0%, #fbbf24 50%, #22c55e 100%)`,
-                        backgroundSize: '100% 100%',
-                      };
-                    };
-
-                    return (
-                      <div key={impact}>
-                        <label className="block text-sm font-medium text-foreground mb-2 capitalize">
-                          {impact}
-                          {metricConfig.allowsNegative && (
-                            <span className="ml-2 text-xs text-muted-foreground">
-                              (negative to positive)
-                            </span>
-                          )}
-                        </label>
-                        <div className="flex items-center gap-3">
-                          {metricConfig.allowsNegative ? (
-                            <div className="flex-grow flex items-center gap-2">
-                              <span className="text-xs text-foreground/70 font-medium">-100</span>
-                              <div className="flex-grow relative">
-                                <input
-                                  type="range"
-                                  min={metricConfig.min}
-                                  max={metricConfig.max}
-                                  step="10"
-                                  value={currentValue}
-                                  onChange={onChange(impact)}
-                                  onMouseUp={handleSliderRelease}
-                                  onTouchEnd={handleSliderRelease}
-                                  className="w-full h-2 appearance-none cursor-pointer rounded-lg"
-                                  style={getSliderStyle()}
-                                />
-                              </div>
-                              <span className="text-xs text-foreground/70 font-medium">+100</span>
-                            </div>
-                          ) : (
-                            <div className="flex-grow flex items-center gap-2">
-                              <span className="text-xs text-foreground/70 font-medium">0</span>
-                              <div className="flex-grow relative">
-                                <input
-                                  type="range"
-                                  min={metricConfig.min}
-                                  max={metricConfig.max}
-                                  step="10"
-                                  value={currentValue}
-                                  onChange={onChange(impact)}
-                                  onMouseUp={handleSliderRelease}
-                                  onTouchEnd={handleSliderRelease}
-                                  className="w-full h-2 appearance-none cursor-pointer rounded-lg"
-                                  style={getSliderStyle()}
-                                />
-                              </div>
-                              <span className="text-xs text-foreground/70 font-medium">100</span>
-                            </div>
-                          )}
-                          <div className="w-20 p-2 bg-muted text-foreground text-center rounded border border-border select-none">
-                            {state.impacts[activityIndex]?.[impact] || 0}
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
+                <h3 className="text-sm font-medium text-foreground">How did this make you feel?</h3>
+                <EmotionSelector
+                  selectedEmotions={state.impacts[activityIndex]?.emotions || []}
+                  onChange={(emotions) => {
+                    const newState = { ...state };
+                    if (newState.impacts[activityIndex]) {
+                      newState.impacts[activityIndex].emotions = emotions;
+                      setState(newState);
+                    }
+                  }}
+                />
               </div>
             </div>
           )}

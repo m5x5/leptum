@@ -1,8 +1,11 @@
 import { PlusIcon } from "@heroicons/react/solid";
 import { useState } from "react";
-import { useGoals } from "../../utils/useGoals";
-import EditableListItem from "../EditableList/Item";
+import { useGoals, Goal, GoalMilestone } from "../../utils/useGoals";
+import GoalItem from "./GoalItem";
 import AddGoalModal from "../Modal/AddGoalModal";
+import GoalTemplateGallery from "./GoalTemplateGallery";
+import { GoalTemplate } from "../../utils/goalTemplates";
+import Modal from "../Modal";
 
 interface IProps {
   name: string;
@@ -10,29 +13,72 @@ interface IProps {
   children?: JSX.Element[] | JSX.Element;
   remove: (name: string) => void;
   id: string;
-  items: any[];
+  items: Goal[];
 }
 
 export default function GoalList({ name = "", children, id, items }: IProps) {
-  const { deleteGoal, addGoal, updateGoal } = useGoals();
+  const {
+    deleteGoal,
+    addGoal,
+    updateGoal,
+    completeGoal,
+    addMilestone,
+    updateMilestone,
+    deleteMilestone,
+    completeMilestone
+  } = useGoals();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
-  const [editingGoal, setEditingGoal] = useState<{ id: string; name: string; color?: string } | null>(null);
+  const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
+  const [selectedTemplate, setSelectedTemplate] = useState<GoalTemplate | null>(null);
 
-  const handleAddGoal = (goalName: string, color: string): void => {
-    addGoal(goalName, id, color);
+  const handleAddGoal = (goalName: string, color: string, options?: { description?: string; targetDate?: number; milestones?: Omit<GoalMilestone, 'id'>[] }): void => {
+    addGoal(goalName, id, color, options);
   };
 
-  const handleEditGoal = (goalId: string, goal: any): void => {
-    setEditingGoal({ id: goalId, name: goal.name, color: goal.color });
+  const handleSelectTemplate = (template: GoalTemplate | null) => {
+    setShowTemplateGallery(false);
+    if (template === null) {
+      // User chose "Create Custom Goal"
+      setSelectedTemplate(null);
+      setShowAddModal(true);
+    } else {
+      // User selected a template
+      setSelectedTemplate(template);
+      setShowAddModal(true);
+    }
+  };
+
+  const handleEditGoal = (goalId: string, goal: Goal): void => {
+    setEditingGoal(goal);
     setShowEditModal(true);
   };
 
-  const handleSaveEdit = (goalName: string, color: string): void => {
+  const handleSaveEdit = (goalName: string, color: string, options?: { description?: string; targetDate?: number }): void => {
     if (editingGoal) {
-      updateGoal(goalName, editingGoal.id, color);
+      updateGoal(goalName, editingGoal.id, color, {
+        description: options?.description,
+        targetDate: options?.targetDate ?? null
+      });
       setEditingGoal(null);
     }
+  };
+
+  const handleAddMilestone = async (goalId: string, milestone: Omit<GoalMilestone, 'id' | 'order'>) => {
+    await addMilestone(goalId, milestone);
+  };
+
+  const handleUpdateMilestone = async (goalId: string, milestoneId: string, updates: Partial<GoalMilestone>) => {
+    await updateMilestone(goalId, milestoneId, updates);
+  };
+
+  const handleDeleteMilestone = async (goalId: string, milestoneId: string) => {
+    await deleteMilestone(goalId, milestoneId);
+  };
+
+  const handleCompleteMilestone = async (goalId: string, milestoneId: string) => {
+    await completeMilestone(goalId, milestoneId);
   };
 
   // Use the filtered items passed via props instead of all goals
@@ -49,24 +95,45 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
           </div>
         </div>
         <div className="flex flex-col gap-2">
-          {goalsForThisType.map((item) => (
-            <EditableListItem
-              id={item.id}
-              item={item}
+          {goalsForThisType.map((goal) => (
+            <GoalItem
+              key={goal.id}
+              goal={goal}
               onDelete={deleteGoal}
-              onEdit={handleEditGoal as any}
-              key={item.id}
+              onEdit={handleEditGoal}
+              onComplete={completeGoal}
+              onAddMilestone={handleAddMilestone}
+              onUpdateMilestone={handleUpdateMilestone}
+              onDeleteMilestone={handleDeleteMilestone}
+              onCompleteMilestone={handleCompleteMilestone}
             />
           ))}
-          {goalsForThisType.length === 0 && <p className="text-muted-foreground">No items.</p>}
+          {goalsForThisType.length === 0 && (
+            <div className="text-center py-4">
+              <p className="text-muted-foreground mb-3">No goals yet in this category.</p>
+              <button
+                onClick={() => setShowTemplateGallery(true)}
+                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-medium text-sm"
+              >
+                Browse Goal Templates
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
       <AddGoalModal
         isOpen={showAddModal}
-        onHide={() => setShowAddModal(false)}
+        onHide={() => {
+          setShowAddModal(false);
+          setSelectedTemplate(null);
+        }}
         onAdd={handleAddGoal}
         categoryName={name}
+        initialName={selectedTemplate?.name}
+        initialColor={selectedTemplate?.color}
+        initialDescription={selectedTemplate?.description}
+        initialMilestones={selectedTemplate?.milestones}
       />
 
       {editingGoal && (
@@ -80,9 +147,18 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
           categoryName={name}
           initialName={editingGoal.name}
           initialColor={editingGoal.color || "bg-blue-500"}
+          initialDescription={editingGoal.description}
+          initialTargetDate={editingGoal.targetDate}
           isEdit={true}
         />
       )}
+
+      <Modal isOpen={showTemplateGallery} closeModal={() => setShowTemplateGallery(false)}>
+        <Modal.Title>Choose a Goal Template</Modal.Title>
+        <Modal.Body>
+          <GoalTemplateGallery onSelectTemplate={handleSelectTemplate} categoryName={name} />
+        </Modal.Body>
+      </Modal>
     </>
   );
 }

@@ -5,6 +5,7 @@ import { PlayIcon } from "@heroicons/react/solid";
 import { Checkbox } from "../ui/checkbox";
 import { Input } from "../ui/input";
 import Modal from "../Modal";
+import { EMOTIONS } from "../ui/emotion-selector";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -35,6 +36,8 @@ export default function StandaloneTaskItem({
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(task.name);
   const [editDescription, setEditDescription] = useState(task.description || '');
+  const [editTshirtSize, setEditTshirtSize] = useState(task.tshirtSize || '');
+  const [editNumericEstimate, setEditNumericEstimate] = useState(task.numericEstimate?.toString() || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   const handleToggleComplete = () => {
@@ -46,16 +49,35 @@ export default function StandaloneTaskItem({
   };
 
   const handleSaveEdit = () => {
-    onUpdate(task.id, {
+    const updates: Partial<StandaloneTask> = {
       name: editName,
       description: editDescription
-    });
+    };
+
+    if (editTshirtSize) {
+      updates.tshirtSize = editTshirtSize as 'XS' | 'S' | 'M' | 'L' | 'XL';
+    } else if (task.tshirtSize) {
+      updates.tshirtSize = undefined;
+    }
+
+    if (editNumericEstimate) {
+      const numericValue = parseFloat(editNumericEstimate);
+      if (!isNaN(numericValue)) {
+        updates.numericEstimate = numericValue;
+      }
+    } else if (task.numericEstimate !== undefined) {
+      updates.numericEstimate = undefined;
+    }
+
+    onUpdate(task.id, updates);
     setIsEditing(false);
   };
 
   const handleCancelEdit = () => {
     setEditName(task.name);
     setEditDescription(task.description || '');
+    setEditTshirtSize(task.tshirtSize || '');
+    setEditNumericEstimate(task.numericEstimate?.toString() || '');
     setIsEditing(false);
   };
 
@@ -115,6 +137,35 @@ export default function StandaloneTaskItem({
                 className="text-xs"
                 placeholder="Description (optional)"
               />
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">T-shirt Size</label>
+                  <select
+                    value={editTshirtSize}
+                    onChange={(e) => setEditTshirtSize(e.target.value)}
+                    className="w-full p-2 bg-muted border border-border text-foreground rounded text-xs focus:border-primary focus:outline-none"
+                  >
+                    <option value="">None</option>
+                    <option value="XS">XS (Extra Small)</option>
+                    <option value="S">S (Small)</option>
+                    <option value="M">M (Medium)</option>
+                    <option value="L">L (Large)</option>
+                    <option value="XL">XL (Extra Large)</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs text-muted-foreground mb-1">Numeric Points</label>
+                  <Input
+                    type="number"
+                    value={editNumericEstimate}
+                    onChange={(e) => setEditNumericEstimate(e.target.value)}
+                    className="text-xs"
+                    placeholder="e.g., 2.5"
+                    min="0"
+                    step="0.1"
+                  />
+                </div>
+              </div>
               <div className="flex space-x-2">
                 <button
                   onClick={handleSaveEdit}
@@ -132,14 +183,30 @@ export default function StandaloneTaskItem({
             </div>
           ) : (
             <div>
-              <div className={`
-                text-sm font-medium
-                ${task.status === 'completed'
-                  ? 'line-through text-gray-500 dark:text-gray-400'
-                  : 'text-gray-900 dark:text-white'
-                }
-              `}>
-                {task.name}
+              <div className="flex items-center gap-2">
+                <div className={`
+                  text-sm font-medium
+                  ${task.status === 'completed'
+                    ? 'line-through text-gray-500 dark:text-gray-400'
+                    : 'text-gray-900 dark:text-white'
+                  }
+                `}>
+                  {task.name}
+                </div>
+                {(task.tshirtSize || task.numericEstimate) && (
+                  <div className="flex gap-1">
+                    {task.tshirtSize && (
+                      <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded-full font-medium">
+                        {task.tshirtSize}
+                      </span>
+                    )}
+                    {task.numericEstimate && (
+                      <span className="px-1.5 py-0.5 text-xs bg-secondary/10 text-secondary-foreground rounded-full font-medium">
+                        {task.numericEstimate}
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
               {task.description && (
                 <div className={`
@@ -150,6 +217,24 @@ export default function StandaloneTaskItem({
                   }
                 `}>
                   {task.description}
+                </div>
+              )}
+              {task.status === 'completed' && task.emotions && task.emotions.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-2">
+                  {task.emotions.map((emotion) => {
+                    const emotionOption = EMOTIONS.find(e => e.id === emotion);
+                    if (!emotionOption) return null;
+                    return (
+                      <span
+                        key={emotion}
+                        className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground flex items-center gap-1"
+                        title={emotionOption.label}
+                      >
+                        <span>{emotionOption.emoji}</span>
+                        <span>{emotionOption.label}</span>
+                      </span>
+                    );
+                  })}
                 </div>
               )}
             </div>

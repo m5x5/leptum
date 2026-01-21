@@ -1,9 +1,19 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
 import { Input } from "../ui/input";
 import { MentionInput } from "../ui/mention-input";
 import { useEntities } from "../../utils/useEntities";
+import { generateThumbnail, PhotoAttachment } from "../../utils/usePhotoAttachments";
+import { PhotographIcon, XIcon } from "@heroicons/react/solid";
+
+interface PendingPhoto {
+  id: string;
+  file: File;
+  thumbnail: string;
+  width: number;
+  height: number;
+}
 
 interface ActivityFormProps {
   initialData?: {
@@ -12,11 +22,19 @@ interface ActivityFormProps {
     time: string;
     goalId: string;
   };
-  onSubmit: (data: { activity: string; date: string; time: string; goalId: string }) => void;
+  onSubmit: (data: {
+    activity: string;
+    date: string;
+    time: string;
+    goalId: string;
+    pendingPhotos?: PendingPhoto[];
+  }) => void;
   onCancel: () => void;
   submitLabel?: string;
   showDelete?: boolean;
   onDelete?: () => void;
+  existingPhotos?: PhotoAttachment[];
+  onDeletePhoto?: (photoId: string) => void;
 }
 
 /**
@@ -47,6 +65,8 @@ export default function ActivityForm({
   submitLabel = "Submit",
   showDelete = false,
   onDelete,
+  existingPhotos = [],
+  onDeletePhoto,
 }: ActivityFormProps) {
   const [formData, setFormData] = useState(
     initialData || {
@@ -56,6 +76,9 @@ export default function ActivityForm({
       goalId: "",
     }
   );
+  const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
+  const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
@@ -75,7 +98,46 @@ export default function ActivityForm({
       alert("Please fill in all fields");
       return;
     }
-    onSubmit(formData);
+    onSubmit({
+      ...formData,
+      pendingPhotos: pendingPhotos.length > 0 ? pendingPhotos : undefined,
+    });
+  };
+
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setIsProcessingPhoto(true);
+    try {
+      for (const file of Array.from(files)) {
+        if (!file.type.startsWith('image/')) {
+          continue;
+        }
+
+        const { thumbnail, width, height } = await generateThumbnail(file);
+        const pendingPhoto: PendingPhoto = {
+          id: `pending-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+          file,
+          thumbnail,
+          width,
+          height,
+        };
+        setPendingPhotos(prev => [...prev, pendingPhoto]);
+      }
+    } catch (error) {
+      console.error('Failed to process photo:', error);
+    } finally {
+      setIsProcessingPhoto(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
+  const removePendingPhoto = (id: string) => {
+    setPendingPhotos(prev => prev.filter(p => p.id !== id));
   };
 
   return (
@@ -158,6 +220,88 @@ export default function ActivityForm({
           </select>
         </div>
       )}
+
+      {/* Photo Attachments */}
+      <div>
+        <label className="block text-sm font-medium text-foreground mb-2">
+          Photos (optional)
+        </label>
+
+        {/* Existing Photos (in edit mode) */}
+        {existingPhotos.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {existingPhotos.map((photo) => (
+              <div key={photo.id} className="relative group">
+                <img
+                  src={photo.thumbnail}
+                  alt="Attached photo"
+                  className="w-16 h-16 object-cover rounded-lg border border-border"
+                />
+                {onDeletePhoto && (
+                  <button
+                    type="button"
+                    onClick={() => onDeletePhoto(photo.id)}
+                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                  >
+                    <XIcon className="w-3 h-3" />
+                  </button>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pending Photos (being added) */}
+        {pendingPhotos.length > 0 && (
+          <div className="flex flex-wrap gap-2 mb-3">
+            {pendingPhotos.map((photo) => (
+              <div key={photo.id} className="relative group">
+                <img
+                  src={photo.thumbnail}
+                  alt="Pending photo"
+                  className="w-16 h-16 object-cover rounded-lg border border-primary"
+                />
+                <button
+                  type="button"
+                  onClick={() => removePendingPhoto(photo.id)}
+                  className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <XIcon className="w-3 h-3" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Add Photo Button */}
+        <div className="flex items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={handlePhotoSelect}
+            className="hidden"
+            id="photo-upload"
+          />
+          <label
+            htmlFor="photo-upload"
+            className={`flex items-center gap-2 px-3 py-2 bg-muted border border-border rounded-lg cursor-pointer hover:bg-muted/80 transition-colors ${
+              isProcessingPhoto ? 'opacity-50 cursor-wait' : ''
+            }`}
+          >
+            <PhotographIcon className="w-5 h-5 text-muted-foreground" />
+            <span className="text-sm text-muted-foreground">
+              {isProcessingPhoto ? 'Processing...' : 'Add Photo'}
+            </span>
+          </label>
+          {(existingPhotos.length > 0 || pendingPhotos.length > 0) && (
+            <span className="text-xs text-muted-foreground">
+              {existingPhotos.length + pendingPhotos.length} photo(s)
+            </span>
+          )}
+        </div>
+      </div>
 
       {!showDelete && (
         <p className="text-sm text-muted-foreground">

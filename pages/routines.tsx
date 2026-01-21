@@ -9,6 +9,7 @@ import { useRoutineCompletions } from "../utils/useRoutineCompletions";
 import EChartsHeatmap from "../components/RoutineHeatmap/EChartsHeatmap";
 import { useGoals } from "../utils/useGoals";
 import { Input } from "../components/ui/input";
+import { StreakBadge } from "../components/StreakBadge";
 
 export default function RoutinesPage() {
   const [routines, setRoutines] = useState<(Routine| any)[]>([]);
@@ -24,7 +25,7 @@ export default function RoutinesPage() {
     newTask: ""
   });
 
-  const { completions } = useRoutineCompletions();
+  const { completions, getStreaksForRoutine } = useRoutineCompletions();
   const { goals } = useGoals();
 
   useEffect(() => {
@@ -266,7 +267,7 @@ export default function RoutinesPage() {
                       </button>
                     </div>
                   </div>
-                  <p className="text-sm text-muted-foreground mb-4">
+                  <p className="text-sm text-muted-foreground mb-2">
                     {getDescription(routine.cron!)}
                   </p>
 
@@ -279,6 +280,7 @@ export default function RoutinesPage() {
                       />
                     </div>
                   )}
+                  <StreakBadge streakInfo={getStreaksForRoutine(routine.id)} className="mb-4" />
 
                   {routine.tasks.length > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -304,7 +306,7 @@ export default function RoutinesPage() {
                   key={routine.id}
                   className="bg-card border border-border rounded-lg p-4 relative"
                 >
-                  <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center justify-between mb-2">
                     <h3 className="text-lg font-semibold text-foreground">{routine.name}</h3>
                     <button
                       onClick={() => openEditModal(routine)}
@@ -324,6 +326,7 @@ export default function RoutinesPage() {
                       />
                     </div>
                   )}
+                  <StreakBadge streakInfo={getStreaksForRoutine(routine.id)} className="mb-4" />
 
                   {routine.tasks.length > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">

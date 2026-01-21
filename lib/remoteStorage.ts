@@ -35,12 +35,35 @@ const JobSchema = {
   required: ['id', 'cron', 'status', 'index', 'name', 'lastEndTime', 'habits']
 };
 
+const GoalMilestoneSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    name: { type: 'string' },
+    targetDate: { type: ['number', 'null'] },
+    completed: { type: 'boolean' },
+    completedAt: { type: ['number', 'null'] },
+    order: { type: 'number' }
+  },
+  required: ['id', 'name', 'completed', 'order']
+};
+
 const GoalSchema = {
   type: 'object',
   properties: {
     id: { type: 'string' },
     name: { type: 'string' },
-    type: { type: 'string' }
+    type: { type: 'string' },
+    color: { type: ['string', 'null'] },
+    description: { type: ['string', 'null'] },
+    targetDate: { type: ['number', 'null'] },
+    createdAt: { type: ['number', 'null'] },
+    completedAt: { type: ['number', 'null'] },
+    status: { type: ['string', 'null'] },
+    milestones: {
+      type: ['array', 'null'],
+      items: GoalMilestoneSchema
+    }
   },
   required: ['id', 'name', 'type']
 };
@@ -53,6 +76,34 @@ const GoalTypeSchema = {
     description: { type: 'string' }
   },
   required: ['id', 'name', 'description']
+};
+
+// Photo attachment schema for mood entries
+const PhotoAttachmentSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    impactId: { type: 'string' },
+    thumbnail: { type: 'string' }, // Base64 encoded thumbnail (max ~50KB)
+    fullImagePath: { type: 'string' }, // Path to full image in RemoteStorage
+    mimeType: { type: 'string' },
+    width: { type: 'number' },
+    height: { type: 'number' },
+    createdAt: { type: 'number' },
+    caption: { type: 'string' }
+  },
+  required: ['id', 'impactId', 'thumbnail', 'mimeType', 'createdAt']
+};
+
+const PhotosCollectionSchema = {
+  type: 'object',
+  properties: {
+    photos: {
+      type: 'array',
+      items: PhotoAttachmentSchema
+    }
+  },
+  required: ['photos']
 };
 
 const ImpactSchema = {
@@ -72,7 +123,8 @@ const ImpactSchema = {
     shame: { type: ['string', 'number'] },
     guilt: { type: ['string', 'number'] },
     goalId: { type: 'string' },
-    notes: { type: 'string' }
+    notes: { type: 'string' },
+    photoIds: { type: 'array', items: { type: 'string' } } // References to photo attachments
   },
   required: ['activity']
 };
@@ -110,17 +162,28 @@ const StackSchema = {
 };
 
 const StandaloneTaskSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    description: { type: 'string' },
-    status: { type: 'string' },
-    createdAt: { type: 'number' },
-    completedAt: { type: 'number' },
-    goalId: { type: 'string' }
-  },
-  required: ['id', 'name', 'status', 'createdAt']
+   type: 'object',
+   properties: {
+      id: { type: 'string' },
+      name: { type: 'string' },
+      description: { type: 'string' },
+      status: { type: 'string' },
+      createdAt: { type: 'number' },
+      completedAt: { type: 'number' },
+      goalId: { type: 'string' },
+      tshirtSize: { type: 'string', enum: ['XS', 'S', 'M', 'L', 'XL'] },
+      numericEstimate: { type: 'number' },
+      emotions: { 
+        type: 'array', 
+        items: { 
+          type: 'string',
+          enum: ['happy', 'sad', 'neutral', 'excited', 'anxious', 'calm', 'frustrated', 'proud', 'tired', 'energized']
+        } 
+      },
+      routineId: { type: 'string' },
+      routineInstanceId: { type: 'string' }
+   },
+   required: ['id', 'name', 'status', 'createdAt']
 };
 
 const StandaloneTasksCollectionSchema = {
@@ -392,14 +455,50 @@ const MentionSchema = {
 };
 
 const MentionsCollectionSchema = {
-  type: 'object',
-  properties: {
-    mentions: {
-      type: 'array',
-      items: MentionSchema
-    }
-  },
-  required: ['mentions']
+   type: 'object',
+   properties: {
+      mentions: {
+         type: 'array',
+         items: MentionSchema
+      }
+   },
+   required: ['mentions']
+};
+
+// Velocity tracking schemas
+interface VelocityEntry {
+   id: string;
+   taskId: string;
+   taskName: string;
+   tshirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL';
+   numericEstimate?: number;
+   completedAt: number;
+   period: string;
+}
+
+const VelocityEntrySchema = {
+   type: 'object',
+   properties: {
+      id: { type: 'string' },
+      taskId: { type: 'string' },
+      taskName: { type: 'string' },
+      tshirtSize: { type: 'string', enum: ['XS', 'S', 'M', 'L', 'XL'] },
+      numericEstimate: { type: 'number' },
+      completedAt: { type: 'number' },
+      period: { type: 'string' } // e.g., '2024-W01' for week 1 of 2024, or '2024-01-15' for daily
+   },
+   required: ['id', 'taskId', 'taskName', 'completedAt']
+};
+
+const VelocityCollectionSchema = {
+   type: 'object',
+   properties: {
+      entries: {
+         type: 'array',
+         items: VelocityEntrySchema
+      }
+   },
+   required: ['entries']
 };
 
 export class RemoteStorageClient {
@@ -474,6 +573,10 @@ export class RemoteStorageClient {
     this.client.declareType('EntitiesCollection', EntitiesCollectionSchema);
     this.client.declareType('Mention', MentionSchema);
     this.client.declareType('MentionsCollection', MentionsCollectionSchema);
+    this.client.declareType('VelocityEntry', VelocityEntrySchema);
+    this.client.declareType('VelocityCollection', VelocityCollectionSchema);
+    this.client.declareType('PhotoAttachment', PhotoAttachmentSchema);
+    this.client.declareType('PhotosCollection', PhotosCollectionSchema);
 
     // Setup todonna schema
     if (this.todonnaClient) {
@@ -581,9 +684,15 @@ export class RemoteStorageClient {
     if (!this.client) return;
     
     try {
-      return await this.client.storeObject('Goal', `goals/${goal.id}`, goal);
+      // Filter out undefined values to avoid schema validation errors
+      const cleanedGoal = Object.fromEntries(
+        Object.entries(goal).filter(([_, value]) => value !== undefined)
+      );
+      
+      return await this.client.storeObject('Goal', `goals/${goal.id}`, cleanedGoal);
     } catch (error) {
       console.error('Failed to save goal:', error);
+      throw error;
     }
   }
 
@@ -1190,6 +1299,213 @@ export class RemoteStorageClient {
       return await this.client.storeObject('MentionsCollection', 'mentions', { mentions });
     } catch (error) {
       console.error('Failed to save mentions:', error);
+    }
+  }
+
+  // Photo operations
+  public async getPhotos() {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const result = await this.client.getObject('photos') || { photos: [] };
+      return result.photos || [];
+    } catch (error) {
+      console.error('Failed to get photos:', error);
+      return [];
+    }
+  }
+
+  public async savePhotos(photos: any[]) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('PhotosCollection', 'photos', { photos });
+    } catch (error) {
+      console.error('Failed to save photos:', error);
+    }
+  }
+
+  public async addPhoto(photo: any) {
+    const photos = await this.getPhotos();
+    photos.push(photo);
+    return await this.savePhotos(photos);
+  }
+
+  public async getPhotosForImpact(impactId: string) {
+    const photos = await this.getPhotos();
+    return photos.filter((photo: any) => photo.impactId === impactId);
+  }
+
+  public async deletePhoto(photoId: string) {
+    const photos = await this.getPhotos();
+    const filteredPhotos = photos.filter((photo: any) => photo.id !== photoId);
+
+    // Also delete the full image file if it exists
+    const photoToDelete = photos.find((photo: any) => photo.id === photoId);
+    if (photoToDelete?.fullImagePath) {
+      try {
+        await this.client.remove(photoToDelete.fullImagePath);
+      } catch (error) {
+        console.error('Failed to delete full image:', error);
+      }
+    }
+
+    return await this.savePhotos(filteredPhotos);
+  }
+
+  public async deletePhotosForImpact(impactId: string) {
+    const photos = await this.getPhotos();
+    const photosToDelete = photos.filter((photo: any) => photo.impactId === impactId);
+
+    // Delete all full image files
+    for (const photo of photosToDelete) {
+      if (photo.fullImagePath) {
+        try {
+          await this.client.remove(photo.fullImagePath);
+        } catch (error) {
+          console.error('Failed to delete full image:', error);
+        }
+      }
+    }
+
+    const filteredPhotos = photos.filter((photo: any) => photo.impactId !== impactId);
+    return await this.savePhotos(filteredPhotos);
+  }
+
+  // Velocity tracking operations
+  public async getVelocityEntries(): Promise<VelocityEntry[]> {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return [];
+
+    try {
+      const result = await this.client.getObject('velocity') || { entries: [] };
+      return result.entries || [];
+    } catch (error) {
+      console.error('Failed to get velocity entries:', error);
+      return [];
+    }
+  }
+
+  public async saveVelocityEntries(entries: any[]) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return;
+
+    try {
+      return await this.client.storeObject('VelocityCollection', 'velocity', { entries });
+    } catch (error) {
+      console.error('Failed to save velocity entries:', error);
+    }
+  }
+
+  public async addVelocityEntry(entry: VelocityEntry) {
+    const entries = await this.getVelocityEntries();
+    entries.push(entry);
+    return await this.saveVelocityEntries(entries);
+  }
+
+  public async recordTaskCompletionForVelocity(task: any) {
+    if (!task.tshirtSize && !task.numericEstimate) return;
+
+    const entry = {
+      id: `velocity-${task.id}-${Date.now()}`,
+      taskId: task.id,
+      taskName: task.name,
+      tshirtSize: task.tshirtSize,
+      numericEstimate: task.numericEstimate,
+      completedAt: task.completedAt,
+      period: this.getPeriodFromDate(task.completedAt)
+    };
+
+    await this.addVelocityEntry(entry);
+  }
+
+  private getPeriodFromDate(timestamp: number): string {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = (date.getMonth() + 1).toString().padStart(2, '0');
+    const day = date.getDate().toString().padStart(2, '0');
+    return `${year}-${month}-${day}`; // Daily period
+  }
+
+  public async getWeeklyVelocity(weeks: number = 4) {
+    const entries = await this.getVelocityEntries();
+    const now = new Date();
+    const weekStart = new Date(now.getTime() - (weeks * 7 * 24 * 60 * 60 * 1000));
+
+    const recentEntries = entries.filter(entry => entry.completedAt >= weekStart.getTime());
+
+    // Group by week
+    const weeklyData = new Map();
+
+    recentEntries.forEach(entry => {
+      const date = new Date(entry.completedAt);
+      const year = date.getFullYear();
+      const weekNum = Math.ceil((date.getDate() - date.getDay() + 1) / 7);
+      const weekKey = `${year}-W${weekNum.toString().padStart(2, '0')}`;
+
+      if (!weeklyData.has(weekKey)) {
+        weeklyData.set(weekKey, {
+          week: weekKey,
+          totalNumeric: 0,
+          tshirtCounts: { XS: 0, S: 0, M: 0, L: 0, XL: 0 },
+          taskCount: 0
+        });
+      }
+
+      const weekData = weeklyData.get(weekKey);
+      weekData.taskCount++;
+
+      if (entry.numericEstimate) {
+        weekData.totalNumeric += entry.numericEstimate;
+      }
+
+      if (entry.tshirtSize) {
+        weekData.tshirtCounts[entry.tshirtSize]++;
+      }
+    });
+
+    return Array.from(weeklyData.values()).sort((a, b) => a.week.localeCompare(b.week));
+  }
+
+  public async saveFullImage(photoId: string, base64Data: string, mimeType: string) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return null;
+
+    try {
+      const path = `photo-images/${photoId}`;
+      // Store as binary data
+      await this.client.storeFile(mimeType, path, base64Data);
+      return path;
+    } catch (error) {
+      console.error('Failed to save full image:', error);
+      return null;
+    }
+  }
+
+  public async getFullImage(path: string) {
+    if (!this.client) {
+      this.initialize();
+    }
+    if (!this.client) return null;
+
+    try {
+      const file = await this.client.getFile(path);
+      return file;
+    } catch (error) {
+      console.error('Failed to get full image:', error);
+      return null;
     }
   }
 

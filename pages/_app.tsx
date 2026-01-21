@@ -2,6 +2,7 @@ import "tailwindcss/tailwind.css";
 import { JobContextProvider } from "../components/Job/Context";
 import AppSidebar from "../components/Sidebar/new";
 import "../styles/global.css";
+import "../styles/rich-text-editor.css";
 import { ThemeProvider } from "next-themes"
 import { AppProps, AppContext } from "next/app"
 import { useEffect, useState, useRef, useLayoutEffect } from "react"

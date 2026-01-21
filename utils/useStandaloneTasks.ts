@@ -1,18 +1,22 @@
 import { useState, useEffect, useCallback } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
 import { v4 as uuidv4 } from 'uuid';
+import { Emotion } from '../components/ui/emotion-selector';
 
 export interface StandaloneTask {
-  id: string;
-  name: string;
-  description?: string;
-  status: 'due' | 'completed' | 'pending';
-  createdAt: number;
-  completedAt?: number;
-  routineId?: string;
-  routineInstanceId?: string; // Unique ID for a specific routine trigger instance
-  goalId?: string; // Optional - associated goal for this task
-}
+   id: string;
+   name: string;
+   description?: string;
+   status: 'due' | 'completed' | 'pending';
+   createdAt: number;
+   completedAt?: number;
+   routineId?: string;
+   routineInstanceId?: string; // Unique ID for a specific routine trigger instance
+   goalId?: string; // Optional - associated goal for this task
+   tshirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL'; // T-shirt size effort estimation
+   numericEstimate?: number; // Numeric points effort estimation
+   emotions?: Emotion[]; // Emotions felt after completing the task
+ }
 
 export function useStandaloneTasks() {
   const [tasks, setTasks] = useState<StandaloneTask[]>([]);
@@ -51,13 +55,15 @@ export function useStandaloneTasks() {
   }, [loadTasks]);
 
   // Add a new standalone task
-  const addTask = useCallback(async (name: string, description?: string) => {
+  const addTask = useCallback(async (name: string, description?: string, options?: { tshirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL', numericEstimate?: number }) => {
     const newTask: StandaloneTask = {
       id: uuidv4(),
       name,
       description,
       status: 'due',
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      tshirtSize: options?.tshirtSize,
+      numericEstimate: options?.numericEstimate
     };
 
     try {
@@ -142,15 +148,27 @@ export function useStandaloneTasks() {
   }, []);
 
   // Mark task as completed
-  const completeTask = useCallback(async (taskId: string) => {
-    const updates = {
+  const completeTask = useCallback(async (taskId: string, emotions?: Emotion[]) => {
+    const updates: Partial<StandaloneTask> = {
       status: 'completed' as const,
       completedAt: Date.now()
     };
+    
+    // Add emotions if provided
+    if (emotions && emotions.length > 0) {
+      updates.emotions = emotions;
+    }
+    
     await updateTask(taskId, updates);
 
-    // Check if this completes a routine
+    // Record velocity data for completed task
     const task = tasks.find(t => t.id === taskId);
+    if (task) {
+      const completedTask = { ...task, ...updates };
+      await remoteStorageClient.recordTaskCompletionForVelocity(completedTask);
+    }
+
+    // Check if this completes a routine
     if (task && task.routineInstanceId) {
       await checkRoutineCompletion(task.routineInstanceId, task.routineId);
     }
