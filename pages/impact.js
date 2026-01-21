@@ -726,7 +726,7 @@ export default function ImpactPage() {
         <title>Wellbeing - Leptum</title>
       </Head>
 
-      <div className="max-w-6xl mx-auto pb-32 md:pb-8">
+      <div className="max-w-6xl mx-auto pb-32 md:pb-8 w-full overflow-x-hidden">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Wellbeing</h1>
@@ -834,9 +834,10 @@ export default function ImpactPage() {
         <>
       {/* Date Navigation Bar */}
       {allDates.length > 0 && (
-        <div className="mb-6 sticky top-0 z-30 bg-background/95 backdrop-blur-sm pb-4 border-b border-border">
-          <div className="overflow-x-auto scrollbar-hide pb-2 -mb-2">
-            <div className="flex gap-2 min-w-max px-1">
+        <div className="mb-6" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+          <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pb-4 border-b border-border" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
+            <div className="overflow-x-auto scrollbar-hide pb-2 -mb-2" style={{ width: '100%', maxWidth: '100%' }}>
+              <div className="flex gap-2 min-w-max">
               {allDates.map((dateKey) => {
                 const [year, month, day] = dateKey.split('-').map(Number);
                 const dateTimestamp = new Date(year, month - 1, day).getTime();
@@ -880,6 +881,7 @@ export default function ImpactPage() {
                   </button>
                 );
               })}
+              </div>
             </div>
           </div>
         </div>
