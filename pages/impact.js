@@ -844,6 +844,12 @@ export default function ImpactPage() {
                 const isDateToday = isToday(dateTimestamp);
                 const isActive = dateFilter === dateKey || (dateFilter === "day" && isDateToday);
                 const dateImpacts = state.impacts.filter(impact => formatDateKey(impact.date) === dateKey);
+                
+                // Use consistent date formatting to avoid hydration mismatches
+                const dateObj = new Date(year, month - 1, day);
+                const weekday = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][dateObj.getDay()];
+                const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                const monthName = monthNames[month - 1];
 
                 return (
                   <button
@@ -865,10 +871,10 @@ export default function ImpactPage() {
                     title={`${dateImpacts.length} ${dateImpacts.length === 1 ? 'entry' : 'entries'}`}
                   >
                     <span className={`text-xs ${isActive ? 'opacity-90' : 'opacity-70'}`}>
-                      {new Date(dateTimestamp).toLocaleDateString('en-US', { weekday: 'short' })}
+                      {weekday}
                     </span>
                     <span className="font-semibold">
-                      {new Date(dateTimestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                      {monthName} {day}
                     </span>
                     {isDateToday && (
                       <span className={`text-[10px] ${isActive ? 'opacity-90' : 'opacity-70'}`}>Today</span>
