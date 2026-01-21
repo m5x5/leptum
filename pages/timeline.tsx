@@ -1110,62 +1110,6 @@ export default function TimelinePage() {
             {/* Day View */}
             {viewMode === "day" && (
               <>
-                {/* Date Navigation Bar */}
-                {allDates.length > 0 && (
-                  <div className="mb-6 sticky top-0 z-30 bg-background/95 backdrop-blur-sm pb-4 border-b border-border">
-                    <div className="overflow-x-auto scrollbar-hide pb-2 -mb-2">
-                      <div className="flex gap-2 min-w-max px-1">
-                        {allDates.map((dateKey) => {
-                          const [year, month, day] = dateKey.split('-').map(Number);
-                          const dateTimestamp = new Date(year, month - 1, day).getTime();
-                          const isDateToday = isToday(dateTimestamp);
-                          const isActive = activeDateKey === dateKey;
-                          const isVisible = dates.includes(dateKey);
-
-                          return (
-                            <button
-                              key={dateKey}
-                              onClick={() => {
-                                // If date is not yet loaded, load more days first
-                                if (!isVisible) {
-                                  const dateIndex = allDates.indexOf(dateKey);
-                                  setDaysToShow(Math.max(daysToShow, dateIndex + 1));
-                                  // Wait for render then scroll
-                                  setTimeout(() => scrollToDate(dateKey), 100);
-                                } else {
-                                  scrollToDate(dateKey);
-                                }
-                              }}
-                              className={`
-                                px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition-all
-                                flex flex-col items-center gap-0.5 min-w-[70px]
-                                ${isActive
-                                  ? 'bg-primary text-primary-foreground shadow-md scale-105'
-                                  : isDateToday
-                                  ? 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
-                                  : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                                }
-                                ${!isVisible ? 'opacity-60' : ''}
-                              `}
-                              title={formatDate(dateTimestamp)}
-                            >
-                              <span className={`text-xs ${isActive ? 'opacity-90' : 'opacity-70'}`}>
-                                {new Date(dateTimestamp).toLocaleDateString('en-US', { weekday: 'short' })}
-                              </span>
-                              <span className="font-semibold">
-                                {new Date(dateTimestamp).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                              </span>
-                              {isDateToday && (
-                                <span className={`text-[10px] ${isActive ? 'opacity-90' : 'opacity-70'}`}>Today</span>
-                              )}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                )}
-
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
           {dates.map((dateKey) => {
             const dayImpacts = groupedImpacts[dateKey] || [];
