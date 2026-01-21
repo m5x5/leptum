@@ -10,10 +10,11 @@ export interface StandaloneTask {
    status: 'due' | 'completed' | 'pending';
    createdAt: number;
    completedAt?: number;
+   archivedAt?: number; // Timestamp when the task was archived
    routineId?: string;
    routineInstanceId?: string; // Unique ID for a specific routine trigger instance
    goalId?: string; // Optional - associated goal for this task
-   tshirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL'; // T-shirt size effort estimation
+   effort?: 'XS' | 'S' | 'M' | 'L' | 'XL'; // Effort estimation
    numericEstimate?: number; // Numeric points effort estimation
    emotions?: Emotion[]; // Emotions felt after completing the task
  }
@@ -52,17 +53,27 @@ export function useStandaloneTasks() {
   // Initial load
   useEffect(() => {
     loadTasks();
+    
+    // Listen for task updates from other components (e.g., TrackingCounter)
+    const handleTasksUpdated = () => {
+      loadTasks();
+    };
+    window.addEventListener('tasksUpdated', handleTasksUpdated);
+    
+    return () => {
+      window.removeEventListener('tasksUpdated', handleTasksUpdated);
+    };
   }, [loadTasks]);
 
   // Add a new standalone task
-  const addTask = useCallback(async (name: string, description?: string, options?: { tshirtSize?: 'XS' | 'S' | 'M' | 'L' | 'XL', numericEstimate?: number }) => {
+  const addTask = useCallback(async (name: string, description?: string, options?: { effort?: 'XS' | 'S' | 'M' | 'L' | 'XL', numericEstimate?: number }) => {
     const newTask: StandaloneTask = {
       id: uuidv4(),
       name,
       description,
       status: 'due',
       createdAt: Date.now(),
-      tshirtSize: options?.tshirtSize,
+      effort: options?.effort,
       numericEstimate: options?.numericEstimate
     };
 
@@ -192,6 +203,51 @@ export function useStandaloneTasks() {
     }
   }, [updateTask, tasks]);
 
+  // Archive all tasks for a specific day
+  const archiveDay = useCallback(async (dateKey: string) => {
+    // dateKey is in format YYYY-MM-DD
+    const [year, month, day] = dateKey.split('-').map(Number);
+    const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
+    const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
+
+    try {
+      // Read fresh tasks from storage to avoid conflicts
+      const allTasks = await remoteStorageClient.getStandaloneTasks();
+      
+      const archiveTimestamp = Date.now();
+      let hasUpdates = false;
+
+      // Update all tasks for this day in a single batch operation
+      const updatedTasks = allTasks.map((task: StandaloneTask) => {
+        const taskDate = task.completedAt || task.createdAt;
+        if (taskDate >= dayStart && taskDate <= dayEnd && !task.archivedAt) {
+          hasUpdates = true;
+          return { ...task, archivedAt: archiveTimestamp };
+        }
+        return task;
+      });
+
+      if (hasUpdates) {
+        // Save all tasks in a single operation to avoid conflicts
+        await remoteStorageClient.saveStandaloneTasks(updatedTasks);
+        
+        // Update local state
+        setTasks(updatedTasks);
+        
+        // Sync to todonna for each archived task
+        const archivedTasks = updatedTasks.filter((task: StandaloneTask) =>
+          task.archivedAt === archiveTimestamp
+        );
+        for (const task of archivedTasks) {
+          await syncToTodonna(task);
+        }
+      }
+    } catch (error) {
+      console.error('Failed to archive day:', error);
+      throw error;
+    }
+  }, [syncToTodonna]);
+
   return {
     tasks,
     loading,
@@ -200,6 +256,7 @@ export function useStandaloneTasks() {
     deleteTask,
     completeTask,
     uncompleteTask,
+    archiveDay,
     reload: loadTasks
   };
 } 

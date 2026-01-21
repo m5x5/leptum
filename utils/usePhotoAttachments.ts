@@ -108,8 +108,11 @@ export function usePhotoAttachments() {
     try {
       const loadedPhotos = await remoteStorageClient.getPhotos();
       setPhotos(loadedPhotos);
-    } catch (error) {
-      console.error('Failed to load photos:', error);
+    } catch (error: any) {
+      // 404 errors are expected when photos collection doesn't exist yet
+      if (!(error?.status === 404 || error?.toString?.().includes('404') || error?.missing)) {
+        console.error('Failed to load photos:', error);
+      }
     } finally {
       setLoading(false);
     }
@@ -124,6 +127,8 @@ export function usePhotoAttachments() {
     file: File,
     options?: { caption?: string; storeFullImage?: boolean }
   ): Promise<PhotoAttachment | null> => {
+    let newPhoto: PhotoAttachment | null = null;
+    
     try {
       // Generate thumbnail
       const { thumbnail, width, height } = await generateThumbnail(file);
@@ -138,7 +143,7 @@ export function usePhotoAttachments() {
         fullImagePath = await remoteStorageClient.saveFullImage(photoId, fullBase64, file.type) || undefined;
       }
 
-      const newPhoto: PhotoAttachment = {
+      newPhoto = {
         id: photoId,
         impactId,
         thumbnail,
@@ -153,10 +158,23 @@ export function usePhotoAttachments() {
       await remoteStorageClient.addPhoto(newPhoto);
 
       // Update local state
-      setPhotos(prev => [...prev, newPhoto]);
+      setPhotos(prev => [...prev, newPhoto!]);
 
       return newPhoto;
-    } catch (error) {
+    } catch (error: any) {
+      // Check if this is a 404 error (expected when collection doesn't exist yet)
+      // RemoteStorage.js logs 404s, but we can still proceed
+      if ((error?.status === 404 || error?.toString?.().includes('404') || error?.missing) && newPhoto) {
+        // Try to save photos directly to create the collection
+        try {
+          await remoteStorageClient.savePhotos([newPhoto]);
+          setPhotos(prev => [...prev, newPhoto!]);
+          return newPhoto;
+        } catch (retryError) {
+          console.error('Failed to save photos after 404:', retryError);
+          return null;
+        }
+      }
       console.error('Failed to add photo:', error);
       return null;
     }
