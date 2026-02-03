@@ -4,7 +4,7 @@ import { remoteStorageClient } from '../lib/remoteStorage';
 interface VelocityData {
   week: string;
   totalNumeric: number;
-  tshirtCounts: Record<string, number>;
+  effortCounts: Record<string, number>;
   taskCount: number;
 }
 

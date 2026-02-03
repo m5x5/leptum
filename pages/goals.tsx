@@ -1,23 +1,32 @@
 import Head from "next/head";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import GoalList from "../components/Goals/List";
 import { useGoals } from "../utils/useGoals";
 import { useGoalTypes } from "../utils/useGoalTypes";
 import { PlusIcon } from "@heroicons/react/solid";
+import AddGoalTypeModal from "../components/Modal/AddGoalTypeModal";
 
 export default function GoalsPage() {
   const { goals, isError } = useGoals();
   const { goalTypes, isError: isErrorGoalTypes, addGoalType } = useGoalTypes();
+  const [showAddGoalTypeModal, setShowAddGoalTypeModal] = useState(false);
 
   const handleRemove = (name: string) => {};
 
-  const handleAddGoalType = () => {
-    const name = prompt("What is the name of the goal category?");
-    if (!name) return;
-
-    const description = prompt("Optional: Add a description for this category") || "";
-    addGoalType(name, description);
+  const handleAddGoalType = (name: string, description?: string) => {
+    addGoalType(name, description || "");
   };
+
+  // Listen for openAddGoalCategory event from header button
+  useEffect(() => {
+    const handleOpenAddGoalCategory = () => {
+      setShowAddGoalTypeModal(true);
+    };
+    window.addEventListener('openAddGoalCategory', handleOpenAddGoalCategory);
+    return () => {
+      window.removeEventListener('openAddGoalCategory', handleOpenAddGoalCategory);
+    };
+  }, []);
 
   if (isError) return <div>Failed to load. Press F5 to retry.</div>;
   if (!goals) return <div>loading...</div>;
@@ -38,23 +47,21 @@ export default function GoalsPage() {
       </div>
 
       <div className="mb-4 flex justify-end">
-        {/* Desktop Add Goal Category Button */}
-        <button
-          onClick={handleAddGoalType}
-          className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span>Add Goal Category</span>
-        </button>
         {/* Mobile Add Goal Category Button */}
         <button
-          onClick={handleAddGoalType}
+          onClick={() => setShowAddGoalTypeModal(true)}
           className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
         >
           <PlusIcon className="w-5 h-5" />
           <span>Add Goal Category</span>
         </button>
       </div>
+
+      <AddGoalTypeModal
+        isOpen={showAddGoalTypeModal}
+        onHide={() => setShowAddGoalTypeModal(false)}
+        onAdd={handleAddGoalType}
+      />
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {goalTypes.map((goalType) => (

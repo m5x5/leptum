@@ -57,7 +57,7 @@ class ServiceWorkerManager {
 
     // Listen for controller change (when new SW takes over)
     navigator.serviceWorker.addEventListener('controllerchange', () => {
-      window.location.reload();
+      // window.location.reload();
     });
   }
 

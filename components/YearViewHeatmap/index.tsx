@@ -83,11 +83,17 @@ export default function YearViewHeatmap({ completions, routineId, routineName }:
   const totalCompletions = Object.values(heatmapData.completionsByDate).reduce((sum, count) => sum + count, 0);
   const daysWithCompletions = Object.keys(heatmapData.completionsByDate).length;
 
+  // Group weeks into rows of 3
+  const weekRows: Array<Array<Array<{ date: Date; count: number; dateKey: string }>>> = [];
+  for (let i = 0; i < heatmapData.weeks.length; i += 3) {
+    weekRows.push(heatmapData.weeks.slice(i, i + 3));
+  }
+
   return (
-    <div className="flex-shrink-0 w-full md:w-[600px] space-y-3 bg-muted/20 rounded-lg p-4 border border-border">
-      <div className="flex items-center justify-between mb-2">
+    <div className="flex-shrink-0 w-full md:w-[400px] space-y-2 bg-muted/20 rounded-lg p-3 border border-border">
+      <div className="flex items-center justify-between mb-1">
         <div>
-          <h3 className="text-base font-semibold text-foreground">{routineName}</h3>
+          <h3 className="text-sm font-semibold text-foreground">{routineName}</h3>
           <p className="text-xs text-muted-foreground">
             {totalCompletions} completion{totalCompletions !== 1 ? 's' : ''} over {daysWithCompletions} day{daysWithCompletions !== 1 ? 's' : ''}
           </p>
@@ -95,39 +101,34 @@ export default function YearViewHeatmap({ completions, routineId, routineName }:
       </div>
 
       <div className="overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
-        <div className="inline-flex flex-col gap-1 min-w-full">
-          {/* Day labels */}
-          <div className="flex gap-1 mb-1">
-            <div className="w-8 flex-shrink-0"></div>
-            {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, i) => (
-              <div key={i} className="w-3 text-xs text-muted-foreground text-center flex-shrink-0">
-                {day}
-              </div>
-            ))}
-          </div>
-
-          {/* Calendar grid */}
-          {heatmapData.weeks.map((week, weekIndex) => (
-            <div key={weekIndex} className="flex gap-1 items-center">
-              {/* Month label - show at start of each month */}
+        <div className="inline-flex flex-col gap-1">
+          {/* Calendar grid - 3 weeks per row */}
+          {weekRows.map((row, rowIndex) => (
+            <div key={rowIndex} className="flex gap-1 items-center">
+              {/* Month label - show at start of each month for first week in row */}
               <div className="w-8 text-xs text-muted-foreground flex-shrink-0">
-                {week.find(day => day.dateKey && new Date(day.dateKey).getDate() === 1) ? (
-                  new Date(week.find(day => day.dateKey)!.dateKey).toLocaleDateString('en-US', { month: 'short' })
+                {row[0]?.find(day => day.dateKey && new Date(day.dateKey).getDate() === 1) ? (
+                  new Date(row[0].find(day => day.dateKey)!.dateKey).toLocaleDateString('en-US', { month: 'short' })
                 ) : ''}
               </div>
 
-              {week.map((day, dayIndex) => (
-                <div
-                  key={dayIndex}
-                  className={`w-3 h-3 rounded-sm flex-shrink-0 ${
-                    day.dateKey ? getColorIntensity(day.count) : 'bg-transparent'
-                  }`}
-                  title={
-                    day.dateKey
-                      ? `${formatDate(day.date)}: ${day.count} completion${day.count !== 1 ? 's' : ''}`
-                      : ''
-                  }
-                ></div>
+              {/* Render 3 weeks side by side */}
+              {row.map((week, weekInRowIndex) => (
+                <div key={weekInRowIndex} className="flex gap-1">
+                  {week.map((day, dayIndex) => (
+                    <div
+                      key={dayIndex}
+                      className={`w-3 h-3 rounded-sm flex-shrink-0 ${
+                        day.dateKey ? getColorIntensity(day.count) : 'bg-transparent'
+                      }`}
+                      title={
+                        day.dateKey
+                          ? `${formatDate(day.date)}: ${day.count} completion${day.count !== 1 ? 's' : ''}`
+                          : ''
+                      }
+                    ></div>
+                  ))}
+                </div>
               ))}
             </div>
           ))}
@@ -135,7 +136,7 @@ export default function YearViewHeatmap({ completions, routineId, routineName }:
       </div>
 
       {/* Legend */}
-      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-2 border-t border-border">
+      <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1 border-t border-border">
         <span>Less</span>
         <div className="flex gap-1">
           <div className="w-3 h-3 rounded-sm bg-muted/30"></div>

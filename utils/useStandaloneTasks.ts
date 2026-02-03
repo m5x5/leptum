@@ -23,30 +23,28 @@ export function useStandaloneTasks() {
   const [tasks, setTasks] = useState<StandaloneTask[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Load tasks from RemoteStorage and sync with todonna
+  // Load home tasks: migrate once if needed, then read from home-tasks.
+  // Auto-archive tasks created more than a week ago.
   const loadTasks = useCallback(async () => {
     if (typeof window === 'undefined') return;
-    
     try {
-      // First, try to import any new tasks from todonna
-      await remoteStorageClient.importFromTodonna();
-      
-      // Then get all local tasks
-      const remoteTasks = await remoteStorageClient.getStandaloneTasks();
-      setTasks(remoteTasks);
+      await remoteStorageClient.migrateToHomeAndArchivedIfNeeded();
+      const remoteTasks = (await remoteStorageClient.getHomeTasks()) as StandaloneTask[];
+
+      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
+      const recent = remoteTasks.filter((t: StandaloneTask) => t.createdAt > oneWeekAgo);
+      const toArchive = remoteTasks.filter((t: StandaloneTask) => t.createdAt <= oneWeekAgo);
+      if (toArchive.length > 0) {
+        await remoteStorageClient.saveHomeTasks(recent);
+        await remoteStorageClient.appendArchivedTasks(toArchive);
+        setTasks(recent);
+      } else {
+        setTasks(remoteTasks);
+      }
     } catch (error) {
       console.error('Failed to load standalone tasks:', error);
     } finally {
       setLoading(false);
-    }
-  }, []);
-
-  // Sync to todonna helper function
-  const syncToTodonna = useCallback(async (task: StandaloneTask) => {
-    try {
-      await remoteStorageClient.saveToTodonna(task);
-    } catch (error) {
-      console.error('Failed to sync task to todonna:', error);
     }
   }, []);
 
@@ -79,25 +77,18 @@ export function useStandaloneTasks() {
 
     try {
       await remoteStorageClient.addStandaloneTask(newTask);
-      await syncToTodonna(newTask); // Sync to todonna
       setTasks(prev => [...prev, newTask]);
       return newTask;
     } catch (error) {
       console.error('Failed to add standalone task:', error);
       throw error;
     }
-  }, [syncToTodonna]);
+  }, []);
 
   // Update a task
   const updateTask = useCallback(async (taskId: string, updates: Partial<StandaloneTask>) => {
     try {
       await remoteStorageClient.updateStandaloneTask(taskId, updates);
-      
-      const updatedTask = tasks.find(task => task.id === taskId);
-      if (updatedTask) {
-        const taskToSync = { ...updatedTask, ...updates };
-        await syncToTodonna(taskToSync); // Sync updated task to todonna
-      }
       
       setTasks(prev => prev.map(task => 
         task.id === taskId ? { ...task, ...updates } : task
@@ -106,13 +97,12 @@ export function useStandaloneTasks() {
       console.error('Failed to update standalone task:', error);
       throw error;
     }
-  }, [tasks, syncToTodonna]);
+  }, [tasks]);
 
   // Delete a task
   const deleteTask = useCallback(async (taskId: string) => {
     try {
       await remoteStorageClient.deleteStandaloneTask(taskId);
-      await remoteStorageClient.deleteFromTodonna(taskId); // Delete from todonna too
       setTasks(prev => prev.filter(task => task.id !== taskId));
     } catch (error) {
       console.error('Failed to delete standalone task:', error);
@@ -203,50 +193,31 @@ export function useStandaloneTasks() {
     }
   }, [updateTask, tasks]);
 
-  // Archive all tasks for a specific day
+  // Archive all tasks for a specific day: move from home to archived bucket
   const archiveDay = useCallback(async (dateKey: string) => {
-    // dateKey is in format YYYY-MM-DD
     const [year, month, day] = dateKey.split('-').map(Number);
     const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
     const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 
     try {
-      // Read fresh tasks from storage to avoid conflicts
-      const allTasks = await remoteStorageClient.getStandaloneTasks();
-      
-      const archiveTimestamp = Date.now();
-      let hasUpdates = false;
-
-      // Update all tasks for this day in a single batch operation
-      const updatedTasks = allTasks.map((task: StandaloneTask) => {
+      const homeTasks = await remoteStorageClient.getHomeTasks();
+      const toArchive = homeTasks.filter((task: StandaloneTask) => {
         const taskDate = task.completedAt || task.createdAt;
-        if (taskDate >= dayStart && taskDate <= dayEnd && !task.archivedAt) {
-          hasUpdates = true;
-          return { ...task, archivedAt: archiveTimestamp };
-        }
-        return task;
+        return taskDate >= dayStart && taskDate <= dayEnd;
       });
-
-      if (hasUpdates) {
-        // Save all tasks in a single operation to avoid conflicts
-        await remoteStorageClient.saveStandaloneTasks(updatedTasks);
-        
-        // Update local state
-        setTasks(updatedTasks);
-        
-        // Sync to todonna for each archived task
-        const archivedTasks = updatedTasks.filter((task: StandaloneTask) =>
-          task.archivedAt === archiveTimestamp
-        );
-        for (const task of archivedTasks) {
-          await syncToTodonna(task);
-        }
-      }
+      if (toArchive.length === 0) return;
+      const remaining = homeTasks.filter((task: StandaloneTask) => {
+        const taskDate = task.completedAt || task.createdAt;
+        return taskDate < dayStart || taskDate > dayEnd;
+      });
+      await remoteStorageClient.saveHomeTasks(remaining);
+      await remoteStorageClient.appendArchivedTasks(toArchive);
+      setTasks(remaining);
     } catch (error) {
       console.error('Failed to archive day:', error);
       throw error;
     }
-  }, [syncToTodonna]);
+  }, []);
 
   return {
     tasks,

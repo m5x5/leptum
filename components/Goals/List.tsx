@@ -1,11 +1,15 @@
 import { PlusIcon } from "@heroicons/react/solid";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useGoals, Goal, GoalMilestone } from "../../utils/useGoals";
 import GoalItem from "./GoalItem";
 import AddGoalModal from "../Modal/AddGoalModal";
 import GoalTemplateGallery from "./GoalTemplateGallery";
 import { GoalTemplate } from "../../utils/goalTemplates";
 import Modal from "../Modal";
+import { TemplateSelector } from "./TemplateSelector";
+import { remoteStorageClient } from "../../lib/remoteStorage";
+import { getTemplateById, createRoutineFromTemplate, createRoutinesFromTemplate } from "../../utils/goalTemplatesWithTracking";
+import { Routine } from "../Job/api";
 
 interface IProps {
   name: string;
@@ -25,16 +29,58 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
     addMilestone,
     updateMilestone,
     deleteMilestone,
-    completeMilestone
+    completeMilestone,
+    reload: reloadGoals
   } = useGoals();
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
+  const [showTemplateSelector, setShowTemplateSelector] = useState(false);
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<GoalTemplate | null>(null);
+  
+  // Reload goals when updated (for template application)
+  useEffect(() => {
+    const handleGoalUpdate = () => {
+      reloadGoals();
+    };
+    window.addEventListener('goalUpdated', handleGoalUpdate);
+    return () => window.removeEventListener('goalUpdated', handleGoalUpdate);
+  }, [reloadGoals]);
 
-  const handleAddGoal = (goalName: string, color: string, options?: { description?: string; targetDate?: number; milestones?: Omit<GoalMilestone, 'id'>[] }): void => {
-    addGoal(goalName, id, color, options);
+  const handleAddGoal = async (goalName: string, color: string, options?: { description?: string; targetDate?: number; milestones?: Omit<GoalMilestone, 'id'>[]; templateId?: string }): Promise<void> => {
+    const newGoal = await addGoal(goalName, id, color, options);
+    
+    // If a template with tracking was used, create the associated routines
+    if (newGoal && options?.templateId) {
+      const template = getTemplateById(options.templateId);
+      if (template) {
+        try {
+          const allRoutines = await remoteStorageClient.getRoutines() as Routine[];
+          
+          if (template.routineConfigs && template.routineConfigs.length > 0) {
+            // Multiple routines (e.g., nutrition with breakfast, lunch, dinner, snack)
+            const newRoutines = createRoutinesFromTemplate(template, newGoal.id, allRoutines.length);
+            // Save routines sequentially with delays to prevent "maximum debt" errors
+            for (let i = 0; i < newRoutines.length; i++) {
+              await remoteStorageClient.saveRoutine(newRoutines[i]);
+              // Small delay between saves to prevent overwhelming RemoteStorage sync
+              if (i < newRoutines.length - 1) {
+                await new Promise(resolve => setTimeout(resolve, 200));
+              }
+            }
+          } else if (template.routineConfig) {
+            // Single routine (e.g., hydration)
+            const routine = createRoutineFromTemplate(template, newGoal.id, allRoutines.length);
+            if (routine) {
+              await remoteStorageClient.saveRoutine(routine);
+            }
+          }
+        } catch (error) {
+          console.error("Failed to create routines from template:", error);
+        }
+      }
+    }
   };
 
   const handleSelectTemplate = (template: GoalTemplate | null) => {
@@ -53,6 +99,17 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
   const handleEditGoal = (goalId: string, goal: Goal): void => {
     setEditingGoal(goal);
     setShowEditModal(true);
+  };
+
+  const handleOpenTemplateSelector = (goal: Goal) => {
+    setEditingGoal(goal);
+    setShowTemplateSelector(true);
+  };
+
+  const handleTemplateApplied = () => {
+    reloadGoals();
+    setShowTemplateSelector(false);
+    setEditingGoal(null);
   };
 
   const handleSaveEdit = (goalName: string, color: string, options?: { description?: string; targetDate?: number }): void => {
@@ -106,6 +163,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
               onUpdateMilestone={handleUpdateMilestone}
               onDeleteMilestone={handleDeleteMilestone}
               onCompleteMilestone={handleCompleteMilestone}
+              onSelectTemplate={handleOpenTemplateSelector}
             />
           ))}
           {goalsForThisType.length === 0 && (
@@ -159,6 +217,18 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
           <GoalTemplateGallery onSelectTemplate={handleSelectTemplate} categoryName={name} />
         </Modal.Body>
       </Modal>
+
+      {editingGoal && (
+        <TemplateSelector
+          goal={editingGoal}
+          isOpen={showTemplateSelector}
+          onClose={() => {
+            setShowTemplateSelector(false);
+            setEditingGoal(null);
+          }}
+          onTemplateApplied={handleTemplateApplied}
+        />
+      )}
     </>
   );
 }

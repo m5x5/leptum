@@ -22,6 +22,7 @@ interface Props {
   onUpdate: (taskId: string, updates: Partial<StandaloneTask>) => void;
   onStart?: (taskName: string) => void;
   isActive?: boolean;
+  onEdit?: (task: StandaloneTask) => void;
 }
 
 export default function StandaloneTaskItem({
@@ -31,12 +32,13 @@ export default function StandaloneTaskItem({
   onDelete,
   onUpdate,
   onStart,
-  isActive = false
+  isActive = false,
+  onEdit
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [editName, setEditName] = useState(task.name);
   const [editDescription, setEditDescription] = useState(task.description || '');
-  const [editTshirtSize, setEditTshirtSize] = useState(task.tshirtSize || '');
+  const [editEffort, setEditEffort] = useState(task.effort || '');
   const [editNumericEstimate, setEditNumericEstimate] = useState(task.numericEstimate?.toString() || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
@@ -54,10 +56,10 @@ export default function StandaloneTaskItem({
       description: editDescription
     };
 
-    if (editTshirtSize) {
-      updates.tshirtSize = editTshirtSize as 'XS' | 'S' | 'M' | 'L' | 'XL';
-    } else if (task.tshirtSize) {
-      updates.tshirtSize = undefined;
+    if (editEffort) {
+      updates.effort = editEffort as 'XS' | 'S' | 'M' | 'L' | 'XL';
+    } else if (task.effort) {
+      updates.effort = undefined;
     }
 
     if (editNumericEstimate) {
@@ -76,7 +78,7 @@ export default function StandaloneTaskItem({
   const handleCancelEdit = () => {
     setEditName(task.name);
     setEditDescription(task.description || '');
-    setEditTshirtSize(task.tshirtSize || '');
+    setEditEffort(task.effort || '');
     setEditNumericEstimate(task.numericEstimate?.toString() || '');
     setIsEditing(false);
   };
@@ -139,10 +141,10 @@ export default function StandaloneTaskItem({
               />
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs text-muted-foreground mb-1">T-shirt Size</label>
+                  <label className="block text-xs text-muted-foreground mb-1">Effort</label>
                   <select
-                    value={editTshirtSize}
-                    onChange={(e) => setEditTshirtSize(e.target.value)}
+                    value={editEffort}
+                    onChange={(e) => setEditEffort(e.target.value)}
                     className="w-full p-2 bg-muted border border-border text-foreground rounded text-xs focus:border-primary focus:outline-none"
                   >
                     <option value="">None</option>
@@ -193,11 +195,11 @@ export default function StandaloneTaskItem({
                 `}>
                   {task.name}
                 </div>
-                {(task.tshirtSize || task.numericEstimate) && (
+                {(task.effort || task.numericEstimate) && (
                   <div className="flex gap-1">
-                    {task.tshirtSize && (
+                    {task.effort && (
                       <span className="px-1.5 py-0.5 text-xs bg-primary/10 text-primary rounded-full font-medium">
-                        {task.tshirtSize}
+                        {task.effort}
                       </span>
                     )}
                     {task.numericEstimate && (
@@ -270,7 +272,13 @@ export default function StandaloneTaskItem({
               </>
             )}
             <DropdownMenuItem
-              onClick={() => setIsEditing(true)}
+              onClick={() => {
+                if (onEdit) {
+                  onEdit(task);
+                } else {
+                  setIsEditing(true);
+                }
+              }}
               className="cursor-pointer"
             >
               <PencilIcon className="h-4 w-4 mr-2" />

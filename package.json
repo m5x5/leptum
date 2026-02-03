@@ -18,6 +18,7 @@
     "@radix-ui/react-slot": "^1.2.4",
     "@radix-ui/react-tabs": "^1.1.13",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@tailwindcss/postcss": "^4.1.18",
     "@types/uuid": "^10.0.0",
     "child_process": "^1.0.2",
     "class-variance-authority": "^0.7.1",
@@ -29,6 +30,7 @@
     "easymde": "^2.20.0",
     "echarts": "^6.0.0",
     "echarts-for-react": "^3.0.5",
+    "keyux": "^0.11.3",
     "langchain": "^0.3.37",
     "lucide-react": "^0.562.0",
     "m5x5-remotestorage-widget": "^1.8.0",
@@ -43,6 +45,7 @@
     "react-mentions": "^4.4.10",
     "react-simplemde-editor": "^5.2.0",
     "recharts": "^2.0.0-beta.8",
+    "rehype-raw": "^7.0.0",
     "remark-gfm": "^4.0.1",
     "remotestorage-widget": "^1.7.0",
     "remotestoragejs": "^2.0.0-beta.7",
@@ -65,7 +68,7 @@
     "babel-plugin-recharts": "^2.0.0",
     "postcss": "^8.4.28",
     "sharp": "^0.34.5",
-    "tailwindcss": "^3.3.3",
+    "tailwindcss": "^4.1.18",
     "typescript": "^5.1.6"
   },
   "browser": {

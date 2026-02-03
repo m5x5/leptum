@@ -86,6 +86,7 @@ export default function TimelinePage() {
   const [showMobileAWDetailDrawer, setShowMobileAWDetailDrawer] = useState(false);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
   const [showMobileFiltersDrawer, setShowMobileFiltersDrawer] = useState(false);
+  const [showDesktopFilters, setShowDesktopFilters] = useState(false);
 
   // State for collapsible detailed activities in timeline
   const [expandedBlockStart, setExpandedBlockStart] = useState<number | null>(null);
@@ -121,6 +122,26 @@ export default function TimelinePage() {
     // Cleanup
     return () => {
       document.removeEventListener('click', handleDocumentClick);
+    };
+  }, []);
+
+  // Listen for openAddActivity event from header button
+  useEffect(() => {
+    const handleOpenAddActivity = () => {
+      // Round current time to nearest 15 minutes
+      const roundedTimestamp = roundToNearest15Minutes(Date.now());
+      const { dateStr, timeStr } = getLocalDateTimeStrings(roundedTimestamp);
+      setAddFormInitialData({
+        activity: "",
+        date: dateStr,
+        time: timeStr,
+        goalId: "",
+      });
+      setShowAddModal(true);
+    };
+    window.addEventListener('openAddActivity', handleOpenAddActivity);
+    return () => {
+      window.removeEventListener('openAddActivity', handleOpenAddActivity);
     };
   }, []);
 
@@ -836,9 +857,6 @@ export default function TimelinePage() {
       // Bucket visibility filter
       if (!filterSettings.visibleBuckets.includes(event.bucketId)) return false;
 
-      // Duration filter
-      if (event.duration < filterSettings.minDuration) return false;
-
       // Hidden filter
       if (event.isHidden) return false;
 
@@ -910,29 +928,6 @@ export default function TimelinePage() {
               <UploadIcon className="w-5 h-5" />
               Import ActivityWatch
             </button>
-            {/* Desktop Add Activity Button */}
-            <button
-              onClick={() => {
-                // Round current time to nearest 15 minutes
-                const roundedTimestamp = roundToNearest15Minutes(Date.now());
-                const { dateStr, timeStr } = getLocalDateTimeStrings(roundedTimestamp);
-                setAddFormInitialData({
-                  activity: "",
-                  date: dateStr,
-                  time: timeStr,
-                  goalId: "",
-                });
-                if (window.innerWidth < 768) {
-                  setShowMobileAddDrawer(true);
-                } else {
-                  setShowAddModal(true);
-                }
-              }}
-              className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-            >
-              <PlusIcon className="w-5 h-5" />
-              <span>Add Activity</span>
-            </button>
           </div>
           </div>
 
@@ -982,8 +977,31 @@ export default function TimelinePage() {
           </button>
         )}
 
-        {/* Filter Controls - Desktop Only */}
+        {/* Desktop Filter Toggle Button */}
         {awData && awData.buckets.length > 0 && (
+          <div className="hidden md:block mb-6">
+            <button
+              onClick={() => setShowDesktopFilters(!showDesktopFilters)}
+              className="w-full flex items-center justify-between px-4 py-3 bg-card border border-border rounded-lg hover:bg-muted/50 transition"
+            >
+              <div className="flex items-center gap-2">
+                <FilterIcon className="w-5 h-5 text-muted-foreground" />
+                <span className="font-semibold text-foreground">Filters</span>
+                {totalActiveTime > 0 && (
+                  <span className="ml-2 px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md border border-green-500/20 text-sm font-medium">
+                    Online Presence: {formatDuration(totalActiveTime)}
+                  </span>
+                )}
+              </div>
+              <span className="text-sm text-muted-foreground">
+                {showDesktopFilters ? "Hide" : "Show"}
+              </span>
+            </button>
+          </div>
+        )}
+
+        {/* Filter Controls - Desktop Only */}
+        {awData && awData.buckets.length > 0 && showDesktopFilters && (
           <div className="hidden md:block">
             <FilterControls
               filterSettings={filterSettings}
@@ -992,6 +1010,7 @@ export default function TimelinePage() {
               onToggleBucket={toggleBucket}
               totalActiveTime={totalActiveTime}
               formatDuration={formatDuration}
+              forceExpanded={true}
             />
           </div>
         )}

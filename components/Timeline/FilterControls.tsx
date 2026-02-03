@@ -25,7 +25,6 @@ export default function FilterControls({
   const {
     showManual,
     showActivityWatch,
-    minDuration,
     visibleBuckets,
   } = filterSettings;
 
@@ -158,64 +157,8 @@ export default function FilterControls({
               </div>
             )}
 
-            {/* Duration Filter */}
-            <div className="space-y-2">
-              <label className="text-sm font-medium text-foreground block">
-                Minimum Duration
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="range"
-                  min="0"
-                  max="300"
-                  step="30"
-                  value={minDuration}
-                  onChange={(e) =>
-                    onUpdateFilters({ minDuration: parseInt(e.target.value) })
-                  }
-                  className="flex-1 h-2 bg-muted rounded-lg appearance-none cursor-pointer accent-primary"
-                />
-                <span className="text-sm text-foreground w-16 text-right">
-                  {minDuration}s
-                </span>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Hide events shorter than this duration
-              </p>
-            </div>
           </div>
 
-          {/* Stats */}
-          {buckets.length > 0 && (
-            <div className="mt-4 pt-4 border-t border-border">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                <div>
-                  <p className="text-xs text-muted-foreground">Total Buckets</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {buckets.length}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Visible Buckets</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {visibleBuckets.length}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Total Events</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {buckets.reduce((sum, b) => sum + b.eventCount, 0).toLocaleString()}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-xs text-muted-foreground">Bucket Types</p>
-                  <p className="text-lg font-semibold text-foreground">
-                    {new Set(buckets.map((b) => b.type)).size}
-                  </p>
-                </div>
-              </div>
-            </div>
-          )}
         </>
       )}
     </div>

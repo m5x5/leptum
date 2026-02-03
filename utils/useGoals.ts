@@ -11,6 +11,24 @@ export interface GoalMilestone {
   order: number;
 }
 
+export interface DailyTrackingEntry {
+  date: string; // YYYY-MM-DD format
+  value: number; // For counters/amounts
+  completed?: boolean; // For checklists
+  notes?: string; // Optional notes
+  timestamp?: number; // When logged
+}
+
+export interface GoalTrackingConfig {
+  type: 'counter' | 'checklist' | 'timer' | 'amount';
+  unit: string; // e.g., "glasses", "cups", "liters"
+  icon: string; // emoji or icon name
+  dailyTarget?: number; // e.g., 8 glasses
+  maxPerDay?: number; // e.g., 12 glasses
+  increments?: number[]; // e.g., [1, 2, 3] for quick add buttons
+  options?: string[]; // For checklist items
+}
+
 export interface Goal {
   id: string;
   name: string;
@@ -22,29 +40,35 @@ export interface Goal {
   completedAt?: number;     // Unix timestamp if goal completed
   status?: 'active' | 'completed' | 'archived';
   milestones?: GoalMilestone[];
+  templateId?: string; // Reference to goal template (e.g., "stay-hydrated")
+  trackingConfig?: GoalTrackingConfig; // Configuration for visual tracking
+  trackingData?: {
+    entries: DailyTrackingEntry[];
+  };
 }
 
-export function useGoals() {
+export function useGoals(options?: { loadOnMount?: boolean }) {
+  const loadOnMount = options?.loadOnMount !== false;
   const [goals, setGoals] = useState<Goal[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(loadOnMount);
   const [isError, setIsError] = useState(false);
 
-  useEffect(() => {
-    const loadGoals = async () => {
-      try {
-        setIsLoading(true);
-        const loadedGoals = await remoteStorageClient.getGoals();
-        setGoals(loadedGoals as Goal[]);
-        setIsError(false);
-      } catch (error) {
-        console.error("Failed to load goals:", error);
-        setIsError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const loadGoals = async () => {
+    try {
+      setIsLoading(true);
+      const loadedGoals = await remoteStorageClient.getGoals();
+      setGoals(loadedGoals as Goal[]);
+      setIsError(false);
+    } catch (error) {
+      console.error("Failed to load goals:", error);
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    loadGoals();
+  useEffect(() => {
+    if (loadOnMount) loadGoals();
 
     // Listen for changes from RemoteStorage
     const handleChange = (event: any) => {
@@ -54,7 +78,17 @@ export function useGoals() {
     };
 
     remoteStorageClient.onChange(handleChange);
-  }, []);
+
+    // Listen for goal update events
+    const handleGoalUpdate = () => {
+      loadGoals();
+    };
+    window.addEventListener('goalUpdated', handleGoalUpdate);
+    
+    return () => {
+      window.removeEventListener('goalUpdated', handleGoalUpdate);
+    };
+  }, [loadOnMount]);
 
   const addGoal = async (
     goalName: string,
@@ -65,7 +99,7 @@ export function useGoals() {
       targetDate?: number;
       milestones?: Omit<GoalMilestone, 'id'>[];
     }
-  ) => {
+  ): Promise<Goal | undefined> => {
     try {
       const milestones = options?.milestones?.map((m, index) => ({
         ...m,
@@ -88,9 +122,11 @@ export function useGoals() {
 
       await remoteStorageClient.saveGoal(newGoal);
       setGoals(prev => [...prev, newGoal]);
+      return newGoal;
     } catch (error) {
       console.error("Failed to add goal:", error);
       setIsError(true);
+      return undefined;
     }
   };
 
@@ -244,5 +280,6 @@ export function useGoals() {
     updateMilestone,
     deleteMilestone,
     completeMilestone,
+    reload: loadGoals,
   };
 }

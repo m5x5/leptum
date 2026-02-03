@@ -205,6 +205,24 @@ export default function SettingsPage() {
     }
   };
 
+  const handleImportFromTodonna = async () => {
+    if (!confirm('Import tasks from Todonna into Leptum?')) return;
+    try {
+      const { importedCount } = await remoteStorageClient.importFromTodonna();
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new Event('tasksUpdated'));
+      }
+      if (importedCount > 0) {
+        alert(`Imported ${importedCount} task(s) from Todonna.`);
+      } else {
+        alert('No new tasks found in Todonna.');
+      }
+    } catch (error) {
+      console.error('Failed to import from Todonna:', error);
+      alert('Failed to import from Todonna. Please try again.');
+    }
+  };
+
   const handleOpenEntityModal = (entity?: Entity) => {
     if (entity) {
       setEditingEntity(entity);
@@ -334,6 +352,19 @@ export default function SettingsPage() {
               </div>
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
+              </svg>
+            </button>
+
+            <button
+              onClick={handleImportFromTodonna}
+              className="w-full flex items-center justify-between py-2 hover:bg-accent/50 pr-2 rounded-lg transition-colors text-left group"
+            >
+              <div className="flex flex-col gap-0.5">
+                <span className="text-sm text-foreground group-hover:text-primary transition-colors">Import from Todonna</span>
+                <span className="text-xs text-muted-foreground">One-time import of tasks from your Todonna storage</span>
+              </div>
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" viewBox="0 0 20 20" fill="currentColor">
+                <path fillRule="evenodd" d="M17 3a1 1 0 00-1 1v9.586l-2.293-2.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l4-4a1 1 0 00-1.414-1.414L18 13.586V4a1 1 0 00-1-1zM4 3a1 1 0 000 2h8a1 1 0 100-2H4z" clipRule="evenodd" />
               </svg>
             </button>
           </div>

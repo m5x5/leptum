@@ -42,7 +42,10 @@ export type Routine = {
   status?: string;
   lastEndTime?: number;
   index: number;
-  goalId?: string; // Optional - associated goal for this routine
+  description?: string; // Optional rich text description
+  goalIds?: string[]; // Optional - array of goal IDs this routine supports (many-to-many)
+  goalId?: string; // DEPRECATED: Use goalIds instead. Kept for backward compatibility during migration
+  isShowUpRoutine?: boolean; // Special flag for "Show Up" routine
   tasks: RoutineTask[];
 };
 

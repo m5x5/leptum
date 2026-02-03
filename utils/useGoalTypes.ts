@@ -5,30 +5,31 @@ import { v4 as uuidv4 } from 'uuid';
 export interface GoalType {
   id: string;
   name: string;
-  description: string;
+  description?: string | null; // Optional rich text description
 }
 
-export function useGoalTypes() {
+export function useGoalTypes(options?: { loadOnMount?: boolean }) {
+  const loadOnMount = options?.loadOnMount !== false;
   const [goalTypes, setGoalTypes] = useState<GoalType[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(loadOnMount);
   const [isError, setIsError] = useState(false);
 
-  useEffect(() => {
-    const loadGoalTypes = async () => {
-      try {
-        setIsLoading(true);
-        const loadedGoalTypes = await remoteStorageClient.getGoalTypes();
-        setGoalTypes(loadedGoalTypes as GoalType[]);
-        setIsError(false);
-      } catch (error) {
-        console.error("Failed to load goal types:", error);
-        setIsError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+  const loadGoalTypes = async () => {
+    try {
+      setIsLoading(true);
+      const loadedGoalTypes = await remoteStorageClient.getGoalTypes();
+      setGoalTypes(loadedGoalTypes as GoalType[]);
+      setIsError(false);
+    } catch (error) {
+      console.error("Failed to load goal types:", error);
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
-    loadGoalTypes();
+  useEffect(() => {
+    if (loadOnMount) loadGoalTypes();
 
     // Listen for changes from RemoteStorage
     const handleChange = (event: any) => {
@@ -38,7 +39,7 @@ export function useGoalTypes() {
     };
 
     remoteStorageClient.onChange(handleChange);
-  }, []);
+  }, [loadOnMount]);
 
   const addGoalType = async (name: string, description: string = "") => {
     try {
@@ -88,6 +89,7 @@ export function useGoalTypes() {
     goalTypes,
     isLoading,
     isError,
+    reload: loadGoalTypes,
     addGoal: addGoalType,
     addGoalType,
     updateGoal: updateGoalType,

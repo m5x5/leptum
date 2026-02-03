@@ -14,8 +14,8 @@ test('task effort estimation feature', async ({ page }) => {
   await page.fill('input[placeholder="Enter task name..."]', 'Test Task with Effort');
   await page.fill('input[placeholder="Enter description..."]', 'A test task for effort estimation');
 
-  // Select T-shirt size
-  await page.selectOption('select[id="task-tshirt-size"]', 'M');
+  // Select effort size
+  await page.selectOption('select[id="task-effort"]', 'M');
 
   // Enter numeric estimate
   await page.fill('input[id="task-numeric-estimate"]', '3.5');
@@ -25,7 +25,7 @@ test('task effort estimation feature', async ({ page }) => {
 
   // Verify the task appears with effort badges
   await expect(page.locator('text=Test Task with Effort')).toBeVisible();
-  await expect(page.locator('text=M')).toBeVisible(); // T-shirt size badge
+  await expect(page.locator('text=M')).toBeVisible(); // Effort badge
   await expect(page.locator('text=3.5')).toBeVisible(); // Numeric estimate badge
 
   // Test editing the task
@@ -33,7 +33,7 @@ test('task effort estimation feature', async ({ page }) => {
   await page.click('text=Edit');
 
   // Update effort estimates
-  await page.selectOption('select', 'L'); // Change T-shirt size
+  await page.selectOption('select', 'L'); // Change effort size
   await page.fill('input[placeholder="e.g., 2.5"]', '5.0'); // Change numeric estimate
 
   // Save changes

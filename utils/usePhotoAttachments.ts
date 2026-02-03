@@ -102,6 +102,19 @@ export function usePhotoAttachments() {
 
   useEffect(() => {
     loadPhotos();
+
+    // Listen for changes from RemoteStorage
+    const handleChange = (event: any) => {
+      if (event.relativePath === 'photos' || event.relativePath.startsWith('photo-images/')) {
+        loadPhotos();
+      }
+    };
+
+    remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      // Note: RemoteStorage doesn't have a direct off method, but the handler will be cleaned up
+    };
   }, []);
 
   const loadPhotos = async () => {
@@ -112,6 +125,9 @@ export function usePhotoAttachments() {
       // 404 errors are expected when photos collection doesn't exist yet
       if (!(error?.status === 404 || error?.toString?.().includes('404') || error?.missing)) {
         console.error('Failed to load photos:', error);
+      } else {
+        console.warn('Photos collection does not exist yet (404 - expected)');
+        setPhotos([]); // Ensure we set empty array on 404
       }
     } finally {
       setLoading(false);
@@ -155,23 +171,36 @@ export function usePhotoAttachments() {
         caption: options?.caption,
       };
 
-      await remoteStorageClient.addPhoto(newPhoto);
+      try {
+        await remoteStorageClient.addPhoto(newPhoto);
+      } catch (addError) {
+        console.error('Error adding photo via addPhoto:', addError);
+        throw addError; // Re-throw to trigger retry logic
+      }
 
       // Update local state
-      setPhotos(prev => [...prev, newPhoto!]);
+      setPhotos(prev => {
+        const updated = [...prev, newPhoto!];
+        return updated;
+      });
 
       return newPhoto;
     } catch (error: any) {
-      // Check if this is a 404 error (expected when collection doesn't exist yet)
-      // RemoteStorage.js logs 404s, but we can still proceed
-      if ((error?.status === 404 || error?.toString?.().includes('404') || error?.missing) && newPhoto) {
-        // Try to save photos directly to create the collection
+      // If addPhoto failed, try saving directly (handles 404 and other cases)
+      if (newPhoto) {
         try {
-          await remoteStorageClient.savePhotos([newPhoto]);
+          // Get existing photos and merge
+          const existingPhotos = await remoteStorageClient.getPhotos();
+          const allPhotos = [...existingPhotos, newPhoto];
+          await remoteStorageClient.savePhotos(allPhotos);
           setPhotos(prev => [...prev, newPhoto!]);
           return newPhoto;
-        } catch (retryError) {
-          console.error('Failed to save photos after 404:', retryError);
+        } catch (retryError: any) {
+          // Only log if it's not a 404 (404s are expected when creating new collection)
+          if (!(retryError?.status === 404 || retryError?.toString?.().includes('404') || retryError?.missing)) {
+            console.error('Failed to save photos after retry:', retryError);
+          }
+          // Still return null if retry failed
           return null;
         }
       }
@@ -208,7 +237,8 @@ export function usePhotoAttachments() {
    * Get photos for a specific impact
    */
   const getPhotosForImpact = useCallback((impactId: string): PhotoAttachment[] => {
-    return photos.filter(p => p.impactId === impactId);
+    const filtered = photos.filter(p => p.impactId === impactId);
+    return filtered;
   }, [photos]);
 
   /**

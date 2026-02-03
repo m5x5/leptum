@@ -10,6 +10,8 @@ import EChartsHeatmap from "../components/RoutineHeatmap/EChartsHeatmap";
 import { useGoals } from "../utils/useGoals";
 import { Input } from "../components/ui/input";
 import { StreakBadge } from "../components/StreakBadge";
+import { GoalTrackingWidget } from "../components/Goals/GoalTrackingWidget";
+import { RichTextEditor } from "../components/ui/rich-text-editor";
 
 export default function RoutinesPage() {
   const [routines, setRoutines] = useState<(Routine| any)[]>([]);
@@ -20,16 +22,37 @@ export default function RoutinesPage() {
   const [formData, setFormData] = useState({
     name: "",
     cron: "",
-    goalId: "",
+    description: "",
+    goalIds: [] as string[], // Changed to array for multi-select
     tasks: [] as string[],
     newTask: ""
   });
 
   const { completions, getStreaksForRoutine } = useRoutineCompletions();
-  const { goals } = useGoals();
+  const { goals, reload: reloadGoals } = useGoals();
+  
+  // Reload goals when tracking updates
+  useEffect(() => {
+    const handleGoalUpdate = () => {
+      reloadGoals();
+    };
+    window.addEventListener('goalUpdated', handleGoalUpdate);
+    return () => window.removeEventListener('goalUpdated', handleGoalUpdate);
+  }, [reloadGoals]);
 
   useEffect(() => {
     loadRoutines();
+  }, []);
+
+  // Listen for openCreateRoutine event from header button
+  useEffect(() => {
+    const handleOpenCreateRoutine = () => {
+      openCreateModal();
+    };
+    window.addEventListener('openCreateRoutine', handleOpenCreateRoutine);
+    return () => {
+      window.removeEventListener('openCreateRoutine', handleOpenCreateRoutine);
+    };
   }, []);
 
   const loadRoutines = async () => {
@@ -116,7 +139,8 @@ export default function RoutinesPage() {
       cron: formData.cron || undefined,
       status: formData.cron ? "pending" : undefined,
       index: routines.length,
-      goalId: formData.goalId || undefined,
+      description: formData.description.trim() || undefined,
+      goalIds: formData.goalIds.length > 0 ? formData.goalIds : undefined,
       tasks: formData.tasks.map((taskName, index) => ({
         id: `task-${Date.now()}-${index}`,
         name: taskName,
@@ -129,7 +153,7 @@ export default function RoutinesPage() {
     await remoteStorageClient.saveRoutine(newRoutine);
     setRoutines([...routines, newRoutine]);
     setShowCreateModal(false);
-    setFormData({ name: "", cron: "", goalId: "", tasks: [], newTask: "" });
+    setFormData({ name: "", cron: "", description: "", goalIds: [], tasks: [], newTask: "" });
   };
 
   const updateRoutine = async () => {
@@ -139,7 +163,8 @@ export default function RoutinesPage() {
       ...selectedRoutine,
       name: formData.name,
       cron: formData.cron || undefined,
-      goalId: formData.goalId || undefined,
+      description: formData.description.trim() || undefined,
+      goalIds: formData.goalIds.length > 0 ? formData.goalIds : undefined,
       tasks: formData.tasks.map((taskName, index) => {
         const existingTask = selectedRoutine.tasks.find(t => t.name === taskName);
         return existingTask || {
@@ -156,30 +181,62 @@ export default function RoutinesPage() {
     setRoutines(routines.map(r => r.id === updatedRoutine.id ? updatedRoutine : r));
     setShowEditModal(false);
     setSelectedRoutine(null);
-    setFormData({ name: "", cron: "", goalId: "", tasks: [], newTask: "" });
+    setFormData({ name: "", cron: "", description: "", goalIds: [], tasks: [], newTask: "" });
   };
 
   const deleteRoutine = async () => {
-    if (!selectedRoutine) return;
+    if (!selectedRoutine) {
+      console.error('No routine selected for deletion');
+      setShowDeleteModal(false);
+      return;
+    }
 
-    await remoteStorageClient.deleteRoutine(selectedRoutine.id);
-    setRoutines(routines.filter(r => r.id !== selectedRoutine.id));
-    setShowDeleteModal(false);
-    setShowEditModal(false);
-    setSelectedRoutine(null);
+    try {
+      await remoteStorageClient.deleteRoutine(selectedRoutine.id);
+
+      // Delete associated routine completions (these are just tracking data)
+      try {
+        const completions = await remoteStorageClient.getRoutineCompletions();
+        const filteredCompletions = completions.filter(
+          (c: any) => c.routineId !== selectedRoutine.id
+        );
+        await remoteStorageClient.saveRoutineCompletions(filteredCompletions);
+      } catch (error) {
+        console.error('Failed to delete routine completions:', error);
+      }
+      
+      // NOTE: We intentionally do NOT delete standalone tasks when deleting a routine
+      // Tasks should remain even if the routine is deleted, as they may be important
+      // historical data or the user may want to keep them
+      
+      setRoutines(routines.filter(r => r.id !== selectedRoutine.id));
+      setShowDeleteModal(false);
+      setShowEditModal(false);
+      setSelectedRoutine(null);
+      
+      // Trigger reloads
+      window.dispatchEvent(new CustomEvent('tasksUpdated'));
+      window.dispatchEvent(new CustomEvent('goalUpdated'));
+    } catch (error) {
+      console.error('Failed to delete routine:', error);
+      alert(`Failed to delete routine: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   };
 
   const openCreateModal = () => {
-    setFormData({ name: "", cron: "", goalId: "", tasks: [], newTask: "" });
+    setFormData({ name: "", cron: "", description: "", goalIds: [], tasks: [], newTask: "" });
     setShowCreateModal(true);
   };
 
   const openEditModal = (routine: Routine) => {
     setSelectedRoutine(routine);
+    // Support both goalIds (new) and goalId (old) for backward compatibility
+    const goalIds = routine.goalIds || (routine.goalId ? [routine.goalId] : []);
     setFormData({
       name: routine.name,
       cron: routine.cron || "",
-      goalId: routine.goalId || "",
+      description: routine.description || "",
+      goalIds: goalIds,
       tasks: routine.tasks.map(t => t.name),
       newTask: ""
     });
@@ -219,14 +276,6 @@ export default function RoutinesPage() {
               Manage your routines and tasks - add schedules optionally
             </p>
           </div>
-          {/* Desktop New Routine Button */}
-          <button
-            onClick={openCreateModal}
-            className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-          >
-            <PlusIcon className="w-5 h-5" />
-            <span>New Routine</span>
-          </button>
         </div>
 
         {/* Mobile New Routine Button */}
@@ -259,6 +308,16 @@ export default function RoutinesPage() {
                         {getPrettyTimeTillNextOccurrence(routine.cron!)}
                       </span>
                       <button
+                        onClick={() => {
+                          setSelectedRoutine(routine);
+                          setShowDeleteModal(true);
+                        }}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors"
+                        aria-label="Delete routine"
+                      >
+                        <TrashIcon className="h-5 w-5 text-muted-foreground hover:text-destructive" />
+                      </button>
+                      <button
                         onClick={() => openEditModal(routine)}
                         className="p-2 hover:bg-muted rounded-lg transition-colors"
                         aria-label="Edit routine"
@@ -270,6 +329,23 @@ export default function RoutinesPage() {
                   <p className="text-sm text-muted-foreground mb-2">
                     {getDescription(routine.cron!)}
                   </p>
+
+                  {/* Tracking Widget - Show if routine has linked goal with template */}
+                  {routine.goalIds && routine.goalIds.length > 0 && (() => {
+                    const linkedGoal = goals.find(g => routine.goalIds?.includes(g.id) && g.templateId && g.trackingConfig);
+                    return linkedGoal ? (
+                      <div className="mb-4">
+                        <GoalTrackingWidget
+                          goal={linkedGoal}
+                          onUpdate={() => {
+                            window.dispatchEvent(new CustomEvent('goalUpdated'));
+                          }}
+                          embedded={true}
+                          routineName={routine.name}
+                        />
+                      </div>
+                    ) : null;
+                  })()}
 
                   {completions.some(c => c.routineId === routine.id) && (
                     <div className="mb-4">
@@ -308,14 +384,43 @@ export default function RoutinesPage() {
                 >
                   <div className="flex items-center justify-between mb-2">
                     <h3 className="text-lg font-semibold text-foreground">{routine.name}</h3>
-                    <button
-                      onClick={() => openEditModal(routine)}
-                      className="p-2 hover:bg-muted rounded-lg transition-colors"
-                      aria-label="Edit routine"
-                    >
-                      <PencilIcon className="h-5 w-5 text-muted-foreground hover:text-foreground" />
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => {
+                          setSelectedRoutine(routine);
+                          setShowDeleteModal(true);
+                        }}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors"
+                        aria-label="Delete routine"
+                      >
+                        <TrashIcon className="h-5 w-5 text-muted-foreground hover:text-destructive" />
+                      </button>
+                      <button
+                        onClick={() => openEditModal(routine)}
+                        className="p-2 hover:bg-muted rounded-lg transition-colors"
+                        aria-label="Edit routine"
+                      >
+                        <PencilIcon className="h-5 w-5 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    </div>
                   </div>
+
+                  {/* Tracking Widget - Show if routine has linked goal with template */}
+                  {routine.goalIds && routine.goalIds.length > 0 && (() => {
+                    const linkedGoal = goals.find(g => routine.goalIds?.includes(g.id) && g.templateId && g.trackingConfig);
+                    return linkedGoal ? (
+                      <div className="mb-4">
+                        <GoalTrackingWidget
+                          goal={linkedGoal}
+                          onUpdate={() => {
+                            window.dispatchEvent(new CustomEvent('goalUpdated'));
+                          }}
+                          embedded={true}
+                          routineName={routine.name}
+                        />
+                      </div>
+                    ) : null;
+                  })()}
 
                   {completions.some(c => c.routineId === routine.id) && (
                     <div className="mb-4">
@@ -382,6 +487,18 @@ export default function RoutinesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
+                  Description <span className="text-muted-foreground font-normal">(optional)</span>
+                </label>
+                <RichTextEditor
+                  value={formData.description}
+                  onChange={(value) => setFormData({ ...formData, description: value })}
+                  placeholder="Describe your routine and what it helps you achieve..."
+                  minHeight="120px"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-foreground mb-2">
                   Schedule (optional)
                 </label>
                 <Input
@@ -399,20 +516,54 @@ export default function RoutinesPage() {
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Goal (optional)
+                  Goals (optional) - Select multiple
                 </label>
                 <select
-                  value={formData.goalId}
-                  onChange={(e) => setFormData({ ...formData, goalId: e.target.value })}
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+                  multiple
+                  value={formData.goalIds}
+                  onChange={(e) => {
+                    const selectedIds = Array.from(e.target.selectedOptions, option => option.value);
+                    setFormData({ ...formData, goalIds: selectedIds });
+                  }}
+                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none min-h-[100px]"
+                  size={Math.min(goals.length + 1, 6)}
                 >
-                  <option value="">No goal</option>
                   {goals.map((goal) => (
                     <option key={goal.id} value={goal.id}>
                       {goal.name}
                     </option>
                   ))}
                 </select>
+                {formData.goalIds.length > 0 && (
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    {formData.goalIds.map((goalId) => {
+                      const goal = goals.find(g => g.id === goalId);
+                      return goal ? (
+                        <span
+                          key={goalId}
+                          className="px-2 py-1 bg-primary/10 text-primary rounded-full text-sm flex items-center gap-1"
+                        >
+                          {goal.name}
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFormData({
+                                ...formData,
+                                goalIds: formData.goalIds.filter(id => id !== goalId)
+                              });
+                            }}
+                            className="hover:text-primary/70"
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ) : null;
+                    })}
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground mt-1">
+                  Hold Ctrl/Cmd to select multiple goals
+                </p>
               </div>
 
               <div>
@@ -493,7 +644,11 @@ export default function RoutinesPage() {
           <Modal.Title>Delete Routine</Modal.Title>
           <Modal.Body>
             <p className="text-foreground">
-              Are you sure you want to delete "{selectedRoutine?.name}"? All tasks in this routine will be deleted.
+              Are you sure you want to delete "{selectedRoutine?.name || 'this routine'}"? 
+              <br />
+              <span className="text-sm text-muted-foreground mt-2 block">
+                Note: Tasks created from this routine will be kept, but routine completions will be removed.
+              </span>
             </p>
           </Modal.Body>
           <Modal.Footer>

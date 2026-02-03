@@ -108,6 +108,22 @@ export default function ImpactPage() {
   const [thoughtToDelete, setThoughtToDelete] = useState(null);
 
   // Analyze activity patterns when impacts change
+  // Listen for openAddLog and openAddInsight events from header button
+  useEffect(() => {
+    const handleOpenAddLog = () => {
+      openQuickLogModal();
+    };
+    const handleOpenAddInsight = () => {
+      openAddInsightModal();
+    };
+    window.addEventListener('openAddLog', handleOpenAddLog);
+    window.addEventListener('openAddInsight', handleOpenAddInsight);
+    return () => {
+      window.removeEventListener('openAddLog', handleOpenAddLog);
+      window.removeEventListener('openAddInsight', handleOpenAddInsight);
+    };
+  }, []);
+
   useEffect(() => {
     if (state.impacts && state.impacts.length >= 2) {
       const patterns = analyzeActivityPatterns(state.impacts);
@@ -164,6 +180,22 @@ export default function ImpactPage() {
     }
   };
 
+  // Listen for openAddLog and openAddInsight events from header button
+  useEffect(() => {
+    const handleOpenAddLog = () => {
+      openQuickLogModal();
+    };
+    const handleOpenAddInsight = () => {
+      openAddInsightModal();
+    };
+    window.addEventListener('openAddLog', handleOpenAddLog);
+    window.addEventListener('openAddInsight', handleOpenAddInsight);
+    return () => {
+      window.removeEventListener('openAddLog', handleOpenAddLog);
+      window.removeEventListener('openAddInsight', handleOpenAddInsight);
+    };
+  }, []);
+
   useEffect(() => {
     const loadImpacts = async () => {
       try {
@@ -202,6 +234,22 @@ export default function ImpactPage() {
   }, [JSON.stringify(state.impacts), isDataLoaded]);
 
   // Close timespan dropdown when clicking outside
+  // Listen for openAddLog and openAddInsight events from header button
+  useEffect(() => {
+    const handleOpenAddLog = () => {
+      openQuickLogModal();
+    };
+    const handleOpenAddInsight = () => {
+      openAddInsightModal();
+    };
+    window.addEventListener('openAddLog', handleOpenAddLog);
+    window.addEventListener('openAddInsight', handleOpenAddInsight);
+    return () => {
+      window.removeEventListener('openAddLog', handleOpenAddLog);
+      window.removeEventListener('openAddInsight', handleOpenAddInsight);
+    };
+  }, []);
+
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showTimespanSelect && !event.target.closest('.timespan-select-container')) {
@@ -734,24 +782,6 @@ export default function ImpactPage() {
             Track your mood and discover what helps
           </p>
         </div>
-        {/* Desktop Add Button */}
-        {activeTab === 'impact' ? (
-          <button
-            onClick={openQuickLogModal}
-            className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-          >
-            <PlusIcon className="w-5 h-5" />
-            <span>Add Log</span>
-          </button>
-        ) : (
-          <button
-            onClick={openAddInsightModal}
-            className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-          >
-            <PlusIcon className="w-5 h-5" />
-            <span>Add Insight</span>
-          </button>
-        )}
       </div>
 
       {/* Tabs */}
@@ -834,9 +864,9 @@ export default function ImpactPage() {
         <>
       {/* Date Navigation Bar */}
       {allDates.length > 0 && (
-        <div className="mb-6" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-          <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pb-4 border-b border-border" style={{ width: '100%', maxWidth: '100%', overflow: 'hidden' }}>
-            <div className="overflow-x-auto scrollbar-hide pb-2 -mb-2" style={{ width: '100%', maxWidth: '100%' }}>
+        <div className="mb-6 w-full" style={{ overflow: 'hidden', contain: 'layout' }}>
+          <div className="sticky top-0 z-30 bg-background/95 backdrop-blur-sm pb-4 border-b border-border w-full" style={{ overflow: 'hidden', contain: 'layout' }}>
+            <div className="overflow-x-auto scrollbar-hide pb-2 -mb-2 w-full" style={{ overflowY: 'hidden', overflowX: 'auto', contain: 'layout style', maxWidth: '100%' }}>
               <div className="flex gap-2 min-w-max">
               {allDates.map((dateKey) => {
                 const [year, month, day] = dateKey.split('-').map(Number);
@@ -860,9 +890,9 @@ export default function ImpactPage() {
                     }}
                     className={`
                       px-4 py-2.5 rounded-lg font-medium text-sm whitespace-nowrap transition-all
-                      flex flex-col items-center gap-0.5 min-w-[70px]
+                      flex flex-col items-center gap-0.5 min-w-[70px] flex-shrink-0
                       ${isActive
-                        ? 'bg-primary text-primary-foreground shadow-md scale-105'
+                        ? 'bg-primary text-primary-foreground shadow-md'
                         : isDateToday
                         ? 'bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30'
                         : 'bg-muted text-muted-foreground hover:bg-muted/80'

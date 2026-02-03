@@ -3,7 +3,7 @@ import { useVelocity } from '../utils/useVelocity';
 interface VelocityData {
   week: string;
   totalNumeric: number;
-  tshirtCounts: Record<string, number>;
+  effortCounts: Record<string, number>;
   taskCount: number;
 }
 
@@ -34,9 +34,9 @@ export default function VelocityTracker() {
   const avgNumeric = velocityData.reduce((sum: number, week: VelocityData) => sum + week.totalNumeric, 0) / velocityData.length;
   const avgTasks = velocityData.reduce((sum: number, week: VelocityData) => sum + week.taskCount, 0) / velocityData.length;
 
-  // Calculate T-shirt size distribution
-  const tshirtTotals = velocityData.reduce((totals: Record<string, number>, week: VelocityData) => {
-    Object.entries(week.tshirtCounts).forEach(([size, count]) => {
+  // Calculate effort distribution
+  const effortTotals = velocityData.reduce((totals: Record<string, number>, week: VelocityData) => {
+    Object.entries(week.effortCounts).forEach(([size, count]) => {
       totals[size] = (totals[size] || 0) + count;
     });
     return totals;
@@ -78,12 +78,12 @@ export default function VelocityTracker() {
         ))}
       </div>
 
-      {/* T-shirt Size Distribution */}
-      {Object.keys(tshirtTotals).length > 0 && (
+      {/* Effort Distribution */}
+      {Object.keys(effortTotals).length > 0 && (
         <div className="mt-4 pt-4 border-t border-border">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Size Distribution</h4>
+          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Effort Distribution</h4>
           <div className="flex flex-wrap gap-1">
-            {Object.entries(tshirtTotals)
+            {Object.entries(effortTotals)
               .sort(([a], [b]) => {
                 const order = ['XS', 'S', 'M', 'L', 'XL'];
                 return order.indexOf(a) - order.indexOf(b);

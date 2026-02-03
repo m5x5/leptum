@@ -6,14 +6,22 @@ import cronParser from 'cron-parser';
 const ROUTINE_CHECK_KEY = 'routine-last-check';
 const CHECK_INTERVAL = 60000; // Check every minute
 
-export function useRoutineScheduler(onTasksCreated?: () => void) {
+export interface UseRoutineSchedulerOptions {
+  currentTasks?: any[];
+  tasksLoading?: boolean;
+}
+
+export function useRoutineScheduler(
+  onTasksCreated?: () => void,
+  options?: UseRoutineSchedulerOptions
+) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const optionsRef = useRef(options);
+  optionsRef.current = options;
 
   useEffect(() => {
-    // Run immediately on mount
     checkAndTriggerRoutines();
 
-    // Then check every minute
     intervalRef.current = setInterval(() => {
       checkAndTriggerRoutines();
     }, CHECK_INTERVAL);
@@ -27,14 +35,23 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
 
   const checkAndTriggerRoutines = async () => {
     try {
-      const routines = await remoteStorageClient.getRoutines() as Routine[];
+      const opts = optionsRef.current;
       const now = Date.now();
       const lastCheck = parseInt(localStorage.getItem(ROUTINE_CHECK_KEY) || '0', 10);
-      
-      // Get all existing tasks from RemoteStorage (this syncs across devices)
-      const existingTasks = await remoteStorageClient.getStandaloneTasks();
-      
-      // Get start of today to check for tasks created today
+
+      let routines: Routine[];
+      let existingTasks: any[];
+
+      if (opts?.currentTasks !== undefined && !opts?.tasksLoading) {
+        existingTasks = opts.currentTasks;
+        routines = await remoteStorageClient.getRoutines() as Routine[];
+      } else {
+        [routines, existingTasks] = await Promise.all([
+          remoteStorageClient.getRoutines() as Promise<Routine[]>,
+          remoteStorageClient.getStandaloneTasks()
+        ]);
+      }
+
       const today = new Date(now);
       today.setHours(0, 0, 0, 0);
       const todayStart = today.getTime();
@@ -44,8 +61,6 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
           continue;
         }
 
-        // Check if tasks from this routine were already created today in RemoteStorage
-        // This works across devices because RemoteStorage syncs
         const hasTasksToday = routine.tasks.some(task =>
           existingTasks.some((t: any) =>
             t.routineId === routine.id &&
@@ -55,18 +70,15 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
           )
         );
 
-        // If tasks already exist for today, skip this routine (already triggered on another device)
         if (hasTasksToday) {
           continue;
         }
-        
-        // Check if this routine should have triggered since last check
+
         if (shouldTrigger(routine.cron, lastCheck, now)) {
-          await triggerRoutine(routine);
+          await triggerRoutine(routine, existingTasks);
         }
       }
 
-      // Update last check time (localStorage is just for performance optimization)
       localStorage.setItem(ROUTINE_CHECK_KEY, now.toString());
     } catch (error) {
       console.error('Failed to check routines:', error);
@@ -114,36 +126,27 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
     }
   };
 
-  const triggerRoutine = async (routine: Routine) => {
+  const triggerRoutine = async (routine: Routine, existingTasks: any[]) => {
     try {
-      // Create a unique instance ID for this routine trigger
       const routineInstanceId = `${routine.id}-${Date.now()}`;
-
-      // Create standalone tasks for each task in the routine
-      const standaloneTasks = await remoteStorageClient.getStandaloneTasks();
-      
-      // Get start of today to check for existing tasks from today
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const todayStart = today.getTime();
 
       for (const task of routine.tasks || []) {
-        // Check if this task already exists as a due task for this routine instance
-        const existingTaskByInstance = standaloneTasks.find(
+        const existingTaskByInstance = existingTasks.find(
           (t: any) => t.routineInstanceId === routineInstanceId && t.name === task.name
         );
-        
-        // Also check if a task with the same name from this routine was created today
-        // This prevents duplicates if the routine is triggered multiple times in the same day
-        const existingTaskToday = standaloneTasks.find(
-          (t: any) => 
-            t.routineId === routine.id && 
-            t.name === task.name && 
+        const existingTaskToday = existingTasks.find(
+          (t: any) =>
+            t.routineId === routine.id &&
+            t.name === task.name &&
             t.status === 'due' &&
             t.createdAt >= todayStart
         );
 
         if (!existingTaskByInstance && !existingTaskToday) {
+          const goalIds = routine.goalIds || (routine.goalId ? [routine.goalId] : []);
           const newTask = {
             id: `${routine.id}-${task.id}-${Date.now()}`,
             name: task.name,
@@ -152,14 +155,13 @@ export function useRoutineScheduler(onTasksCreated?: () => void) {
             createdAt: Date.now(),
             routineId: routine.id,
             routineInstanceId,
-            ...(routine.goalId && { goalId: routine.goalId })
+            ...(goalIds.length > 0 && { goalId: goalIds[0] })
           };
 
           await remoteStorageClient.addStandaloneTask(newTask);
         }
       }
 
-      // Callback to notify that tasks were created
       if (onTasksCreated) {
         onTasksCreated();
       }

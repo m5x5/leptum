@@ -49,8 +49,6 @@ const JobContext = createContext<JobContextType>({
   openCreateTaskModal() {},
 });
 
-let sound: HTMLAudioElement | null = null;
-
 export function useJobContext() {
   return useContext(JobContext);
 }
@@ -97,12 +95,6 @@ export function JobContextProvider({ children }: Props) {
     setJobCallback(jobs);
   };
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-
-    sound = new Audio("./piece-of-cake-611.mp3");
-  }, [typeof window]);
-
   const deleteJob = (cron: string) => {
     const newJobs = jobs.filter((job) => job.cron !== cron);
     setJobCallback(newJobs);
@@ -122,12 +114,12 @@ export function JobContextProvider({ children }: Props) {
 
         setJobCallback(jobs);
 
-        if (sound) {
-          if (sound.readyState > 0) {
-            sound.play();
-          } else {
-            sound.onload = () => sound?.play();
-          }
+        // Create and play only when about to play (avoids pre-downloading)
+        const sound = new Audio("/piece-of-cake-611.mp3");
+        if (sound.readyState > 0) {
+          sound.play();
+        } else {
+          sound.oncanplaythrough = () => sound.play();
         }
       };
       try {
