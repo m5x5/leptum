@@ -147,7 +147,7 @@ const SidebarProvider = React.forwardRef<
               } as React.CSSProperties
             }
             className={cn(
-              "group/sidebar-wrapper flex min-h-svh w-full has-[[data-variant=inset]]:bg-sidebar",
+              "group/sidebar-wrapper flex h-svh w-full overflow-hidden has-[[data-variant=inset]]:bg-sidebar",
               className
             )}
             ref={ref}
@@ -226,9 +226,9 @@ const Sidebar = React.forwardRef<
       <div
         ref={ref}
         className={cn(
-          "group peer hidden shrink-0 text-sidebar-foreground md:flex",
+          "group peer hidden shrink-0 text-sidebar-foreground md:flex md:sticky md:top-0 md:self-start",
           "data-[state=expanded]:w-[var(--sidebar-width)] data-[state=collapsed]:w-[var(--sidebar-width-icon)]",
-          "min-h-svh flex-col transition-[width] duration-200 ease-linear"
+          "h-svh flex-col transition-[width] duration-200 ease-linear"
         )}
         data-state={state}
         data-collapsible={state === "collapsed" ? collapsible : ""}
@@ -238,7 +238,7 @@ const Sidebar = React.forwardRef<
         <div
           data-sidebar="sidebar"
           className={cn(
-            "relative flex min-h-svh w-full flex-col bg-sidebar text-sidebar-foreground",
+            "relative flex h-full min-h-0 w-full flex-col bg-sidebar text-sidebar-foreground overflow-y-auto",
             "group-data-[variant=floating]:rounded-lg group-data-[variant=floating]:border group-data-[variant=floating]:border-sidebar-border group-data-[variant=floating]:shadow",
             variant === "floating" || variant === "inset" ? "p-2" : "group-data-[side=left]:border-r group-data-[side=right]:border-l",
             className
@@ -316,7 +316,7 @@ const SidebarInset = React.forwardRef<
     <main
       ref={ref}
       className={cn(
-        "relative flex w-full flex-1 flex-col bg-background min-w-0 overflow-x-hidden",
+        "relative flex w-full flex-1 flex-col bg-background min-w-0 min-h-0 overflow-x-hidden overflow-y-auto",
         "md:peer-data-[variant=inset]:m-2 md:peer-data-[state=collapsed]:peer-data-[variant=inset]:ml-2 md:peer-data-[variant=inset]:ml-0 md:peer-data-[variant=inset]:rounded-xl md:peer-data-[variant=inset]:shadow",
         className
       )}

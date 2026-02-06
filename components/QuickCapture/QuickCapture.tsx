@@ -7,17 +7,76 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import Modal from '../Modal';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '../ui/drawer';
+import StandaloneTaskItem from '../Tasks/StandaloneItem';
+import type { StandaloneTask } from '../../utils/useStandaloneTasks';
 
-export default function QuickCapture() {
+// Helper to get date key (YYYY-MM-DD) from timestamp
+function getDateKey(timestamp: number): string {
+  const date = new Date(timestamp);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+}
+
+// Generate last N days as date keys
+function getLastNDays(n: number): string[] {
+  const days: string[] = [];
+  const today = new Date();
+  for (let i = 0; i < n; i++) {
+    const date = new Date(today);
+    date.setDate(today.getDate() - i);
+    days.push(getDateKey(date.getTime()));
+  }
+  return days;
+}
+
+// Format date key for display
+function formatDayLabel(dateKey: string, isToday: boolean): { day: string; date: string } {
+  if (isToday) return { day: 'Today', date: '' };
+  const date = new Date(dateKey + 'T12:00:00'); // Use noon to avoid timezone issues
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  return {
+    day: dayNames[date.getDay()],
+    date: String(date.getDate()),
+  };
+}
+
+interface QuickCaptureProps {
+  // Task-related props (optional for backwards compatibility)
+  tasks?: StandaloneTask[];
+  tasksLoading?: boolean;
+  onTaskComplete?: (taskId: string) => void;
+  onTaskUncomplete?: (taskId: string) => void;
+  onTaskDelete?: (taskId: string) => void;
+  onTaskUpdate?: (taskId: string, updates: Partial<StandaloneTask>) => void;
+  onTaskStart?: (taskName: string) => void;
+  onTaskEdit?: (task: StandaloneTask) => void;
+  currentActivityName?: string;
+}
+
+export default function QuickCapture({
+  tasks = [],
+  tasksLoading = false,
+  onTaskComplete,
+  onTaskUncomplete,
+  onTaskDelete,
+  onTaskUpdate,
+  onTaskStart,
+  onTaskEdit,
+  currentActivityName,
+}: QuickCaptureProps) {
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, photos: allPhotos } = usePhotoAttachments();
-  
+
   const [showModal, setShowModal] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [mode, setMode] = useState<'text' | 'camera' | 'voice' | null>(null);
   const [text, setText] = useState('');
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
+
+  // Day selector state
+  const todayKey = getDateKey(Date.now());
+  const [selectedDay, setSelectedDay] = useState<string>(todayKey);
+  const availableDays = useMemo(() => getLastNDays(7), []);
   
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -252,9 +311,35 @@ export default function QuickCapture() {
     }
   };
 
-  const recentNotes = useMemo(() => {
-    return [...notes].sort((a, b) => b.createdAt - a.createdAt).slice(0, 5);
-  }, [notes]);
+  // Filter notes by selected day and sort by time (newest first)
+  const filteredNotes = useMemo(() => {
+    return [...notes]
+      .filter((note) => getDateKey(note.createdAt) === selectedDay)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [notes, selectedDay]);
+
+  // Filter tasks by selected day (active tasks only) and sort by time (newest first)
+  const filteredTasks = useMemo(() => {
+    return [...tasks]
+      .filter((task) => task.status !== 'completed' && getDateKey(task.createdAt) === selectedDay)
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [tasks, selectedDay]);
+
+  // Count items per day for showing indicators on day buttons
+  const itemCountByDay = useMemo(() => {
+    const counts: Record<string, number> = {};
+    notes.forEach((note) => {
+      const key = getDateKey(note.createdAt);
+      counts[key] = (counts[key] || 0) + 1;
+    });
+    tasks.forEach((task) => {
+      if (task.status !== 'completed') {
+        const key = getDateKey(task.createdAt);
+        counts[key] = (counts[key] || 0) + 1;
+      }
+    });
+    return counts;
+  }, [notes, tasks]);
 
   // Focus textarea only when text mode is first opened
   useEffect(() => {
@@ -443,73 +528,132 @@ export default function QuickCapture() {
         </Button>
       </div>
 
-      {/* Recent Notes */}
-      {notesLoading && <div className="text-sm text-muted-foreground mb-4">Loading notes...</div>}
-      {!notesLoading && recentNotes.length === 0 && (
-        <div className="text-sm text-muted-foreground mb-4">No notes yet. Create your first quick note!</div>
-      )}
-      {recentNotes.length > 0 && (
-        <div className="space-y-2 mb-4">
-          <h3 className="text-sm font-semibold text-foreground">Recent Notes</h3>
-          {recentNotes.map((note) => {
-            // Get photos for this note (photos are stored with impactId = note.id)
-            const photos: PhotoAttachment[] = getPhotosForImpact(note.id);
+      {/* Day Selector */}
+      <div className="flex gap-1 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+        {availableDays.map((dateKey) => {
+          const isSelected = dateKey === selectedDay;
+          const isToday = dateKey === todayKey;
+          const label = formatDayLabel(dateKey, isToday);
+          const count = itemCountByDay[dateKey] || 0;
 
-            return (
-              <div
-                key={note.id}
-                className="bg-card border border-border rounded-lg p-3 space-y-2"
-              >
-                {note.text && (
-                  <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
-                )}
-                {photos.length > 0 && (
-                  <div className="flex gap-2 flex-wrap">
-                    {photos.map((photo) => (
-                      <img
-                        key={photo.id}
-                        src={photo.thumbnail}
-                        alt="Note photo"
-                        className="w-20 h-20 object-cover rounded"
-                      />
-                    ))}
-                  </div>
-                )}
-                {note.photoIds && note.photoIds.length > 0 && photos.length === 0 && (
-                  <div className="text-xs text-muted-foreground border border-yellow-500 p-2 rounded">
-                    Debug: Note has {note.photoIds.length} photoId(s): {note.photoIds.join(', ')} but found {photos.length} photos. 
-                    All photos in hook: {allPhotos.length}. 
-                    Note ID: {note.id}
-                  </div>
-                )}
-                {note.audioPath && (
-                  <div className="flex items-center gap-2">
+          return (
+            <button
+              key={dateKey}
+              onClick={() => setSelectedDay(dateKey)}
+              className={`shrink-0 flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors min-w-[52px] ${
+                isSelected
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted/50 hover:bg-muted text-foreground'
+              }`}
+            >
+              <span className="text-xs font-medium">{label.day}</span>
+              {label.date && <span className="text-sm font-semibold">{label.date}</span>}
+              {count > 0 && (
+                <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tasks for Selected Day */}
+      {filteredTasks.length > 0 && onTaskComplete && onTaskUncomplete && onTaskDelete && onTaskUpdate && (
+        <div className="bg-card border border-border rounded-lg mb-4">
+          <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
+            <h3 className="font-semibold text-sm text-foreground">Tasks</h3>
+          </div>
+          <div className="p-2 space-y-1">
+            {filteredTasks.map((task) => (
+              <StandaloneTaskItem
+                key={task.id}
+                task={task}
+                onComplete={onTaskComplete}
+                onUncomplete={onTaskUncomplete}
+                onDelete={onTaskDelete}
+                onUpdate={onTaskUpdate}
+                onStart={onTaskStart}
+                onEdit={onTaskEdit}
+                isActive={currentActivityName === task.name}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {notesLoading && <div className="text-sm text-muted-foreground mb-4">Loading...</div>}
+      {!notesLoading && filteredTasks.length === 0 && filteredNotes.length === 0 && (
+        <div className="text-sm text-muted-foreground mb-4">Nothing for this day yet.</div>
+      )}
+      {/* Notes for Selected Day */}
+      {filteredNotes.length > 0 && (
+        <div className="bg-card border border-border rounded-lg mb-4">
+          <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
+            <h3 className="font-semibold text-sm text-foreground">Notes</h3>
+          </div>
+          <div className="p-2 space-y-2">
+            {filteredNotes.map((note) => {
+              // Get photos for this note (photos are stored with impactId = note.id)
+              const photos: PhotoAttachment[] = getPhotosForImpact(note.id);
+
+              return (
+                <div
+                  key={note.id}
+                  className="p-3 space-y-2 hover:bg-muted/50 rounded-lg transition-colors"
+                >
+                  {note.text && (
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
+                  )}
+                  {photos.length > 0 && (
+                    <div className="flex gap-2 flex-wrap">
+                      {photos.map((photo) => (
+                        <img
+                          key={photo.id}
+                          src={photo.thumbnail}
+                          alt="Note photo"
+                          className="w-20 h-20 object-cover rounded"
+                        />
+                      ))}
+                    </div>
+                  )}
+                  {note.photoIds && note.photoIds.length > 0 && photos.length === 0 && (
+                    <div className="text-xs text-muted-foreground border border-yellow-500 p-2 rounded">
+                      Debug: Note has {note.photoIds.length} photoId(s): {note.photoIds.join(', ')} but found {photos.length} photos.
+                      All photos in hook: {allPhotos.length}.
+                      Note ID: {note.id}
+                    </div>
+                  )}
+                  {note.audioPath && (
+                    <div className="flex items-center gap-2">
+                      <Button
+                        onClick={() => playAudio(note)}
+                        variant="ghost"
+                        size="sm"
+                        disabled={playingAudioId === note.id}
+                      >
+                        <PlayIcon className="w-4 h-4" />
+                        {note.audioDuration ? formatTime(note.audioDuration) : 'Play'}
+                      </Button>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-muted-foreground">
+                      {new Date(note.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                    </span>
                     <Button
-                      onClick={() => playAudio(note)}
+                      onClick={() => handleDeleteNote(note.id)}
                       variant="ghost"
                       size="sm"
-                      disabled={playingAudioId === note.id}
                     >
-                      <PlayIcon className="w-4 h-4" />
-                      {note.audioDuration ? formatTime(note.audioDuration) : 'Play'}
+                      <XIcon className="w-4 h-4" />
                     </Button>
                   </div>
-                )}
-                <div className="flex items-center justify-between">
-                  <span className="text-xs text-muted-foreground">
-                    {new Date(note.createdAt).toLocaleString()}
-                  </span>
-                  <Button
-                    onClick={() => handleDeleteNote(note.id)}
-                    variant="ghost"
-                    size="sm"
-                  >
-                    <XIcon className="w-4 h-4" />
-                  </Button>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       )}
 

@@ -17,6 +17,7 @@ import Modal from "../components/Modal";
 import { Input } from "../components/ui/input";
 import TaskCompletionModal from "../components/Modal/TaskCompletionModal";
 import { Emotion } from "../components/ui/emotion-selector";
+import { toast } from "sonner";
 import {
   Sheet,
   SheetContent,
@@ -98,9 +99,6 @@ export default function Home() {
   const [showMobileStartTaskDrawer, setShowMobileStartTaskDrawer] = useState(false);
   const [taskToStart, setTaskToStart] = useState<string>("");
   const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showCompletionModal, setShowCompletionModal] = useState(false);
-  const [showMobileCompletionDrawer, setShowMobileCompletionDrawer] = useState(false);
-  const [taskToComplete, setTaskToComplete] = useState<{ id: string; name: string } | null>(null);
   const [archivedTasks, setArchivedTasks] = useState<StandaloneTask[]>([]);
   const [archivedBucketIds, setArchivedBucketIds] = useState<string[]>([]);
   const [loadedArchiveBuckets, setLoadedArchiveBuckets] = useState(0);
@@ -419,23 +417,40 @@ export default function Home() {
     startTask(taskToStart, goalId || undefined);
   };
 
-  // Handle task completion with emotion selection
+  // State for emotion modal (shown when user clicks toast)
+  const [showEmotionModal, setShowEmotionModal] = useState(false);
+  const [showMobileEmotionDrawer, setShowMobileEmotionDrawer] = useState(false);
+  const [completedTaskForEmotions, setCompletedTaskForEmotions] = useState<{ id: string; name: string } | null>(null);
+
+  // Handle task completion - complete immediately and show toast
   const handleTaskComplete = (taskId: string) => {
     const task = standaloneTasks.find(t => t.id === taskId);
     if (task) {
-      setTaskToComplete({ id: taskId, name: task.name });
-      if (window.innerWidth < 768) {
-        setShowMobileCompletionDrawer(true);
-      } else {
-        setShowCompletionModal(true);
-      }
+      // Complete the task immediately without emotions
+      completeStandaloneTask(taskId, []);
+
+      // Show toast - clicking it opens the emotion modal
+      toast.success(`"${task.name}" completed`, {
+        duration: 5000,
+        action: {
+          label: "Add feeling",
+          onClick: () => {
+            setCompletedTaskForEmotions({ id: taskId, name: task.name });
+            if (window.innerWidth < 768) {
+              setShowMobileEmotionDrawer(true);
+            } else {
+              setShowEmotionModal(true);
+            }
+          },
+        },
+      });
     }
   };
 
   const handleCompleteWithEmotions = (emotions: Emotion[]) => {
-    if (taskToComplete) {
-      completeStandaloneTask(taskToComplete.id, emotions);
-      setTaskToComplete(null);
+    if (completedTaskForEmotions) {
+      updateStandaloneTask(completedTaskForEmotions.id, { emotions });
+      setCompletedTaskForEmotions(null);
     }
   };
 
@@ -759,7 +774,6 @@ export default function Home() {
   };
 
   const now = new Date();
-  const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   // Past = home tasks that are completed or old, plus latest archived bucket (loaded when archive sheet opens)
   const pastTasks = [...standaloneTasks.filter(task => task.status === 'completed' || task.createdAt <= twoWeeksAgo), ...archivedTasks]
@@ -872,127 +886,28 @@ export default function Home() {
                   </button>
                 </>
               )}
-              {(() => {
-                const grouped = groupTasksByDay(activeTasks);
-                const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-                const hasTasks = sortedDates.length > 0;
-
-                // Loading: show today card with spinner (stable layout, less shift when data loads)
-                if (tasksLoading) {
-                  return (
-                    <div className="space-y-4">
-                      <div className="bg-card border border-border rounded-lg">
-                        <div className="bg-muted/80 px-4 py-2 border-b border-border sticky top-0 z-10 rounded-t-lg">
-                          <h3 className="font-semibold text-sm text-foreground">
-                            {formatDateTitle(todayKey)}
-                          </h3>
-                        </div>
-                        <div className="p-8 flex flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
-                          <svg
-                            className="h-8 w-8 animate-spin text-primary"
-                            xmlns="http://www.w3.org/2000/svg"
-                            fill="none"
-                            viewBox="0 0 24 24"
-                            aria-hidden
-                          >
-                            <circle
-                              className="opacity-25"
-                              cx="12"
-                              cy="12"
-                              r="10"
-                              stroke="currentColor"
-                              strokeWidth="4"
-                              fill="none"
-                            />
-                            <path
-                              className="opacity-75"
-                              fill="currentColor"
-                              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                            />
-                          </svg>
-                          <span>Loading tasks…</span>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Empty: show today card with invisible archive button (keeps layout stable)
-                if (!hasTasks) {
-                  return (
-                    <div className="space-y-4">
-                      <div className="bg-card border border-border rounded-lg">
-                        <div className="bg-muted/80 px-4 py-2 border-b border-border sticky top-0 z-10 rounded-t-lg flex items-center justify-between">
-                          <h3 className="font-semibold text-sm text-foreground">
-                            {formatDateTitle(todayKey)}
-                          </h3>
-                          <button
-                            type="button"
-                            aria-hidden
-                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors pointer-events-none opacity-0"
-                            title="Archive this day"
-                          >
-                            <ArchiveIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="p-6 text-center text-sm text-muted-foreground">
-                          <p>No tasks today.</p>
-                          <p className="mt-1">Create one above to get started.</p>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                }
-
-                // Has tasks: show grouped days with archive
-                return (
-                  <div className="space-y-4">
-                    {sortedDates.map((dateKey) => (
-                      <div key={dateKey} className="bg-card border border-border rounded-lg">
-                        <div className="bg-muted/80 px-4 py-2 border-b border-border sticky top-0 z-10 rounded-t-lg flex items-center justify-between">
-                          <h3 className="font-semibold text-sm text-foreground">
-                            {formatDateTitle(dateKey)}
-                          </h3>
-                          <button
-                            onClick={() => handleArchiveDay(dateKey)}
-                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
-                            title="Archive this day"
-                          >
-                            <ArchiveIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="p-2 space-y-1">
-                          {grouped[dateKey].map((task) => (
-                            <StandaloneTaskItem
-                              key={task.id}
-                              task={task}
-                              onComplete={handleTaskComplete}
-                              onUncomplete={uncompleteStandaloneTask}
-                              onDelete={deleteStandaloneTask}
-                              onUpdate={updateStandaloneTask}
-                              onStart={openStartTaskModal}
-                              isActive={currentActivity?.name === task.name}
-                              onEdit={(t) => {
-                                setEditingTask(t);
-                                if (typeof window !== "undefined" && window.innerWidth < 768) {
-                                  setShowMobileTaskDrawer(true);
-                                } else {
-                                  setShowTaskForm(true);
-                                }
-                              }}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                );
-              })()}
             </div>
 
-            {/* Quick Capture (Recent Notes) - Mobile only, below tasks */}
-            <div className="md:hidden border-t border-border pt-6 mt-6">
-              <QuickCapture />
+            {/* Day View - Tasks & Notes */}
+            <div>
+              <QuickCapture
+                tasks={activeTasks}
+                tasksLoading={tasksLoading}
+                onTaskComplete={handleTaskComplete}
+                onTaskUncomplete={uncompleteStandaloneTask}
+                onTaskDelete={deleteStandaloneTask}
+                onTaskUpdate={updateStandaloneTask}
+                onTaskStart={openStartTaskModal}
+                onTaskEdit={(t) => {
+                  setEditingTask(t);
+                  if (typeof window !== "undefined" && window.innerWidth < 768) {
+                    setShowMobileTaskDrawer(true);
+                  } else {
+                    setShowTaskForm(true);
+                  }
+                }}
+                currentActivityName={currentActivity?.name}
+              />
             </div>
 
             {/* Past Activity */}
@@ -1058,10 +973,6 @@ export default function Home() {
               </div>
             )}
 
-            {/* Quick Capture - Desktop only (after Past Activity) */}
-            <div className="hidden md:block border-t border-border pt-6 mt-6">
-              <QuickCapture />
-            </div>
           </div>
 
           {/* Sidebar - Upcoming Routines */}
@@ -1187,12 +1098,6 @@ export default function Home() {
                   <span className="text-sm text-muted-foreground">Completed</span>
                   <span className="text-sm font-semibold text-green-600">
                     {standaloneTasks.filter(t => t.status === 'completed' && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString()).length}
-                  </span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Total Time Tracked</span>
-                  <span className="text-sm font-semibold text-primary">
-                    <LiveDuration baseMs={baseTotalTime} startTime={currentActivity?.startTime} />
                   </span>
                 </div>
               </div>
@@ -1343,26 +1248,26 @@ export default function Home() {
         </SheetContent>
       </Sheet>
 
-      {/* Task Completion Modal */}
-      {taskToComplete && (
+      {/* Emotion Modal (shown when user clicks "Add feeling" on toast) */}
+      {completedTaskForEmotions && (
         <>
           <TaskCompletionModal
-            isOpen={showCompletionModal}
+            isOpen={showEmotionModal}
             onClose={() => {
-              setShowCompletionModal(false);
-              setTaskToComplete(null);
+              setShowEmotionModal(false);
+              setCompletedTaskForEmotions(null);
             }}
-            taskName={taskToComplete.name}
+            taskName={completedTaskForEmotions.name}
             onComplete={handleCompleteWithEmotions}
             isMobile={false}
           />
           <TaskCompletionModal
-            isOpen={showMobileCompletionDrawer}
+            isOpen={showMobileEmotionDrawer}
             onClose={() => {
-              setShowMobileCompletionDrawer(false);
-              setTaskToComplete(null);
+              setShowMobileEmotionDrawer(false);
+              setCompletedTaskForEmotions(null);
             }}
-            taskName={taskToComplete.name}
+            taskName={completedTaskForEmotions.name}
             onComplete={handleCompleteWithEmotions}
             isMobile={true}
           />

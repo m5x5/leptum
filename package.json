@@ -50,6 +50,7 @@
     "remotestorage-widget": "^1.7.0",
     "remotestoragejs": "^2.0.0-beta.7",
     "simplemde": "^1.11.2",
+    "sonner": "^2.0.7",
     "swr": "^2.2.1",
     "tailwind-merge": "^1.14.0",
     "tailwindcss-animate": "^1.0.6",

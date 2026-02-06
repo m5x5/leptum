@@ -13,6 +13,7 @@ import { CurrentActivityContext } from "./CurrentActivityContext";
 import { StandaloneTasksProvider } from "./StandaloneTasksContext";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { serviceWorkerManager, isOfflineModeEnabled } from "../utils/serviceWorker";
+import { Toaster } from "sonner";
 // Run migration when app router bundle loads
 import "../utils/migrateGoalIdToGoalIds";
 
@@ -226,6 +227,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             </div>
           </SidebarInset>
         </SidebarProvider>
+        <Toaster position="bottom-center" offset={100} richColors />
         </ThemeProvider>
       </JobContextProvider>
     </CurrentActivityContext.Provider>
