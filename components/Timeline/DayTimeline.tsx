@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Impact } from '../../utils/timeCalculations';
 import { PlusIcon } from '@heroicons/react/solid';
 import Modal from '../Modal';
@@ -19,6 +19,11 @@ export function DayTimeline({
   onSaveImpacts,
   showAddButton = true,
 }: DayTimelineProps) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -252,8 +257,8 @@ export function DayTimeline({
                 duration = getDuration(impact.date, endTime);
                 durationMs = getDurationInMs(impact.date, endTime);
               } else {
-                durationMs = Date.now() - impact.date;
-                endTime = Date.now();
+                durationMs = now - impact.date;
+                endTime = now;
               }
 
               const durationMinutes = durationMs / (1000 * 60);

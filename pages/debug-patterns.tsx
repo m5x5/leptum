@@ -3,67 +3,71 @@ import Head from "next/head";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { analyzeActivityPatterns } from "../utils/activityAnalysis";
 
+const loadAndAnalyze = async (
+  setImpacts: (v: any[]) => void,
+  setPatterns: (v: any[]) => void,
+  setDebugInfo: (v: any[]) => void
+) => {
+  try {
+    const loadedImpacts = await remoteStorageClient.getImpacts();
+    setImpacts(loadedImpacts);
+
+    if (loadedImpacts.length >= 2) {
+      const sortedImpacts = [...loadedImpacts].sort((a, b) => a.date - b.date);
+
+      // Debug: Check consecutive pairs
+      const debug = [];
+      for (let i = 1; i < sortedImpacts.length; i++) {
+        const current = sortedImpacts[i];
+        const previous = sortedImpacts[i - 1];
+        const timeDiff = current.date - previous.date;
+        const timeDiffHours = timeDiff / (60 * 60 * 1000);
+
+        debug.push({
+          index: i,
+          previous: {
+            activity: previous.activity,
+            date: new Date(previous.date).toLocaleString(),
+            metrics: {
+              happiness: previous.happiness,
+              confidence: previous.confidence,
+              stress: previous.stress,
+              energy: previous.energy,
+            }
+          },
+          current: {
+            activity: current.activity,
+            date: new Date(current.date).toLocaleString(),
+            metrics: {
+              happiness: current.happiness,
+              confidence: current.confidence,
+              stress: current.stress,
+              energy: current.energy,
+            }
+          },
+          timeDiffHours: timeDiffHours.toFixed(2),
+          tooLargeGap: timeDiffHours > 24,
+        });
+      }
+
+      setDebugInfo(debug);
+
+      const analyzedPatterns = analyzeActivityPatterns(loadedImpacts);
+      setPatterns(analyzedPatterns);
+    }
+  } catch (error) {
+    console.error("Failed to load impacts:", error);
+  }
+};
+
 export default function DebugPatternsPage() {
   const [impacts, setImpacts] = useState<any[]>([]);
   const [patterns, setPatterns] = useState<any[]>([]);
   const [debugInfo, setDebugInfo] = useState<any[]>([]);
 
   useEffect(() => {
-    loadAndAnalyze();
+    loadAndAnalyze(setImpacts, setPatterns, setDebugInfo);
   }, []);
-
-  const loadAndAnalyze = async () => {
-    try {
-      const loadedImpacts = await remoteStorageClient.getImpacts();
-      setImpacts(loadedImpacts);
-
-      if (loadedImpacts.length >= 2) {
-        const sortedImpacts = [...loadedImpacts].sort((a, b) => a.date - b.date);
-
-        // Debug: Check consecutive pairs
-        const debug = [];
-        for (let i = 1; i < sortedImpacts.length; i++) {
-          const current = sortedImpacts[i];
-          const previous = sortedImpacts[i - 1];
-          const timeDiff = current.date - previous.date;
-          const timeDiffHours = timeDiff / (60 * 60 * 1000);
-
-          debug.push({
-            index: i,
-            previous: {
-              activity: previous.activity,
-              date: new Date(previous.date).toLocaleString(),
-              metrics: {
-                happiness: previous.happiness,
-                confidence: previous.confidence,
-                stress: previous.stress,
-                energy: previous.energy,
-              }
-            },
-            current: {
-              activity: current.activity,
-              date: new Date(current.date).toLocaleString(),
-              metrics: {
-                happiness: current.happiness,
-                confidence: current.confidence,
-                stress: current.stress,
-                energy: current.energy,
-              }
-            },
-            timeDiffHours: timeDiffHours.toFixed(2),
-            tooLargeGap: timeDiffHours > 24,
-          });
-        }
-
-        setDebugInfo(debug);
-
-        const analyzedPatterns = analyzeActivityPatterns(loadedImpacts);
-        setPatterns(analyzedPatterns);
-      }
-    } catch (error) {
-      console.error("Failed to load impacts:", error);
-    }
-  };
 
   return (
     <>

@@ -15,7 +15,7 @@ export default function EChartsHeatmap({ completions, routineId, months = 12 }: 
   const [isMobile, setIsMobile] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
+    queueMicrotask(() => setMounted(true));
 
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 768);

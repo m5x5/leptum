@@ -28,9 +28,10 @@ const AddGoalTypeModal = ({
     if (!isOpen) {
       return;
     }
-
-    setName(initialName);
-    setDescription(initialDescription);
+    queueMicrotask(() => {
+      setName(initialName);
+      setDescription(initialDescription);
+    });
   }, [isOpen, isEdit, initialName, initialDescription]);
 
   function resetForm() {

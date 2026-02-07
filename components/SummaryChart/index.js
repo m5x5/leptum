@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, ReferenceLine } from "recharts";
 import { getNumberFromString } from "../../utils/parser";
 import distinctColors from "distinct-colors";
@@ -31,6 +32,11 @@ const METRIC_CONFIG = {
 // Material Design Colors
 
 export default function SummaryChart({ impacts, selectedLines, dateFilter, currentActivityTimestamp }) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    queueMicrotask(() => setNow(Date.now()));
+  }, []);
+
   const chartData = impacts.map((impact, i) => {
     const newImpact = {};
     selectedLines.forEach((type) => {
@@ -42,9 +48,10 @@ export default function SummaryChart({ impacts, selectedLines, dateFilter, curre
       }
       newImpact[type] = value;
     });
+    const fallbackTime = impact.date || now || 0;
     newImpact.activity = impact.activity;
-    newImpact.date = impact.date || Date.now();
-    newImpact.timestamp = new Date(impact.date || Date.now()).getTime();
+    newImpact.date = fallbackTime;
+    newImpact.timestamp = new Date(fallbackTime).getTime();
     return newImpact;
   });
 

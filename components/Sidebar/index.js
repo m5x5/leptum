@@ -3,7 +3,7 @@ import { useEffect, useState } from "react";
 import CreateJobModal from "../Modal/CreateJobModal";
 
 export default function Sidebar({ children, className, ...props }) {
-  const [_time, setTime] = useState(Date.now());
+  const [_time, setTime] = useState(() => Date.now());
   const [showModal, setShowModal] = useState(false);
 
   const onClick = () => {

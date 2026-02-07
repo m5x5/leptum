@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import {
   Line,
   Area,
@@ -38,6 +39,10 @@ export default function ImpactCard({
   editMode,
 }) {
   const metricConfig = METRIC_CONFIG[impact] || { min: 0, max: 100, allowsNegative: false };
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    queueMicrotask(() => setNow(Date.now()));
+  }, []);
 
   const data = activities.map((activity, index) => {
     let rawValue = impacts[index]?.[impact];
@@ -51,11 +56,11 @@ export default function ImpactCard({
     return {
       activity,
       value,
-      timestamp: new Date(impacts[index]?.date || Date.now()).getTime(),
+      timestamp: new Date(impacts[index]?.date || now).getTime(),
     };
   });
 
-  const currentTimestamp = currentActivityTimestamp || Date.now();
+  const currentTimestamp = currentActivityTimestamp || now;
 
   const formatXAxis = (timestamp) => {
     const date = new Date(timestamp);

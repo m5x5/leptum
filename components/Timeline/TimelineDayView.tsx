@@ -38,6 +38,11 @@ export function TimelineDayView({
   onAWEventClick,
   getActivityColor,
 }: TimelineDayViewProps) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
   const [expandedBlockStart, setExpandedBlockStart] = useState<number | null>(null);
   const [editingGapStart, setEditingGapStart] = useState<number | null>(null);
 
@@ -223,8 +228,8 @@ export function TimelineDayView({
               duration = getDuration(impact.date, endTime);
               durationMs = getDurationInMs(impact.date, endTime);
             } else {
-              durationMs = Date.now() - impact.date;
-              endTime = Date.now();
+              durationMs = now - impact.date;
+              endTime = now;
             }
 
             const durationMinutes = durationMs / (1000 * 60);
@@ -335,7 +340,7 @@ export function TimelineDayView({
             if (dayImpacts.length > 0) {
               current = dayImpacts[dayImpacts.length - 1].date;
             } else {
-              current = isTodayFlag ? Date.now() : dayEnd;
+              current = isTodayFlag ? now : dayEnd;
             }
 
             const gapCeiling = current;
@@ -402,7 +407,7 @@ export function TimelineDayView({
             const sortedBlocks = [...timeBlocks].sort((a, b) => b.startTime - a.startTime);
 
             if (sortedBlocks.length === 0) {
-              const dayTop = isTodayFlag ? Math.min(roundToNearest15Minutes(Date.now()), dayEnd) : dayEnd;
+              const dayTop = isTodayFlag ? Math.min(roundToNearest15Minutes(now), dayEnd) : dayEnd;
               const gaps: JSX.Element[] = [];
               let current = dayTop;
               while (current > dayStart) {

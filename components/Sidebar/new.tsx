@@ -37,13 +37,13 @@ export default function AppSidebar() {
 
   // usePathname() works in App Router; in Pages Router use window.location on client
   useEffect(() => {
-    if (typeof window !== "undefined") setClientPathname(window.location.pathname);
+    if (typeof window !== "undefined") queueMicrotask(() => setClientPathname(window.location.pathname));
   }, []);
   const pathname = pathnameFromApp ?? clientPathname;
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      setShowKeyboardHints(likelyWithKeyboard(window));
+      queueMicrotask(() => setShowKeyboardHints(likelyWithKeyboard(window)));
     }
   }, []);
 

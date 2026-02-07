@@ -6,7 +6,7 @@ interface LiveActivityDurationProps {
 }
 
 export function LiveActivityDuration({ startTime, formatDuration }: LiveActivityDurationProps) {
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   useEffect(() => {
     const interval = setInterval(() => {

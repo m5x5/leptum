@@ -3,21 +3,18 @@ import { IMPACT_TYPES } from "../../utils";
 export default function LineControls({ onChange = () => {}, selected = [] }) {
   const onClick = (item) => {
     const index = selected.indexOf(item);
-
-    if (index < 0) {
-      selected.push(item);
-    } else {
-      selected.splice(index, 1);
-    }
+    const next = index < 0
+      ? [...selected, item]
+      : selected.slice(0, index).concat(selected.slice(index + 1));
 
     // Sort selected by position in impact types
-    selected = selected.sort((a, b) => {
+    const sorted = [...next].sort((a, b) => {
       const aIndex = IMPACT_TYPES.indexOf(a.type);
       const bIndex = IMPACT_TYPES.indexOf(b.type);
       return aIndex - bIndex;
     });
 
-    onChange(selected);
+    onChange(sorted);
   };
 
   const getClasses = (type) => {

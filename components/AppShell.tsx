@@ -33,7 +33,7 @@ function formatDurationStatic(ms: number) {
 }
 
 function LiveDuration({ baseMs = 0, startTime }: { baseMs?: number; startTime?: number }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!startTime) return;
@@ -102,10 +102,13 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   }, [activePath]);
 
   useEffect(() => {
-    setMounted(true);
-
+    queueMicrotask(() => {
+      setMounted(true);
+      if (typeof window !== "undefined") {
+        setShowKeyboardHints(likelyWithKeyboard(window));
+      }
+    });
     if (typeof window !== "undefined") {
-      setShowKeyboardHints(likelyWithKeyboard(window));
       const stopKeyUX = startKeyUX(window, [hotkeyKeyUX(), pressKeyUX("is-pressed")]);
       return () => {
         stopKeyUX();

@@ -28,7 +28,7 @@ export function LiveSummaryBar({
   getDurationInMs,
   getActivityColor,
 }: LiveSummaryBarProps) {
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
   const [hoverPercent, setHoverPercent] = useState<number | null>(null);
   const [hoverInfo, setHoverInfo] = useState<{ activity: string; time: string } | null>(null);
 

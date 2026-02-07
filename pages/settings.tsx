@@ -38,9 +38,11 @@ export default function SettingsPage() {
   });
 
   useEffect(() => {
-    setMounted(true);
-    setIsServiceWorkerSupported('serviceWorker' in navigator);
-    setOfflineModeEnabledState(isOfflineModeEnabled());
+    queueMicrotask(() => {
+      setMounted(true);
+      setIsServiceWorkerSupported('serviceWorker' in navigator);
+      setOfflineModeEnabledState(isOfflineModeEnabled());
+    });
 
     // Attach RemoteStorage widget when settings page mounts
     remoteStorageClient.attachWidget('remotestorage-widget');
