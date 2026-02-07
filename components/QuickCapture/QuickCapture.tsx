@@ -5,6 +5,7 @@ import { usePhotoAttachments, PhotoAttachment } from '../../utils/usePhotoAttach
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
+import { AudioPlayer } from '../ui/audio-player';
 import Image from 'next/image';
 import Modal from '../Modal';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '../ui/drawer';
@@ -398,37 +399,50 @@ export default function QuickCapture({
     }
   };
 
-  const [playingAudioId, setPlayingAudioId] = useState<string | null>(null);
-
-  const playAudio = async (note: QuickNote) => {
-    if (!note.audioPath) return;
-    try {
-      setPlayingAudioId(note.id);
-      const blob = await getAudio(note);
-      if (blob) {
-        const url = URL.createObjectURL(blob);
-        const audio = new Audio(url);
-        audio.play();
-        audio.onended = () => {
-          URL.revokeObjectURL(url);
-          setPlayingAudioId(null);
-        };
-        audio.onerror = () => {
-          setPlayingAudioId(null);
-        };
-      }
-    } catch (error) {
-      console.error('Error playing audio:', error);
-      setPlayingAudioId(null);
-    }
-  };
-
   // Filter notes by selected day and sort by time (newest first)
   const filteredNotes = useMemo(() => {
     return [...notes]
       .filter((note) => getDateKey(note.createdAt) === selectedDay)
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [notes, selectedDay]);
+
+  const [audioUrlsByNoteId, setAudioUrlsByNoteId] = useState<Record<string, string>>({});
+  const audioUrlsByNoteIdRef = useRef(audioUrlsByNoteId);
+  audioUrlsByNoteIdRef.current = audioUrlsByNoteId;
+
+  useEffect(() => {
+    const notesWithAudio = filteredNotes.filter((n) => n.audioPath);
+    const noteIds = new Set(notesWithAudio.map((n) => n.id));
+    setAudioUrlsByNoteId((prev) => {
+      const next = { ...prev };
+      let changed = false;
+      for (const id of Object.keys(next)) {
+        if (!noteIds.has(id)) {
+          URL.revokeObjectURL(next[id]);
+          delete next[id];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    notesWithAudio.forEach((note) => {
+      if (audioUrlsByNoteId[note.id]) return;
+      getAudio(note)
+        .then((blob) => {
+          if (blob) {
+            setAudioUrlsByNoteId((prev) => {
+              if (prev[note.id]) return prev;
+              return { ...prev, [note.id]: URL.createObjectURL(blob) };
+            });
+          }
+        })
+        .catch((err) => console.error('Error loading note audio:', err));
+    });
+  }, [filteredNotes, audioUrlsByNoteId, getAudio]);
+
+  useEffect(() => () => {
+    Object.values(audioUrlsByNoteIdRef.current).forEach((url) => URL.revokeObjectURL(url));
+  }, []);
 
   // Filter tasks by selected day (active tasks only). Put currently tracking task on top, then newest first.
   const filteredTasks = useMemo(() => {
@@ -548,14 +562,10 @@ export default function QuickCapture({
             </div>
           ) : (
             <div className="space-y-4">
+              {audioUrl && (
+                <AudioPlayer src={audioUrl} title="Preview" />
+              )}
               <div className="flex items-center justify-center gap-4">
-                <Button
-                  onClick={() => playAudio({ id: '', createdAt: Date.now(), audioPath: 'temp' } as QuickNote)}
-                  variant="outline"
-                >
-                  <PlayIcon className="w-5 h-5" />
-                  Play
-                </Button>
                 <Button
                   onClick={() => {
                     setAudioBlob(null);
@@ -567,11 +577,6 @@ export default function QuickCapture({
                   Record Again
                 </Button>
               </div>
-              {audioUrl && (
-                <div className="w-full">
-                  <audio src={audioUrl} controls className="w-full" />
-                </div>
-              )}
             </div>
           )}
         </div>
@@ -722,16 +727,14 @@ export default function QuickCapture({
                     )}
                     {note.audioPath && (
                       <div className="mt-3">
-                        <Button
-                          onClick={() => playAudio(note)}
-                          variant="outline"
-                          size="sm"
-                          disabled={playingAudioId === note.id}
-                          className="h-8 gap-1.5"
-                        >
-                          <PlayIcon className="w-4 h-4" />
-                          {note.audioDuration ? formatTime(note.audioDuration) : 'Play'}
-                        </Button>
+                        {audioUrlsByNoteId[note.id] ? (
+                          <AudioPlayer src={audioUrlsByNoteId[note.id]} compact />
+                        ) : (
+                          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+                            <div className="h-4 w-4 animate-pulse rounded bg-muted" />
+                            Loading audio…
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
