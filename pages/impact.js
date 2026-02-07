@@ -2,7 +2,6 @@ import { PlusIcon } from "@heroicons/react/solid";
 import Head from "next/head";
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import ActivitySelector from "../components/ActivitySelector";
-import ImpactCard from "../components/ImpactCard";
 import SummaryChart from "../components/SummaryChart";
 import Modal from "../components/Modal";
 import {
@@ -29,7 +28,6 @@ import {
 } from "../components/ui/dropdown-menu";
 import { Button } from "../components/ui/button";
 import { Input } from "../components/ui/input";
-import { Textarea } from "../components/ui/textarea";
 import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../components/ui/mention-input";
 import { useMentions } from "../utils/useMentions";
 import EmotionSelector, { Emotion } from "../components/ui/emotion-selector";
@@ -796,7 +794,7 @@ export default function ImpactPage() {
         <title>Wellbeing - Leptum</title>
       </Head>
 
-      <div className="max-w-6xl mx-auto pb-32 md:pb-8 w-full overflow-x-hidden">
+      <div className="max-w-6xl mx-auto pt-4 pb-32 md:pb-8 w-full overflow-x-hidden">
       <div className="mb-6 flex items-start justify-between">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Wellbeing</h1>

@@ -14,6 +14,9 @@ export default function Document() {
         {/* Apple touch icons */}
         <link rel="apple-touch-icon" href="/icon-192.png" />
         
+        {/* Viewport: cover allows using full screen including notch / safe areas (iPhone X, etc.) */}
+        <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+        
         {/* PWA theme color - white for app-like appearance */}
         {/* Android: controls status bar and system UI color */}
         {/* Set for both light and dark mode to ensure white in all cases */}
@@ -23,8 +26,8 @@ export default function Document() {
         
         {/* iOS PWA settings */}
         <meta name="apple-mobile-web-app-capable" content="yes" />
-        {/* default: light background (white) with dark text - ensures white status bar area */}
-        <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+        {/* black-translucent: use full screen from top pixel; content uses safe-area padding */}
+        <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
         <meta name="apple-mobile-web-app-title" content="Leptum" />
       </Head>
       <body>

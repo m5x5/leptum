@@ -879,7 +879,7 @@ export default function TimelinePage() {
         <title>Timeline - Leptum</title>
       </Head>
 
-      <div className="w-full mx-auto pb-32 md:pb-8">
+      <div className="w-full mx-auto pt-4 pb-32 md:pb-8">
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center justify-between">
             <div>

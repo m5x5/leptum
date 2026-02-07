@@ -426,7 +426,7 @@ function MyApp({ Component, pageProps }: AppProps) {
                   </button>
                 )}
               </header>
-              <div className="flex-1 py-4 pb-20 md:pb-4 min-w-0 relative h-full overflow-hidden" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
+              <div className="flex-1 py-0 min-w-0 relative h-full overflow-hidden" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
                 <div className="mx-auto h-full relative" style={{ maxWidth: '100%', overflowX: 'hidden' }}>
                   {!mounted ? (
                     <div style={{ viewTransitionName: 'page', maxWidth: '100%', overflowX: 'hidden' } as any} className="h-full px-4 overflow-x-hidden">

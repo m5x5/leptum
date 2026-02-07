@@ -28,7 +28,7 @@ const ChatPage = () => {
     setInput("");
   };
   return (
-    <div className="pb-32 md:pb-8">
+    <div className="pt-4 pb-32 md:pb-8">
       <h1 className="text-2xl md:text-3xl font-bold text-foreground">Chat Page</h1>
       <Input type="text" onChange={onChange} value={input} />
       <button

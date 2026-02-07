@@ -833,7 +833,7 @@ export default function Home() {
 
   return (
     <>
-      <div className="max-w-6xl mx-auto pb-32 md:pb-8">
+      <div className="max-w-6xl mx-auto pt-4 pb-32 md:pb-8">
         {/* Mobile Logo - Full Leptum logo on mobile */}
         <div className="md:hidden mb-6 flex items-center justify-between">
           <Link href="/" className="inline-block">
