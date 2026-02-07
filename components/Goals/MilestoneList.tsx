@@ -138,7 +138,7 @@ export function MilestoneList({
                     />
                     <button
                       onClick={() => handleSaveEdit(milestone.id)}
-                      className="px-2 py-1 bg-primary text-primary-foreground rounded text-xs"
+                      className="min-h-[44px] px-2 py-1 bg-primary text-primary-foreground rounded text-xs"
                     >
                       Save
                     </button>
@@ -160,14 +160,14 @@ export function MilestoneList({
                 <div className="flex gap-1">
                   <button
                     onClick={() => handleStartEdit(milestone)}
-                    className="p-1 text-muted-foreground hover:text-foreground"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground"
                     title="Edit milestone"
                   >
                     <PencilIcon className="w-4 h-4" />
                   </button>
                   <button
                     onClick={() => onDelete(milestone.id)}
-                    className="p-1 text-muted-foreground hover:text-red-500"
+                    className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-red-500"
                     title="Delete milestone"
                   >
                     <TrashIcon className="w-4 h-4" />

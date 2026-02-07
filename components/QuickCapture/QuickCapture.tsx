@@ -80,7 +80,6 @@ export default function QuickCapture({
       openCapture('text');
     }
   }, [openTextNoteTrigger]);
-  const [text, setText] = useState('');
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
@@ -132,7 +131,7 @@ export default function QuickCapture({
 
   const closeCapture = () => {
     setMode(null);
-    setText('');
+    if (textareaRef.current) textareaRef.current.value = '';
     setPendingPhotos([]);
     setPhotoPreviews([]);
     setAudioBlob(null);
@@ -228,8 +227,10 @@ export default function QuickCapture({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const handleSave = async () => {
-    if (!text.trim() && pendingPhotos.length === 0 && !audioBlob) {
+  const handleSave = async (e?: React.FormEvent) => {
+    e?.preventDefault();
+    const text = textareaRef.current?.value?.trim() ?? '';
+    if (!text && pendingPhotos.length === 0 && !audioBlob) {
       return;
     }
 
@@ -253,7 +254,7 @@ export default function QuickCapture({
       // Create note with ID
       const noteData: Partial<QuickNote> = {
         id: noteId,
-        text: text.trim() || undefined,
+        text: text || undefined,
         audioDuration,
       };
 
@@ -329,50 +330,39 @@ export default function QuickCapture({
       .sort((a, b) => b.createdAt - a.createdAt);
   }, [notes, selectedDay]);
 
-  // Filter tasks by selected day (active tasks only) and sort by time (newest first)
+  // Filter tasks by selected day (active tasks only). Put currently tracking task on top, then newest first.
   const filteredTasks = useMemo(() => {
     return [...tasks]
       .filter((task) => task.status !== 'completed' && getDateKey(task.createdAt) === selectedDay)
-      .sort((a, b) => b.createdAt - a.createdAt);
-  }, [tasks, selectedDay]);
+      .sort((a, b) => {
+        const aActive = currentActivityName ? a.name === currentActivityName : false;
+        const bActive = currentActivityName ? b.name === currentActivityName : false;
+        if (aActive && !bActive) return -1;
+        if (!aActive && bActive) return 1;
+        return b.createdAt - a.createdAt;
+      });
+  }, [tasks, selectedDay, currentActivityName]);
 
-  // Count items per day for showing indicators on day buttons
-  const itemCountByDay = useMemo(() => {
-    const counts: Record<string, number> = {};
-    notes.forEach((note) => {
-      const key = getDateKey(note.createdAt);
-      counts[key] = (counts[key] || 0) + 1;
-    });
-    tasks.forEach((task) => {
-      if (task.status !== 'completed') {
-        const key = getDateKey(task.createdAt);
-        counts[key] = (counts[key] || 0) + 1;
-      }
-    });
-    return counts;
-  }, [notes, tasks]);
-
-  // Focus textarea only when text mode is first opened
+  // Focus textarea when text mode is opened
   useEffect(() => {
-    if (mode === 'text' && textareaRef.current && text.length === 0) {
-      // Small delay to ensure modal/drawer is fully rendered
-      setTimeout(() => {
-        textareaRef.current?.focus();
-      }, 100);
+    if (mode === 'text' && textareaRef.current) {
+      const t = setTimeout(() => textareaRef.current?.focus(), 100);
+      return () => clearTimeout(t);
     }
-  }, [mode, text.length]);
+  }, [mode]);
 
   const captureContent = (
-    <div className="space-y-4">
+    <form onSubmit={handleSave} className="space-y-4">
       {mode === 'text' && (
         <div>
-          <label className="block text-sm font-medium text-foreground mb-2">
+          <label htmlFor="quick-note-input" className="block text-sm font-medium text-foreground mb-2">
             Quick Note
           </label>
           <Textarea
             ref={textareaRef}
-            value={text}
-            onChange={(e) => setText(e.target.value)}
+            id="quick-note-input"
+            name="quickNote"
+            defaultValue=""
             placeholder="Type your note here..."
             className="min-h-[120px]"
             autoFocus
@@ -415,7 +405,7 @@ export default function QuickCapture({
                   <Image src={preview} alt={`Preview ${index}`} width={200} height={96} unoptimized className="w-full h-24 object-cover rounded" />
                   <button
                     onClick={() => removePhoto(index)}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
+                    className="absolute top-1 right-1 min-h-[44px] min-w-[44px] flex items-center justify-center bg-red-500 text-white rounded-full p-1"
                   >
                     <XIcon className="w-4 h-4" />
                   </button>
@@ -487,28 +477,69 @@ export default function QuickCapture({
         </div>
       )}
 
-      {(text.trim() || pendingPhotos.length > 0 || audioBlob) && (
+      {(mode === 'text' || pendingPhotos.length > 0 || audioBlob) && (
         <div className="flex gap-2 pt-2">
-          <Button
-            onClick={closeCapture}
-            variant="outline"
-            className="flex-1"
-          >
+          <Button type="button" onClick={closeCapture} variant="outline" className="flex-1">
             Cancel
           </Button>
-          <Button
-            onClick={handleSave}
-            className="flex-1"
-          >
+          <Button type="submit" className="flex-1">
             Save
           </Button>
         </div>
       )}
-    </div>
+    </form>
   );
 
   return (
     <>
+      {/* Day Selector */}
+      <div className="flex gap-1 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
+        {availableDays.map((dateKey) => {
+          const isSelected = dateKey === selectedDay;
+          const isToday = dateKey === todayKey;
+          const label = formatDayLabel(dateKey, isToday);
+
+          return (
+            <button
+              key={dateKey}
+              onClick={() => setSelectedDay(dateKey)}
+              className={`shrink-0 flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] ${
+                isSelected
+                  ? 'bg-primary text-primary-foreground'
+                  : 'bg-muted/50 hover:bg-muted text-foreground'
+              }`}
+            >
+              <span className="text-xs font-medium">{label.day}</span>
+              {label.date && <span className="text-sm font-semibold">{label.date}</span>}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Tasks for Selected Day */}
+      {filteredTasks.length > 0 && onTaskComplete && onTaskUncomplete && onTaskDelete && onTaskUpdate && (
+        <div className="bg-card border border-border rounded-lg mb-4">
+          <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
+            <h3 className="font-semibold text-sm text-foreground">Tasks</h3>
+          </div>
+          <div className="p-2 space-y-1">
+            {filteredTasks.map((task) => (
+              <StandaloneTaskItem
+                key={task.id}
+                task={task}
+                onComplete={onTaskComplete}
+                onUncomplete={onTaskUncomplete}
+                onDelete={onTaskDelete}
+                onUpdate={onTaskUpdate}
+                onStart={onTaskStart}
+                onEdit={onTaskEdit}
+                isActive={currentActivityName === task.name}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Quick Capture Buttons */}
       <div className="flex gap-2 mb-4">
         <Button
@@ -540,60 +571,6 @@ export default function QuickCapture({
         </Button>
       </div>
 
-      {/* Day Selector */}
-      <div className="flex gap-1 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
-        {availableDays.map((dateKey) => {
-          const isSelected = dateKey === selectedDay;
-          const isToday = dateKey === todayKey;
-          const label = formatDayLabel(dateKey, isToday);
-          const count = itemCountByDay[dateKey] || 0;
-
-          return (
-            <button
-              key={dateKey}
-              onClick={() => setSelectedDay(dateKey)}
-              className={`shrink-0 flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors min-w-[52px] ${
-                isSelected
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/50 hover:bg-muted text-foreground'
-              }`}
-            >
-              <span className="text-xs font-medium">{label.day}</span>
-              {label.date && <span className="text-sm font-semibold">{label.date}</span>}
-              {count > 0 && (
-                <span className={`text-[10px] mt-0.5 ${isSelected ? 'text-primary-foreground/70' : 'text-muted-foreground'}`}>
-                  {count}
-                </span>
-              )}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* Tasks for Selected Day */}
-      {filteredTasks.length > 0 && onTaskComplete && onTaskUncomplete && onTaskDelete && onTaskUpdate && (
-        <div className="bg-card border border-border rounded-lg mb-4">
-          <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
-            <h3 className="font-semibold text-sm text-foreground">Tasks</h3>
-          </div>
-          <div className="p-2 space-y-1">
-            {filteredTasks.map((task) => (
-              <StandaloneTaskItem
-                key={task.id}
-                task={task}
-                onComplete={onTaskComplete}
-                onUncomplete={onTaskUncomplete}
-                onDelete={onTaskDelete}
-                onUpdate={onTaskUpdate}
-                onStart={onTaskStart}
-                onEdit={onTaskEdit}
-                isActive={currentActivityName === task.name}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Empty state */}
       {notesLoading && <div className="text-sm text-muted-foreground mb-4">Loading...</div>}
       {!notesLoading && filteredTasks.length === 0 && filteredNotes.length === 0 && (
@@ -605,67 +582,77 @@ export default function QuickCapture({
           <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
             <h3 className="font-semibold text-sm text-foreground">Notes</h3>
           </div>
-          <div className="p-2 space-y-2">
+          <div className="p-2 space-y-3">
             {filteredNotes.map((note) => {
               // Get photos for this note (photos are stored with impactId = note.id)
               const photos: PhotoAttachment[] = getPhotosForImpact(note.id);
 
               return (
-                <div
+                <article
                   key={note.id}
-                  className="p-3 space-y-2 hover:bg-muted/50 rounded-lg transition-colors"
+                  className="group rounded-xl border border-border/80 bg-muted/30 overflow-hidden transition-colors hover:bg-muted/50"
                 >
-                  {note.text && (
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{note.text}</p>
-                  )}
-                  {photos.length > 0 && (
-                    <div className="flex gap-2 flex-wrap">
-                      {photos.map((photo) => (
-                        <Image
-                          key={photo.id}
-                          src={photo.thumbnail}
-                          alt="Note photo"
-                          width={80}
-                          height={80}
-                          unoptimized
-                          className="w-20 h-20 object-cover rounded"
-                        />
-                      ))}
-                    </div>
-                  )}
-                  {note.photoIds && note.photoIds.length > 0 && photos.length === 0 && (
-                    <div className="text-xs text-muted-foreground border border-yellow-500 p-2 rounded">
-                      Debug: Note has {note.photoIds.length} photoId(s): {note.photoIds.join(', ')} but found {photos.length} photos.
-                      All photos in hook: {allPhotos.length}.
-                      Note ID: {note.id}
-                    </div>
-                  )}
-                  {note.audioPath && (
-                    <div className="flex items-center gap-2">
-                      <Button
-                        onClick={() => playAudio(note)}
-                        variant="ghost"
-                        size="sm"
-                        disabled={playingAudioId === note.id}
-                      >
-                        <PlayIcon className="w-4 h-4" />
-                        {note.audioDuration ? formatTime(note.audioDuration) : 'Play'}
-                      </Button>
-                    </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs text-muted-foreground">
+                  <div className="p-3 sm:p-4">
+                    {note.text && (
+                      <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
+                        {note.text}
+                      </p>
+                    )}
+                    {photos.length > 0 && (
+                      <div className="flex gap-2 flex-wrap mt-3">
+                        {photos.map((photo) => (
+                          <Image
+                            key={photo.id}
+                            src={photo.thumbnail}
+                            alt="Note photo"
+                            width={80}
+                            height={80}
+                            unoptimized
+                            className="w-20 h-20 object-cover rounded-lg"
+                          />
+                        ))}
+                      </div>
+                    )}
+                    {note.photoIds && note.photoIds.length > 0 && photos.length === 0 && (
+                      <div className="text-xs text-muted-foreground border border-yellow-500 p-2 rounded mt-2">
+                        Debug: Note has {note.photoIds.length} photoId(s): {note.photoIds.join(', ')} but found {photos.length} photos.
+                        All photos in hook: {allPhotos.length}.
+                        Note ID: {note.id}
+                      </div>
+                    )}
+                    {note.audioPath && (
+                      <div className="mt-3">
+                        <Button
+                          onClick={() => playAudio(note)}
+                          variant="outline"
+                          size="sm"
+                          disabled={playingAudioId === note.id}
+                          className="h-8 gap-1.5"
+                        >
+                          <PlayIcon className="w-4 h-4" />
+                          {note.audioDuration ? formatTime(note.audioDuration) : 'Play'}
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-t border-border/60 bg-background/50">
+                    <time
+                      dateTime={new Date(note.createdAt).toISOString()}
+                      className="text-[11px] text-muted-foreground tabular-nums"
+                    >
                       {new Date(note.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
-                    </span>
+                    </time>
                     <Button
                       onClick={() => handleDeleteNote(note.id)}
                       variant="ghost"
                       size="sm"
+                      className="h-8 w-8 p-0 shrink-0 opacity-70 hover:opacity-100 hover:text-destructive"
+                      aria-label="Delete note"
                     >
                       <XIcon className="w-4 h-4" />
                     </Button>
                   </div>
-                </div>
+                </article>
               );
             })}
           </div>
@@ -695,7 +682,7 @@ export default function QuickCapture({
               {mode === 'camera' && 'Take Photo'}
               {mode === 'voice' && 'Record Voice Note'}
             </DrawerTitle>
-            <DrawerClose className="absolute right-4 top-4" />
+            <DrawerClose className="absolute right-4 top-4 min-h-[44px] min-w-[44px] flex items-center justify-center" />
           </DrawerHeader>
           <div className="px-4 pb-8">
             {captureContent}

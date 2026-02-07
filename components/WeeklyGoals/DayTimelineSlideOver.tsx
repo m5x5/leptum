@@ -220,7 +220,7 @@ export function DayTimelineSlideOver({
                           </Dialog.Title>
                           <button
                             type="button"
-                            className="rounded-md text-muted-foreground hover:text-foreground"
+                            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
                             onClick={onClose}
                           >
                             <XIcon className="h-6 w-6" />
@@ -325,13 +325,13 @@ export function DayTimelineSlideOver({
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => setShowDeleteConfirm(false)}
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
             >
               Cancel
             </button>
             <button
               onClick={deleteActivity}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              className="min-h-[44px] px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
               Delete
             </button>

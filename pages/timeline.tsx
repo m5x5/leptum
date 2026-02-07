@@ -247,6 +247,9 @@ export default function TimelinePage() {
       await remoteStorageClient.saveImpacts(realImpacts);
       const sortedData = [...realImpacts].sort((a, b) => b.date - a.date);
       setImpacts(sortedData);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("impactsUpdated"));
+      }
     } catch (error) {
       console.error("Failed to save impacts:", error);
     }

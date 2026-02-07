@@ -263,7 +263,7 @@ const AddGoalModal = ({
               <button
                 type="button"
                 onClick={() => setStep('select-template')}
-                className="px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left"
+                className="min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left"
               >
                 <div className="font-medium">Select Predefined Template</div>
                 <div className="text-sm text-muted-foreground mt-1">
@@ -273,7 +273,7 @@ const AddGoalModal = ({
               <button
                 type="button"
                 onClick={() => setStep('create-custom')}
-                className="px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left"
+                className="min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left"
               >
                 <div className="font-medium">Create Custom Goal</div>
                 <div className="text-sm text-muted-foreground mt-1">
@@ -287,7 +287,7 @@ const AddGoalModal = ({
           <div className="flex gap-2 justify-end">
             <button
               type="button"
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
               onClick={closeModal}
             >
               Cancel
@@ -314,7 +314,7 @@ const AddGoalModal = ({
                     key={template.id}
                     type="button"
                     onClick={() => handleSelectTemplate(template)}
-                    className="w-full px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left flex items-center gap-3"
+                    className="w-full min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left flex items-center gap-3"
                   >
                     <div className="text-2xl flex-shrink-0">{template.icon}</div>
                     {template.color && (
@@ -342,14 +342,14 @@ const AddGoalModal = ({
           <div className="flex gap-2 justify-end">
             <button
               type="button"
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
               onClick={() => setStep('choice')}
             >
               Back
             </button>
             <button
               type="button"
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
               onClick={closeModal}
             >
               Cancel
@@ -428,7 +428,7 @@ const AddGoalModal = ({
                   key={color.value}
                   type="button"
                   onClick={() => setSelectedColor(color.value)}
-                  className={`w-full h-10 rounded-lg ${color.value} hover:opacity-80 transition ${
+                  className={`w-full min-h-[44px] h-10 rounded-lg ${color.value} hover:opacity-80 transition ${
                     selectedColor === color.value
                       ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
                       : ""
@@ -449,7 +449,7 @@ const AddGoalModal = ({
                 <button
                   type="button"
                   onClick={() => setShowMilestones(true)}
-                  className="text-xs text-primary hover:underline"
+                  className="min-h-[44px] flex items-center px-2 text-xs text-primary hover:underline"
                 >
                   + Add milestones
                 </button>
@@ -465,7 +465,7 @@ const AddGoalModal = ({
                     <button
                       type="button"
                       onClick={() => removeMilestone(index)}
-                      className="text-muted-foreground hover:text-destructive transition"
+                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:text-destructive transition"
                       title="Remove milestone"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -487,7 +487,7 @@ const AddGoalModal = ({
                   <button
                     type="button"
                     onClick={addMilestone}
-                    className="px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 text-sm font-medium"
+                    className="min-h-[44px] px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 text-sm font-medium"
                   >
                     Add
                   </button>
@@ -508,14 +508,14 @@ const AddGoalModal = ({
         <div className="flex gap-2 justify-end">
           <button
             type="button"
-            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
             onClick={closeModal}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+            className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
             onClick={handleSubmit}
           >
             {isEdit ? "Save Changes" : "Add Goal"}

@@ -211,7 +211,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
             type="button"
             onClick={onClose}
             disabled={applying}
-            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 disabled:opacity-50"
+            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 disabled:opacity-50"
           >
             Cancel
           </button>

@@ -25,7 +25,9 @@ const LogImpactModal = ({onCreate, isOpen, name}) => {
             
             const updatedImpacts = [...impacts, newImpact];
             await remoteStorageClient.saveImpacts(updatedImpacts);
-            
+            if (typeof window !== "undefined") {
+              window.dispatchEvent(new CustomEvent("impactsUpdated"));
+            }
             closeModal();
         } catch (error) {
             console.error("Failed to save impact:", error);

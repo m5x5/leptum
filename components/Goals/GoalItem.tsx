@@ -132,7 +132,7 @@ export function GoalItem({
         {(hasMilestones || goal.description || goal.templateId) && (
           <button
             onClick={() => setIsExpanded(!isExpanded)}
-            className="p-1 text-muted-foreground hover:text-foreground"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground"
             title={isExpanded ? 'Collapse' : 'Expand'}
           >
             {isExpanded ? (
@@ -148,7 +148,7 @@ export function GoalItem({
           {onSelectTemplate && !goal.templateId && (
             <button
               onClick={() => onSelectTemplate(goal)}
-              className="p-1.5 text-muted-foreground hover:text-primary transition rounded-lg hover:bg-muted"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 text-muted-foreground hover:text-primary transition rounded-lg hover:bg-muted"
               title="Use template"
             >
               <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">

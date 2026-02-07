@@ -370,7 +370,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
         <div className="flex gap-2 justify-between">
           <button
             type="button"
-            className="px-4 py-2 text-muted-foreground hover:text-foreground transition text-sm"
+            className="min-h-[44px] px-4 py-2 text-muted-foreground hover:text-foreground transition text-sm"
             onClick={handleSkipAll}
           >
             Skip tutorial
@@ -379,7 +379,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
             {currentStep > 0 && (
               <button
                 type="button"
-                className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+                className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
                 onClick={handleBack}
               >
                 Back
@@ -387,7 +387,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
             )}
             <button
               type="button"
-              className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+              className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
               onClick={handleNext}
             >
               {currentStep === steps.length - 1 ? "Get Started" : "Next"}

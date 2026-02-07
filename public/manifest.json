@@ -9,6 +9,7 @@
   "theme_color": "#ffffff",
   "orientation": "portrait-primary",
   "scope": "/",
+  "categories": ["productivity", "lifestyle"],
   "icons": [
     { "src": "/favicon-16x16.png", "sizes": "16x16", "type": "image/png", "purpose": "any" },
     { "src": "/favicon-32x32.png", "sizes": "32x32", "type": "image/png", "purpose": "any" },
@@ -24,5 +25,8 @@
     { "src": "/leptum-wellbeing.png", "sizes": "324x680", "type": "image/png", "form_factor": "narrow", "label": "Leptum Wellbeing" },
     { "src": "/leptum-routines.png", "sizes": "324x680", "type": "image/png", "form_factor": "narrow", "label": "Leptum Routines" },
     { "src": "/leptum-dashboard.png", "sizes": "324x680", "type": "image/png", "form_factor": "wide", "label": "Leptum Dashboard" }
-  ]
+  ],
+  "note_taking": {
+    "new_note_url": "/?capture=note"
+  }
 }

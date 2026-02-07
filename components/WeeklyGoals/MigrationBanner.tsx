@@ -98,13 +98,13 @@ export function MigrationBanner({
           <div className="flex gap-2">
             <button
               onClick={handleMigrate}
-              className="px-3 py-1.5 text-xs font-medium bg-yellow-600 dark:bg-yellow-500 text-white rounded hover:bg-yellow-700 dark:hover:bg-yellow-600 transition"
+              className="min-h-[44px] px-3 py-1.5 text-xs font-medium bg-yellow-600 dark:bg-yellow-500 text-white rounded hover:bg-yellow-700 dark:hover:bg-yellow-600 transition"
             >
               Migrate Now
             </button>
             <button
               onClick={() => setIsDismissed(true)}
-              className="px-3 py-1.5 text-xs font-medium text-yellow-700 dark:text-yellow-300 hover:text-yellow-800 dark:hover:text-yellow-200 transition"
+              className="min-h-[44px] px-3 py-1.5 text-xs font-medium text-yellow-700 dark:text-yellow-300 hover:text-yellow-800 dark:hover:text-yellow-200 transition"
             >
               Dismiss
             </button>
@@ -116,7 +116,7 @@ export function MigrationBanner({
         </div>
         <button
           onClick={() => setIsDismissed(true)}
-          className="text-yellow-600 dark:text-yellow-500 hover:text-yellow-800 dark:hover:text-yellow-300 transition flex-shrink-0"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center text-yellow-600 dark:text-yellow-500 hover:text-yellow-800 dark:hover:text-yellow-300 transition flex-shrink-0"
         >
           <XIcon className="w-5 h-5" />
         </button>

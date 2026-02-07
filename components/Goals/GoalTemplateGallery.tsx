@@ -122,7 +122,7 @@ export default function GoalTemplateGallery({ onSelectTemplate, categoryName }: 
         </p>
         <button
           onClick={() => onSelectTemplate(null as any)}
-          className="px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-accent hover:border-primary transition-colors"
+          className="min-h-[44px] px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-accent hover:border-primary transition-colors"
         >
           Create Custom Goal
         </button>

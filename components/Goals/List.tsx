@@ -171,7 +171,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
               <p className="text-muted-foreground mb-3">No goals yet in this category.</p>
               <button
                 onClick={() => setShowTemplateGallery(true)}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-medium text-sm"
+                className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-medium text-sm"
               >
                 Browse Goal Templates
               </button>

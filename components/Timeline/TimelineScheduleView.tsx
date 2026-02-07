@@ -200,7 +200,7 @@ export function TimelineScheduleView({
                 </h2>
                 <button
                   onClick={() => onAddActivity(dateKey)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
+                  className="flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
                 >
                   <PlusIcon className="w-4 h-4" />
                   <span>Add</span>

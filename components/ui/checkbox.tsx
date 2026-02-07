@@ -16,7 +16,7 @@ const Checkbox = React.forwardRef<HTMLInputElement, CheckboxProps>(
     }
 
     return (
-      <label className="relative inline-flex items-center cursor-pointer">
+      <label className="relative inline-flex min-h-[44px] min-w-[44px] items-center justify-center cursor-pointer">
         <input
           type="checkbox"
           ref={ref}

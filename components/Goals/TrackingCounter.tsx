@@ -273,7 +273,7 @@ export function TrackingCounter({ goal, config, entries, onUpdate, embedded = fa
               <button
                 key={index}
                 onClick={() => handleCupClick(index)}
-                className={`${embedded ? 'text-3xl' : 'text-3xl'} transition-all hover:scale-110 ${
+                className={`min-h-[44px] min-w-[44px] flex items-center justify-center ${embedded ? 'text-3xl' : 'text-3xl'} transition-all hover:scale-110 ${
                   isFilled ? 'opacity-100' : 'opacity-30 hover:opacity-50'
                 }`}
                 title={isFilled 
@@ -294,7 +294,7 @@ export function TrackingCounter({ goal, config, entries, onUpdate, embedded = fa
                 key={increment}
                 onClick={() => addValue(increment)}
                 disabled={todayValue >= maxPerDay}
-                className={`${embedded ? 'px-2 py-1 text-xs' : 'px-3 py-1.5'} bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
+                className={`min-h-[44px] ${embedded ? 'px-2 py-1 text-xs' : 'px-3 py-1.5'} bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
               >
                 <PlusIcon className={embedded ? "w-3 h-3" : "w-4 h-4"} />
                 <span>+{increment}</span>

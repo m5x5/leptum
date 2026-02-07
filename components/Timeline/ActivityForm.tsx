@@ -245,7 +245,7 @@ export default function ActivityForm({
                   <button
                     type="button"
                     onClick={() => onDeletePhoto(photo.id)}
-                    className="absolute -top-1 -right-1 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    className="absolute -top-1 -right-1 min-h-[44px] min-w-[44px] bg-red-500 text-white rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                   >
                     <XIcon className="w-3 h-3" />
                   </button>
@@ -293,7 +293,7 @@ export default function ActivityForm({
           />
           <label
             htmlFor="photo-upload"
-            className={`flex items-center gap-2 px-3 py-2 bg-muted border border-border rounded-lg cursor-pointer hover:bg-muted/80 transition-colors ${
+            className={`flex min-h-[44px] items-center gap-2 px-3 py-2 bg-muted border border-border rounded-lg cursor-pointer hover:bg-muted/80 transition-colors ${
               isProcessingPhoto ? 'opacity-50 cursor-wait' : ''
             }`}
           >
@@ -321,7 +321,7 @@ export default function ActivityForm({
         {showDelete && onDelete && (
           <button
             onClick={onDelete}
-            className="px-4 py-2 bg-red-500 text-white rounded-lg hover:opacity-90 font-semibold"
+            className="min-h-[44px] px-4 py-2 bg-red-500 text-white rounded-lg hover:opacity-90 font-semibold"
           >
             Delete
           </button>
@@ -329,13 +329,13 @@ export default function ActivityForm({
         <div className="flex gap-2">
           <button
             onClick={onCancel}
-            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
           >
             Cancel
           </button>
           <button
             onClick={handleSubmit}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+            className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
           >
             {submitLabel}
           </button>

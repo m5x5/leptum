@@ -319,7 +319,7 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
               <button
                 key={index}
                 onClick={() => toggleItem(option)}
-                className={`w-full flex items-center gap-3 p-3 rounded-lg border transition-all ${
+                className={`w-full min-h-[44px] flex items-center gap-3 p-3 rounded-lg border transition-all ${
                   isChecked
                     ? 'bg-primary/10 border-primary text-foreground'
                     : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'

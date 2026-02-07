@@ -8,7 +8,6 @@ import { ThemeProvider } from "next-themes";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "./ui/sidebar";
 import { PlusIcon } from "@heroicons/react/solid";
 import { startKeyUX, hotkeyKeyUX, pressKeyUX, getHotKeyHint, likelyWithKeyboard } from "keyux";
-import { HighlightedMentions } from "./ui/mention-input";
 import { CurrentActivityContext } from "./CurrentActivityContext";
 import { StandaloneTasksProvider } from "./StandaloneTasksContext";
 import { remoteStorageClient } from "../lib/remoteStorage";
@@ -16,34 +15,6 @@ import { serviceWorkerManager, isOfflineModeEnabled } from "../utils/serviceWork
 import { Toaster } from "sonner";
 // Run migration when app router bundle loads
 import "../utils/migrateGoalIdToGoalIds";
-
-// Format duration in human readable form
-function formatDurationStatic(ms: number) {
-  const seconds = Math.floor(ms / 1000);
-  const minutes = Math.floor(seconds / 60);
-  const hours = Math.floor(minutes / 60);
-
-  if (hours > 0) {
-    return `${hours}h ${minutes % 60}m`;
-  }
-  if (minutes > 0) {
-    return `${minutes}m ${seconds % 60}s`;
-  }
-  return `${seconds}s`;
-}
-
-function LiveDuration({ baseMs = 0, startTime }: { baseMs?: number; startTime?: number }) {
-  const [now, setNow] = useState(() => Date.now());
-
-  useEffect(() => {
-    if (!startTime) return;
-    const interval = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(interval);
-  }, [startTime]);
-
-  const liveOffset = startTime ? now - startTime : 0;
-  return <>{formatDurationStatic(baseMs + liveOffset)}</>;
-}
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -180,21 +151,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             <header className="hidden md:flex h-14 shrink-0 items-center gap-2 border-b px-4">
               <SidebarTrigger />
               <div className="flex-1" />
-              {activePath === "/" && currentActivity && (
-                <div className="inline-flex items-center gap-2 bg-primary/10 border border-primary rounded-full px-4 py-2">
-                  <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-                  <span className="text-sm font-medium text-primary">
-                    <HighlightedMentions
-                      text={currentActivity.name}
-                      mentionClassName="bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-semibold"
-                    />
-                  </span>
-                  <span className="text-xs text-muted-foreground">•</span>
-                  <span className="text-sm font-semibold text-primary">
-                    <LiveDuration startTime={currentActivity.startTime} />
-                  </span>
-                </div>
-              )}
               {activePath === "/" && (
                 <button
                   aria-keyshortcuts="n"
@@ -203,7 +159,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                       window.dispatchEvent(new CustomEvent("openTaskForm"));
                     }
                   }}
-                  className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+                  className="flex items-center gap-2 min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
                 >
                   <PlusIcon className="w-5 h-5" />
                   <span>Add Task</span>

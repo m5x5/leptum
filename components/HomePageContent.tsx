@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "./StandaloneTasksContext";
@@ -117,6 +118,16 @@ export default function Home() {
   const statsSectionRef = useRef<HTMLDivElement>(null);
 
   const currentActivity = useCurrentActivity();
+  const searchParams = useSearchParams();
+
+  // Support note_taking.new_note_url: opening /?capture=note opens quick text note capture
+  useEffect(() => {
+    if (typeof window === "undefined" || !searchParams) return;
+    if (searchParams.get("capture") === "note") {
+      setQuickNoteTrigger(Date.now());
+      window.history.replaceState(null, "", window.location.pathname || "/");
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     queueMicrotask(() => setNowForFilter(Date.now()));
@@ -124,14 +135,24 @@ export default function Home() {
     return () => clearInterval(id);
   }, []);
 
-  // Shift+N: open new text note (quick capture)
+  // N: add task. Shift+N: open new text note (quick capture).
+  // Handle both here with preventDefault() so the key is not also typed into focused inputs (unlike keyux/aria-keyshortcuts which don't consume the key).
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const inInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      if (inInput) return; // Never steal "n" or "N" when user is typing
+
       if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
         e.preventDefault();
         setQuickNoteTrigger(Date.now());
+        return;
+      }
+      // Bare "n" (no modifier) → add task (same as header button)
+      if (!e.shiftKey && !e.ctrlKey && !e.metaKey && !e.altKey && (e.key === 'n' || e.key === 'N')) {
+        e.preventDefault();
+        e.stopPropagation(); // so keyux doesn't also activate the header button and double-fire
+        window.dispatchEvent(new CustomEvent('openTaskForm'));
       }
     };
     window.addEventListener('keydown', handleKeyDown);
@@ -241,11 +262,20 @@ export default function Home() {
     return () => window.removeEventListener('goalUpdated', handleGoalUpdate);
   }, [loadRoutines]);
 
-  // Listen for openTaskForm event from header button
+  // Listen for openTaskForm event from header button (bottom sheet on mobile, inline form on desktop)
   useEffect(() => {
     const handleOpenTaskForm = () => {
       setEditingTask(null);
-      setShowTaskForm(true);
+      if (taskNameRef.current) taskNameRef.current.value = "";
+      if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
+      if (taskEffortRef.current) taskEffortRef.current.value = "";
+      if (taskNumericEstimateRef.current) taskNumericEstimateRef.current.value = "";
+      if (selectedGoalRef.current) selectedGoalRef.current.value = "";
+      if (typeof window !== "undefined" && window.innerWidth < 768) {
+        setShowMobileTaskDrawer(true);
+      } else {
+        setShowTaskForm(true);
+      }
     };
     window.addEventListener('openTaskForm', handleOpenTaskForm);
     return () => {
@@ -428,6 +458,9 @@ export default function Home() {
       }
       impacts.push(newImpact);
       await remoteStorageClient.saveImpacts(impacts);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("impactsUpdated"));
+      }
     } catch (error) {
       console.error("Failed to log activity:", error);
     }
@@ -530,13 +563,13 @@ export default function Home() {
         <button
           type="button"
           onClick={onCancel}
-          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+          className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
         >
           Cancel
         </button>
         <button
           type="submit"
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
+          className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
         >
           <PlayIcon className="h-5 w-5" />
           Start
@@ -662,6 +695,9 @@ export default function Home() {
         goalId
       });
       await remoteStorageClient.saveImpacts(impacts);
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("impactsUpdated"));
+      }
 
       // Mark onboarding as completed
       localStorage.setItem('leptum_onboarding_completed', 'true');
@@ -756,7 +792,7 @@ export default function Home() {
       </div>
       <button
         type="submit"
-        className="w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold mt-4"
+        className="min-h-[44px] w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold mt-4"
       >
         {editingTask ? 'Save Task' : 'Add Task'}
       </button>
@@ -860,28 +896,11 @@ export default function Home() {
           </Link>
           <button
             onClick={() => setShowArchiveSheet(true)}
-            className="p-2 text-muted-foreground hover:text-foreground transition-colors"
+            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-muted-foreground hover:text-foreground transition-colors"
           >
             <ArchiveIcon className="w-6 h-6" />
           </button>
         </div>
-
-        {/* Active Activity Tracker - Shows what's currently being tracked (Mobile only) */}
-        {currentActivity && (
-          <div className="md:hidden mb-4 inline-flex items-center gap-2 bg-primary/10 border border-primary rounded-full px-4 py-2">
-            <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
-            <span className="text-sm font-medium text-primary">
-              <HighlightedMentions
-                text={currentActivity.name}
-                mentionClassName="bg-primary text-primary-foreground px-1.5 py-0.5 rounded-full font-semibold"
-              />
-            </span>
-            <span className="text-xs text-muted-foreground">•</span>
-            <span className="text-sm font-semibold text-primary">
-              <LiveDuration startTime={currentActivity.startTime} />
-            </span>
-          </div>
-        )}
 
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main Content - Tasks */}
@@ -941,7 +960,7 @@ export default function Home() {
               <div className="hidden md:block border-t border-border pt-6">
                 <button
                   onClick={() => setShowPastActivity(!showPastActivity)}
-                  className="flex items-center justify-between w-full text-left mb-4 px-2 py-2 rounded-lg hover:bg-muted transition-colors"
+                  className="flex min-h-[44px] items-center justify-between w-full text-left mb-4 px-2 py-2 rounded-lg hover:bg-muted transition-colors"
                 >
                   <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
                     Past Activity
@@ -973,7 +992,7 @@ export default function Home() {
                             </h3>
                             <button
                               onClick={() => handleArchiveDay(dateKey)}
-                              className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
                               title="Archive this day"
                             >
                               <ArchiveIcon className="w-4 h-4" />
@@ -1081,7 +1100,7 @@ export default function Home() {
                           )}
                           <button
                             onClick={() => openStartTaskModal(routine.name)}
-                            className="mt-3 w-full px-3 py-1.5 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold text-sm flex items-center justify-center gap-2"
+                            className="mt-3 min-h-[44px] w-full px-3 py-1.5 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold text-sm flex items-center justify-center gap-2"
                           >
                             <PlayIcon className="h-4 w-4" />
                             Start Routine
@@ -1230,7 +1249,7 @@ export default function Home() {
                           </h3>
                           <button
                             onClick={() => handleArchiveDay(dateKey)}
-                            className="p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded transition-colors"
+                            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded transition-colors"
                             title="Archive this day"
                           >
                             <ArchiveIcon className="w-4 h-4" />
@@ -1258,7 +1277,7 @@ export default function Home() {
                   <div className="mt-6 flex justify-center">
                     <button
                       onClick={handleLoadMoreArchive}
-                      className="px-4 py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
+                      className="min-h-[44px] px-4 py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
                     >
                       Load older archived tasks
                     </button>
@@ -1312,7 +1331,7 @@ export default function Home() {
           <DrawerContent>
             <DrawerHeader className="text-left relative">
               <DrawerTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DrawerTitle>
-              <DrawerClose className="absolute right-4 top-4 p-1 text-muted-foreground hover:text-foreground transition-colors">
+              <DrawerClose className="absolute right-4 top-4 min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground transition-colors">
                 <XIcon className="w-5 h-5" />
               </DrawerClose>
             </DrawerHeader>

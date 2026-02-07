@@ -66,7 +66,7 @@ export default function FilterControls({
             )}
           </div>
           <button
-            className="md:hidden p-1 hover:bg-muted rounded"
+            className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center p-1 hover:bg-muted rounded"
             onClick={(e) => {
               e.stopPropagation();
               setIsCollapsed(!isCollapsed);

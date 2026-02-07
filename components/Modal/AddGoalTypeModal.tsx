@@ -101,14 +101,14 @@ const AddGoalTypeModal = ({
         <div className="flex gap-2 justify-end">
           <button
             type="button"
-            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
             onClick={closeModal}
           >
             Cancel
           </button>
           <button
             type="button"
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+            className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
             onClick={handleSubmit}
           >
             {isEdit ? "Save Changes" : "Add Category"}

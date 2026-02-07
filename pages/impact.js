@@ -238,6 +238,9 @@ export default function ImpactPage() {
     const saveImpacts = async () => {
       try {
         await remoteStorageClient.saveImpacts(state.impacts);
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("impactsUpdated"));
+        }
       } catch (error) {
         console.error("Failed to save impacts:", error);
       }

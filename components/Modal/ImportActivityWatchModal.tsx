@@ -263,14 +263,14 @@ export default function ImportActivityWatchModal({
           <button
             onClick={handleClose}
             disabled={isProcessing}
-            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 disabled:opacity-50"
+            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleImport}
             disabled={!selectedFile || isProcessing || !preview}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+            className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
           >
             {isProcessing ? (
               <>Processing...</>

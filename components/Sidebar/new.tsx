@@ -160,7 +160,7 @@ export default function AppSidebar() {
               key={path}
               href={path}
               className={cn(
-                "cursor-pointer focus:outline-none flex flex-col items-center justify-center gap-1 px-2 py-2 min-w-[64px]",
+                "cursor-pointer focus:outline-none flex flex-col items-center justify-center gap-1 px-2 py-2 min-h-[44px] min-w-[44px]",
                 isActive(path) ? "text-primary" : "text-muted-foreground hover:text-primary"
               )}
               aria-label={label}
@@ -180,7 +180,7 @@ export default function AppSidebar() {
           <Link
             href="/settings"
             className={cn(
-              "cursor-pointer focus:outline-none flex flex-col items-center justify-center gap-1 px-2 py-2 min-w-[64px]",
+              "cursor-pointer focus:outline-none flex flex-col items-center justify-center gap-1 px-2 py-2 min-h-[44px] min-w-[44px]",
               isActive("/settings") ? "text-primary" : "text-muted-foreground hover:text-primary"
             )}
             aria-label="Settings"

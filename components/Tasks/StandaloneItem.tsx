@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { StandaloneTask } from "../../utils/useStandaloneTasks";
 import { TrashIcon, PencilIcon, DotsVerticalIcon } from "@heroicons/react/outline";
 import { PlayIcon } from "@heroicons/react/solid";
 import { Checkbox } from "../ui/checkbox";
+import { useCurrentActivity } from "../CurrentActivityContext";
 import { Input } from "../ui/input";
 import Modal from "../Modal";
 import { EMOTIONS } from "../ui/emotion-selector";
@@ -13,6 +14,18 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
+
+function LiveDuration({ startTime }: { startTime: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const interval = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  const elapsed = Math.floor((now - startTime) / 1000);
+  const m = Math.floor(elapsed / 60);
+  const s = elapsed % 60;
+  return <span>{m}:{String(s).padStart(2, "0")}</span>;
+}
 
 interface Props {
   task: StandaloneTask;
@@ -100,6 +113,9 @@ export default function StandaloneTaskItem({
     });
   };
 
+  const currentActivity = useCurrentActivity();
+  const showLiveTimer = isActive && currentActivity?.name === task.name && currentActivity.startTime;
+
   return (
     <div className={`
       flex items-center justify-between p-3 rounded-lg
@@ -171,13 +187,13 @@ export default function StandaloneTaskItem({
               <div className="flex space-x-2">
                 <button
                   onClick={handleSaveEdit}
-                  className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
+                  className="min-h-[44px] px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
                 >
                   Save
                 </button>
                 <button
                   onClick={handleCancelEdit}
-                  className="px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
+                  className="min-h-[44px] px-2 py-1 text-xs bg-gray-500 text-white rounded hover:bg-gray-600"
                 >
                   Cancel
                 </button>
@@ -185,7 +201,7 @@ export default function StandaloneTaskItem({
             </div>
           ) : (
             <div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <div className={`
                   text-sm font-medium
                   ${task.status === 'completed'
@@ -195,6 +211,12 @@ export default function StandaloneTaskItem({
                 `}>
                   {task.name}
                 </div>
+                {showLiveTimer && (
+                  <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-primary">
+                    <span className="w-1.5 h-1.5 bg-primary rounded-full animate-pulse" aria-hidden />
+                    <LiveDuration startTime={currentActivity!.startTime} />
+                  </span>
+                )}
                 {(task.effort || task.numericEstimate) && (
                   <div className="flex gap-1">
                     {task.effort && (
@@ -251,7 +273,7 @@ export default function StandaloneTaskItem({
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button
-              className="p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-muted/50"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-muted/50"
               title="Task actions"
             >
               <DotsVerticalIcon className="h-5 w-5" />
@@ -307,7 +329,7 @@ export default function StandaloneTaskItem({
           <div className="flex gap-2 justify-end">
             <button
               onClick={() => setShowDeleteConfirm(false)}
-              className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
             >
               Cancel
             </button>
@@ -316,7 +338,7 @@ export default function StandaloneTaskItem({
                 onDelete(task.id);
                 setShowDeleteConfirm(false);
               }}
-              className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
+              className="min-h-[44px] px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
             >
               Delete
             </button>

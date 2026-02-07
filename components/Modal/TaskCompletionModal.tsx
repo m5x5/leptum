@@ -56,13 +56,13 @@ export default function TaskCompletionModal({
             <div className="flex gap-2">
               <button
                 onClick={handleSkip}
-                className="flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+                className="min-h-[44px] flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
               >
                 Skip
               </button>
               <button
                 onClick={handleComplete}
-                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+                className="min-h-[44px] flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
               >
                 Complete
               </button>
@@ -89,13 +89,13 @@ export default function TaskCompletionModal({
         <div className="flex gap-2 justify-end w-full">
           <button
             onClick={handleSkip}
-            className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
           >
             Skip
           </button>
           <button
             onClick={handleComplete}
-            className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+            className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
           >
             Complete
           </button>

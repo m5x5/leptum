@@ -270,7 +270,7 @@ export function TimelineDayView({
                           slots.push(
                               <div
                                   key={`slot-${thisSlotTime}`}
-                                  className="absolute left-[-3.5rem] w-12 h-5 flex items-center justify-end opacity-0 hover:opacity-100 cursor-pointer group/slot"
+                                  className="absolute left-[-3.5rem] min-w-[44px] min-h-[44px] flex items-center justify-end opacity-0 hover:opacity-100 cursor-pointer group/slot"
                                   style={{ top: `${slotTop - 10}px` }}
                                   onClick={(e) => {
                                       e.stopPropagation();
