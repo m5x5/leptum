@@ -34,7 +34,7 @@ import {
 } from "../components/ui/drawer";
 import { HighlightedMentions } from "../components/ui/mention-input";
 import OnboardingModal from "../components/Modal/OnboardingModal";
-import QuickCapture from "../components/QuickCapture/QuickCapture";
+import QuickCapture, { type PendingSharePayload } from "../components/QuickCapture/QuickCapture";
 import { useCurrentActivity } from "../components/CurrentActivityContext";
 import { getCurrentTime } from "../utils/now";
 import { v4 as uuidv4 } from "uuid";
@@ -107,6 +107,7 @@ export default function Home() {
   const [editingTask, setEditingTask] = useState<StandaloneTask | null>(null);
   const [nowForFilter, setNowForFilter] = useState(0);
   const [quickNoteTrigger, setQuickNoteTrigger] = useState(0);
+  const [pendingShare, setPendingShare] = useState<PendingSharePayload | null>(null);
 
   // Use refs for form inputs instead of state for better performance
   const taskNameRef = useRef<HTMLInputElement>(null);
@@ -128,6 +129,21 @@ export default function Home() {
       window.history.replaceState(null, "", window.location.pathname || "/");
     }
   }, [searchParams]);
+
+  // Support Web Share Target: read pending share from localStorage (set by /share route after redirect)
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    try {
+      const raw = localStorage.getItem("pendingShare");
+      if (raw) {
+        const payload = JSON.parse(raw) as PendingSharePayload;
+        localStorage.removeItem("pendingShare");
+        setPendingShare(payload);
+      }
+    } catch {
+      localStorage.removeItem("pendingShare");
+    }
+  }, []);
 
   useEffect(() => {
     queueMicrotask(() => setNowForFilter(Date.now()));
@@ -952,6 +968,8 @@ export default function Home() {
                 }}
                 currentActivityName={currentActivity?.name}
                 openTextNoteTrigger={quickNoteTrigger}
+                pendingShare={pendingShare}
+                onProcessedShare={() => setPendingShare(null)}
               />
             </div>
 

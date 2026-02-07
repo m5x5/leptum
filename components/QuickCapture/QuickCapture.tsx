@@ -40,6 +40,21 @@ function formatDayLabel(dateKey: string, isToday: boolean): { day: string; date:
   };
 }
 
+/** Payload from Web Share Target (stored in localStorage by /share route). */
+export interface PendingSharePayload {
+  title?: string;
+  text?: string;
+  url?: string;
+  files?: { name: string; type: string; base64: string }[];
+}
+
+function base64ToFile(base64: string, mime: string, name: string): File {
+  const bin = atob(base64);
+  const arr = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+  return new File([new Blob([arr], { type: mime })], name, { type: mime });
+}
+
 interface QuickCaptureProps {
   // Task-related props (optional for backwards compatibility)
   tasks?: StandaloneTask[];
@@ -53,6 +68,10 @@ interface QuickCaptureProps {
   currentActivityName?: string;
   /** When this value changes to a truthy number (e.g. timestamp), opens the text note capture (for Shift+N shortcut). */
   openTextNoteTrigger?: number;
+  /** Shared content from Web Share Target; when set, a note is created and this is cleared. */
+  pendingShare?: PendingSharePayload | null;
+  /** Called after pending share has been processed (note created). */
+  onProcessedShare?: () => void;
 }
 
 export default function QuickCapture({
@@ -66,6 +85,8 @@ export default function QuickCapture({
   onTaskEdit,
   currentActivityName,
   openTextNoteTrigger,
+  pendingShare,
+  onProcessedShare,
 }: QuickCaptureProps) {
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, photos: allPhotos } = usePhotoAttachments();
@@ -80,6 +101,83 @@ export default function QuickCapture({
       openCapture('text');
     }
   }, [openTextNoteTrigger]);
+
+  // Process shared content from Web Share Target (audio, images, text files → one note)
+  useEffect(() => {
+    if (!pendingShare || notesLoading) return;
+    const hasContent =
+      (pendingShare.title || pendingShare.text || pendingShare.url) ||
+      (pendingShare.files && pendingShare.files.length > 0);
+    if (!hasContent) {
+      onProcessedShare?.();
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      try {
+        const textParts: string[] = [];
+        if (pendingShare.title) textParts.push(pendingShare.title);
+        if (pendingShare.text) textParts.push(pendingShare.text);
+        if (pendingShare.url) textParts.push(pendingShare.url);
+
+        const imageFiles: File[] = [];
+        const audioFiles: File[] = [];
+        const textFileContents: string[] = [];
+
+        if (pendingShare.files) {
+          for (const f of pendingShare.files) {
+            const file = base64ToFile(f.base64, f.type || 'application/octet-stream', f.name || 'file');
+            if (f.type.startsWith('image/')) {
+              imageFiles.push(file);
+            } else if (f.type.startsWith('audio/')) {
+              audioFiles.push(file);
+            } else if (f.type.startsWith('text/') || f.type === 'application/json' || f.name?.match(/\.(txt|md|json)$/i)) {
+              try {
+                const text = await file.text();
+                if (text.trim()) textFileContents.push(text.trim());
+              } catch {
+                textParts.push(`[File: ${f.name}]`);
+              }
+            } else {
+              textParts.push(`[File: ${f.name}]`);
+            }
+          }
+        }
+
+        if (textFileContents.length) textParts.push(...textFileContents);
+        const noteText = textParts.join('\n\n').trim() || undefined;
+
+        const noteId = `quick-note-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        const newNote = await addNote({
+          id: noteId,
+          text: noteText,
+        });
+        if (!newNote || cancelled) {
+          onProcessedShare?.();
+          return;
+        }
+
+        const photoIds: string[] = [];
+        for (const photo of imageFiles) {
+          const att = await addPhoto(newNote.id, photo, { storeFullImage: true });
+          if (att) photoIds.push(att.id);
+        }
+        if (photoIds.length > 0) await updateNote(newNote.id, { photoIds });
+
+        const firstAudio = audioFiles[0];
+        if (firstAudio && !cancelled) {
+          await saveAudio(newNote.id, firstAudio);
+        }
+
+        if (!cancelled) onProcessedShare?.();
+      } catch (err) {
+        console.error('Failed to create note from share:', err);
+        onProcessedShare?.();
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [pendingShare, notesLoading, addNote, updateNote, addPhoto, saveAudio, onProcessedShare]);
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
