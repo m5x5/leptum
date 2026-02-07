@@ -346,26 +346,26 @@ export default function SettingsPage() {
 
             <button
               onClick={handleExportData}
-              className="w-full flex items-center justify-between py-2 hover:bg-accent/50 pr-2 rounded-lg transition-colors text-left group"
+              className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left group"
             >
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm text-foreground group-hover:text-primary transition-colors">Export Data</span>
                 <span className="text-xs text-muted-foreground">Download all your data as a JSON file</span>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
               </svg>
             </button>
 
             <button
               onClick={handleImportFromTodonna}
-              className="w-full flex items-center justify-between py-2 hover:bg-accent/50 pr-2 rounded-lg transition-colors text-left group"
+              className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left group"
             >
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm text-foreground group-hover:text-primary transition-colors">Import from Todonna</span>
                 <span className="text-xs text-muted-foreground">One-time import of tasks from your Todonna storage</span>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors" viewBox="0 0 20 20" fill="currentColor">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
                 <path fillRule="evenodd" d="M17 3a1 1 0 00-1 1v9.586l-2.293-2.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l4-4a1 1 0 00-1.414-1.414L18 13.586V4a1 1 0 00-1-1zM4 3a1 1 0 000 2h8a1 1 0 100-2H4z" clipRule="evenodd" />
               </svg>
             </button>
@@ -384,7 +384,12 @@ export default function SettingsPage() {
               <div className="space-y-4">
                 {isServiceWorkerSupported ? (
                   <>
-                    <div className="flex items-center justify-between py-2">
+                    <button
+                      type="button"
+                      onClick={() => !isChecking && handleToggleOfflineMode(!offlineModeEnabled)}
+                      disabled={isChecking}
+                      className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left disabled:opacity-70 disabled:cursor-not-allowed"
+                    >
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-foreground">Application ready for offline use</span>
                         {swState.active && (
@@ -394,12 +399,14 @@ export default function SettingsPage() {
                           </div>
                         )}
                       </div>
-                      <Switch
-                        checked={offlineModeEnabled}
-                        onCheckedChange={handleToggleOfflineMode}
-                        disabled={isChecking}
-                      />
-                    </div>
+                      <span className="pointer-events-none shrink-0">
+                        <Switch
+                          checked={offlineModeEnabled}
+                          onCheckedChange={handleToggleOfflineMode}
+                          disabled={isChecking}
+                        />
+                      </span>
+                    </button>
                     
                     {swState.updateAvailable && (
                       <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3">
@@ -408,23 +415,24 @@ export default function SettingsPage() {
                         </p>
                         <button
                           onClick={handleUpdateApp}
-                          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                          className="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
                         >
                           Update Now
                         </button>
                       </div>
                     )}
                     
-                    <div className="flex items-center justify-between py-2">
+                    <button
+                      type="button"
+                      onClick={handleCheckForUpdates}
+                      disabled={isChecking || !offlineModeEnabled}
+                      className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
                       <span className="text-sm text-foreground">Check for updates</span>
-                      <button
-                        onClick={handleCheckForUpdates}
-                        disabled={isChecking || !offlineModeEnabled}
-                        className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed text-sm"
-                      >
+                      <span className="text-sm text-muted-foreground">
                         {isChecking ? 'Checking...' : 'Check'}
-                      </button>
-                    </div>
+                      </span>
+                    </button>
                   </>
                 ) : (
                   <div className="py-2">
