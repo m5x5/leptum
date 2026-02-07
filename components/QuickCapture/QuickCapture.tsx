@@ -51,6 +51,8 @@ interface QuickCaptureProps {
   onTaskStart?: (taskName: string) => void;
   onTaskEdit?: (task: StandaloneTask) => void;
   currentActivityName?: string;
+  /** When this value changes to a truthy number (e.g. timestamp), opens the text note capture (for Shift+N shortcut). */
+  openTextNoteTrigger?: number;
 }
 
 export default function QuickCapture({
@@ -63,6 +65,7 @@ export default function QuickCapture({
   onTaskStart,
   onTaskEdit,
   currentActivityName,
+  openTextNoteTrigger,
 }: QuickCaptureProps) {
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, photos: allPhotos } = usePhotoAttachments();
@@ -70,6 +73,13 @@ export default function QuickCapture({
   const [showModal, setShowModal] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [mode, setMode] = useState<'text' | 'camera' | 'voice' | null>(null);
+
+  // When parent triggers open (e.g. Shift+N), open text note capture
+  useEffect(() => {
+    if (openTextNoteTrigger) {
+      openCapture('text');
+    }
+  }, [openTextNoteTrigger]);
   const [text, setText] = useState('');
   const [pendingPhotos, setPendingPhotos] = useState<File[]>([]);
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
@@ -365,6 +375,7 @@ export default function QuickCapture({
             onChange={(e) => setText(e.target.value)}
             placeholder="Type your note here..."
             className="min-h-[120px]"
+            autoFocus
           />
         </div>
       )}

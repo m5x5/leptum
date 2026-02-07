@@ -105,6 +105,7 @@ export default function Home() {
   const [loadedArchiveBuckets, setLoadedArchiveBuckets] = useState(0);
   const [editingTask, setEditingTask] = useState<StandaloneTask | null>(null);
   const [nowForFilter, setNowForFilter] = useState(0);
+  const [quickNoteTrigger, setQuickNoteTrigger] = useState(0);
 
   // Use refs for form inputs instead of state for better performance
   const taskNameRef = useRef<HTMLInputElement>(null);
@@ -121,6 +122,20 @@ export default function Home() {
     queueMicrotask(() => setNowForFilter(Date.now()));
     const id = setInterval(() => setNowForFilter(Date.now()), 60000);
     return () => clearInterval(id);
+  }, []);
+
+  // Shift+N: open new text note (quick capture)
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.shiftKey && (e.key === 'N' || e.key === 'n')) {
+        const target = e.target as HTMLElement;
+        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        e.preventDefault();
+        setQuickNoteTrigger(Date.now());
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
   }, []);
 
   const loadRoutines = useCallback(async () => {
@@ -917,6 +932,7 @@ export default function Home() {
                   }
                 }}
                 currentActivityName={currentActivity?.name}
+                openTextNoteTrigger={quickNoteTrigger}
               />
             </div>
 
