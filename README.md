@@ -2,44 +2,39 @@
 
 A Next.js application for tracking habits, goals, and personal metrics with **local-first data storage** powered by [RemoteStorage.js](https://remotestorage.io/).
 
-## 🌟 Key Features
+---
 
-- **🔒 User-Owned Data**: Your data stays with you - choose your own storage provider
-- **☁️ Cross-Device Sync**: Access your data from any device, anywhere
-- **📱 Local-First**: Works without internet, syncs when you're back online
-- **🎯 Habit Tracking**: Create and track recurring tasks with CRON scheduling
-- **📊 Goal Management**: Set and monitor personal goals
-- **📈 Impact Logging**: Track your daily metrics and progress
-- **🏗️ Stack Management**: Organize your workflows
+## What does this project do?
 
-## 🚀 RemoteStorage Integration
+Leptum is a **personal productivity tracker** that runs entirely in your browser. It helps you:
 
-This app uses **RemoteStorage.js** to give you complete control over your data:
+- **Track habits and routines** – Create recurring tasks with CRON-style scheduling and mark them done.
+- **Manage goals** – Set goals, categorize them by type, and track progress.
+- **Log impact and time** – Record daily activities and metrics; optionally import [ActivityWatch](https://activitywatch.net/) data to see app/editor usage alongside manual entries on a timeline.
 
-### Supported Storage Providers
-- **[5apps](https://5apps.com/)** - Free RemoteStorage hosting
-- **[Dropbox](https://dropbox.com)** - Use your existing Dropbox account  
-- **[Google Drive](https://drive.google.com)** - Store data in your Google Drive
-- **Self-hosted** - Run your own RemoteStorage server
+All of this works **without a backend**: data is stored in your own RemoteStorage (e.g. 5apps, Dropbox, Google Drive, or self-hosted) and syncs across devices when you’re online, and works offline when you’re not.
 
-### How to Connect Your Storage
+---
 
-1. **Start the app** - Look for the RemoteStorage widget in the top-right corner
-2. **Click the widget** to open the connection dialog
-3. **Choose your provider**:
-   - For 5apps: Enter your username like `username@5apps.com`
-   - For Dropbox/Google: Follow the OAuth flow
-   - For self-hosted: Enter your server URL
-4. **Authorize access** - Grant permission for the app to store data
-5. **Start using** - Your data will automatically sync across devices!
+## Why is this project useful?
 
-## 🛠️ Development
+- **You own your data** – Nothing is stored on our servers. You choose where it lives (5apps, Dropbox, Google Drive, or your own server).
+- **Works offline** – Use the app without internet; changes sync when you’re back online.
+- **No database or backend** – No MongoDB, no API server. Everything runs client-side via RemoteStorage.
+- **Privacy and control** – Your habits, goals, and logs stay under your control and in your storage.
+- **Cross-device** – Same data on all your devices through your chosen RemoteStorage provider.
+
+---
+
+## How do I get started?
 
 ### Prerequisites
-- Node.js 16+ and npm
-- No database required! 🎉
 
-### Setup
+- **Node.js 16+** and npm
+- No database or backend setup required
+
+### Run the app locally
+
 ```bash
 # Clone the repository
 git clone <your-repo-url>
@@ -48,80 +43,85 @@ cd leptum
 # Install dependencies
 npm install
 
-# Start development server
+# Start the development server
 npm run dev
 ```
 
-Visit `http://localhost:3000` to see the app.
+Open **http://localhost:3000** in your browser.
 
-### Architecture
+### Connect your storage (first-time use)
 
+1. Find the **RemoteStorage widget** (e.g. in the top-right).
+2. **Click it** to open the connection dialog.
+3. **Pick a provider**:
+   - **5apps** – Free hosting: use something like `username@5apps.com`
+   - **Dropbox / Google Drive** – Follow the OAuth steps
+   - **Self-hosted** – Enter your RemoteStorage server URL
+4. **Authorize** the app to read/write in your storage.
+5. Start creating routines, goals, and impacts; they’ll sync to your storage automatically.
+
+### Other useful commands
+
+```bash
+npm run build   # Production build
+npm start       # Run production server
+npx tsc --noEmit  # Type check
 ```
-📁 lib/remoteStorage.ts    # RemoteStorage client & schemas
-📁 components/             # React components  
-📁 pages/                  # Next.js pages (no API routes needed!)
-📁 utils/                  # Utility functions & hooks
-```
 
-## 🔧 Previous vs New Storage
+---
 
-| Feature | Before (Prisma + MongoDB) | After (RemoteStorage.js) |
-|---------|---------------------------|--------------------------|
-| **Data Ownership** | Stored on your servers | User controls their data |
-| **Backend Required** | Yes (MongoDB + API) | No backend needed |
-| **Offline Support** | Limited | Full local-first |
-| **Cross-Device Sync** | Manual implementation | Built-in automatic sync |
-| **Privacy** | Data on your servers | Data stays with user |
-| **Maintenance** | Database + server upkeep | Zero backend maintenance |
+## Where can I get more help?
 
-## 📋 Data Structure
+- **Bugs and feature ideas** – Open an [issue](https://github.com/m5x5/leptum/issues) in this repository.
+- **RemoteStorage** – [remotestorage.io](https://remotestorage.io/) for protocol docs, [5apps](https://5apps.com/) for free hosting.
+- **ActivityWatch** – [activitywatch.net](https://activitywatch.net/) for the time-tracking integration.
+- **Contributing** – Contributions are welcome; see the repository for guidelines.
 
-The app stores the following data types in RemoteStorage:
+---
 
-- **Jobs** (`/leptum/jobs/*`) - Scheduled habits and tasks
-- **Goals** (`/leptum/goals/*`) - Personal goals and targets  
-- **Goal Types** (`/leptum/goal-types/*`) - Categories for goals
-- **Impacts** (`/leptum/impacts`) - Daily metrics and measurements
-- **Stacks** (`/leptum/stacks/*`) - Workflow organization
+## More details
 
-## 🔒 Privacy & Security
+### Supported storage providers
 
-- **No central database** - Your data never touches our servers
-- **End-to-end control** - You choose where your data lives
-- **Open source** - Full transparency in data handling
-- **Standards-based** - Uses open RemoteStorage protocol
+| Provider        | Notes                          |
+|----------------|---------------------------------|
+| [5apps](https://5apps.com/)        | Free RemoteStorage hosting      |
+| [Dropbox](https://dropbox.com)     | Use your existing account       |
+| [Google Drive](https://drive.google.com) | Store data in Drive        |
+| Self-hosted     | Your own RemoteStorage server   |
 
-## 🤝 Contributing
+### Data stored in RemoteStorage
 
-This app demonstrates the power of user-owned data and local-first applications. Contributions welcome!
+- **Jobs** (`/leptum/jobs/*`) – Scheduled habits and tasks  
+- **Goals** (`/leptum/goals/*`) – Personal goals and targets  
+- **Goal Types** (`/leptum/goal-types/*`) – Categories for goals  
+- **Impacts** (`/leptum/impacts`) – Daily metrics and timeline entries  
+- **Stacks** (`/leptum/stacks/*`) – Workflow organization  
 
-## 📄 License
+### Todonna integration
 
-MIT License - Build something amazing! 🌟
+Leptum can sync tasks with other apps using the [Todonna](http://remotestorage.io/spec/modules/todonna/) spec:
 
-### Todonna Integration
+- Tasks you create, update, or delete in Leptum sync to your Todonna storage.
+- Tasks from other Todonna apps can appear in Leptum (e.g. Quick Tasks).
+- Mapping: Leptum `name` → `todo_item_text`, `status` → `todo_item_status` (e.g. `due`→`todo`, `completed`→`done`).
 
-Leptum now supports syncing tasks with other apps that use the [todonna](http://remotestorage.io/spec/modules/todonna/) RemoteStorage specification. This allows you to:
+### Architecture (high level)
 
-- **Import tasks** from other todonna-compatible apps
-- **Export your tasks** to be accessible by other apps
-- **Automatic sync** when you create, update, or delete tasks
+- **`lib/remoteStorage.ts`** – RemoteStorage client and data schemas  
+- **`app/`** – Next.js pages (App Router)  
+- **`components/`** – Shared UI and feature components  
+- **`utils/`** – Hooks and helpers (e.g. goals, routines, ActivityWatch)  
 
-#### How it Works
+### Privacy and security
 
-1. **Automatic Sync**: Every time you add, update, or delete a task, it's automatically synced to your todonna storage
-2. **Import on Load**: When the app loads, it automatically imports any new tasks from todonna
+- No central database; your data does not go through our servers.
+- You choose where data lives (provider and account).
+- Open source so you can inspect how data is handled.
+- Built on the open RemoteStorage protocol.
 
-#### Task Mapping
+---
 
-Your Leptum tasks are converted to the todonna format:
-- `name` → `todo_item_text`
-- `id` → `todo_item_id`
-- `status` → `todo_item_status` (mapped: `due`→`todo`, `completed`→`done`, `pending`→`pending`)
-- `@context` → `http://remotestorage.io/spec/modules/todonna/aTodoItem`
+## License
 
-#### Usage
-
-1. Connect your RemoteStorage account
-2. Create tasks in Leptum - they're automatically synced to todonna
-3. Tasks from other todonna apps will appear automatically in your Quick Tasks section
+MIT License.

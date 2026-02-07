@@ -62,11 +62,15 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary font-bold">•</span>
-                <span><strong>Routines:</strong> Schedule recurring habits with CRON expressions</span>
+                <span><strong>Routines:</strong> Schedule recurring tasks with CRON expressions</span>
               </li>
               <li className="flex items-start gap-2">
                 <span className="text-primary font-bold">•</span>
                 <span><strong>Timeline:</strong> Log activities and track your journey</span>
+              </li>
+              <li className="flex items-start gap-2">
+                <span className="text-primary font-bold">•</span>
+                <span><strong>Stacks:</strong> Themed lists of habits (e.g. morning habits) on the Stacks page</span>
               </li>
             </ul>
           </div>
@@ -178,7 +182,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
     },
     {
       title: "Step 3: Set Up a Routine",
-      description: "Routines are recurring habits scheduled with CRON expressions. They automatically create tasks when triggered.",
+      description: "Routines are recurring tasks scheduled with CRON expressions. They automatically create tasks when triggered.",
       content: (
         <div className="space-y-4 mt-4">
           <div>

@@ -7,6 +7,8 @@ import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
 import { AudioPlayer } from '../ui/audio-player';
 import Image from 'next/image';
+import { Dialog, Transition } from '@headlessui/react';
+import { Fragment } from 'react';
 import Modal from '../Modal';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '../ui/drawer';
 import StandaloneTaskItem from '../Tasks/StandaloneItem';
@@ -90,11 +92,13 @@ export default function QuickCapture({
   onProcessedShare,
 }: QuickCaptureProps) {
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
-  const { addPhoto, getPhotosForImpact, photos: allPhotos } = usePhotoAttachments();
+  const { addPhoto, getPhotosForImpact, getFullImage, photos: allPhotos } = usePhotoAttachments();
 
   const [showModal, setShowModal] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [mode, setMode] = useState<'text' | 'camera' | 'voice' | null>(null);
+  const [lightboxPhoto, setLightboxPhoto] = useState<PhotoAttachment | null>(null);
+  const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
   // When parent triggers open (e.g. Shift+N), open text note capture
   useEffect(() => {
@@ -706,15 +710,25 @@ export default function QuickCapture({
                     {photos.length > 0 && (
                       <div className="flex gap-2 flex-wrap mt-3">
                         {photos.map((photo) => (
-                          <Image
+                          <button
                             key={photo.id}
-                            src={photo.thumbnail}
-                            alt="Note photo"
-                            width={80}
-                            height={80}
-                            unoptimized
-                            className="w-20 h-20 object-cover rounded-lg"
-                          />
+                            type="button"
+                            onClick={() => {
+                              setLightboxPhoto(photo);
+                              setLightboxSrc(null);
+                              getFullImage(photo).then((src) => setLightboxSrc(src ?? photo.thumbnail));
+                            }}
+                            className="rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                          >
+                            <Image
+                              src={photo.thumbnail}
+                              alt="Note photo"
+                              width={160}
+                              height={160}
+                              unoptimized
+                              className="w-40 h-40 object-cover rounded-lg cursor-pointer"
+                            />
+                          </button>
                         ))}
                       </div>
                     )}
@@ -775,6 +789,55 @@ export default function QuickCapture({
           </div>
         </Modal.Body>
       </Modal>
+
+      {/* Image lightbox — click note photo to view large */}
+      <Transition appear show={!!lightboxPhoto} as={Fragment}>
+        <Dialog
+          as="div"
+          className="fixed inset-0 z-50 overflow-y-auto"
+          onClose={() => { setLightboxPhoto(null); setLightboxSrc(null); }}
+        >
+          <Transition.Child
+            as={Fragment}
+            enter="ease-out duration-200"
+            enterFrom="opacity-0"
+            enterTo="opacity-100"
+            leave="ease-in duration-150"
+            leaveFrom="opacity-100"
+            leaveTo="opacity-0"
+          >
+            <Dialog.Overlay className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
+          </Transition.Child>
+          <div className="fixed inset-0 flex items-center justify-center p-4">
+            <Transition.Child
+              as={Fragment}
+              enter="ease-out duration-200"
+              enterFrom="opacity-0 scale-95"
+              enterTo="opacity-100 scale-100"
+              leave="ease-in duration-150"
+              leaveFrom="opacity-100 scale-100"
+              leaveTo="opacity-0 scale-95"
+            >
+              <Dialog.Panel className="w-full max-w-4xl">
+                {lightboxPhoto && (lightboxSrc ?? lightboxPhoto.thumbnail) && (
+                  <img
+                    src={lightboxSrc ?? lightboxPhoto.thumbnail}
+                    alt="Note photo"
+                    className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto"
+                  />
+                )}
+                {lightboxPhoto && !lightboxSrc && lightboxPhoto.thumbnail && (
+                  <img
+                    src={lightboxPhoto.thumbnail}
+                    alt="Note photo"
+                    className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto animate-pulse"
+                  />
+                )}
+              </Dialog.Panel>
+            </Transition.Child>
+          </div>
+        </Dialog>
+      </Transition>
 
       {/* Mobile Drawer */}
       <Drawer open={showMobileDrawer} onOpenChange={setShowMobileDrawer}>

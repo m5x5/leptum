@@ -20,7 +20,7 @@ const CreateJobModal = ({ isOpen, onHide }: Props) => {
 
   return (
     <Modal isOpen={isOpen} closeModal={closeModal}>
-      <Modal.Title>Create a new Job</Modal.Title>
+      <Modal.Title>Create routine</Modal.Title>
       <Modal.Body>
         <label>CRON</label>
         <Input
@@ -45,7 +45,7 @@ const CreateJobModal = ({ isOpen, onHide }: Props) => {
           className="inline-flex justify-center px-4 py-2 text-sm font-medium text-blue-100 bg-blue-700 border border-transparent rounded-md hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:ring-blue-500"
           onClick={closeModal}
         >
-          Glad to be here!
+          Create
         </button>
       </Modal.Footer>
     </Modal>

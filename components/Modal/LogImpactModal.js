@@ -49,7 +49,7 @@ const LogImpactModal = ({onCreate, isOpen, name}) => {
                     className="inline-flex justify-center px-4 py-2 text-sm font-medium text-blue-100 bg-blue-700 border border-transparent rounded-md hover:bg-blue-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-offset-black focus-visible:ring-blue-500"
                     onClick={onLog}
                 >
-                    Glad to be here!
+                    Save
                 </button>
             </Modal.Footer>
         </Modal>

@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { Suspense } from "react";
-import HomePage from "./HomePage";
+
+const HomePageContent = dynamic(() => import("../components/HomePageContent"), {
+  ssr: true,
+});
 
 export const metadata: Metadata = {
   title: "Home",
@@ -10,7 +14,7 @@ export const metadata: Metadata = {
 export default function Page() {
   return (
     <Suspense fallback={null}>
-      <HomePage />
+      <HomePageContent />
     </Suspense>
   );
 }

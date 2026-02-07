@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 
 export const metadata: Metadata = {
   title: "Routines",
-  description: "Manage your routines and tasks - add schedules optionally",
+  description: "Routines and tasks, with optional schedules",
   alternates: { canonical: "/routines" },
 };
 

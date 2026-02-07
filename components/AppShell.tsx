@@ -70,11 +70,16 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
         if (todayImpacts.length > 0) {
           const lastImpact = todayImpacts[todayImpacts.length - 1];
-          setCurrentActivity({
-            name: lastImpact.activity,
-            startTime: lastImpact.date,
-            goalId: lastImpact.goalId,
-          });
+          const hasEnded = lastImpact.endTime != null && lastImpact.endTime <= Date.now();
+          if (!hasEnded) {
+            setCurrentActivity({
+              name: lastImpact.activity,
+              startTime: lastImpact.date,
+              goalId: lastImpact.goalId,
+            });
+          } else {
+            setCurrentActivity(null);
+          }
         } else {
           setCurrentActivity(null);
         }

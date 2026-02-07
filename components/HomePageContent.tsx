@@ -501,10 +501,45 @@ export default function Home() {
   const [showMobileEmotionDrawer, setShowMobileEmotionDrawer] = useState(false);
   const [completedTaskForEmotions, setCompletedTaskForEmotions] = useState<{ id: string; name: string } | null>(null);
 
-  // Handle task completion - complete immediately and show toast
-  const handleTaskComplete = (taskId: string) => {
+  // Handle task completion - complete immediately and show toast; stop tracking if this task was active
+  const handleTaskComplete = useCallback(async (taskId: string) => {
     const task = standaloneTasks.find(t => t.id === taskId);
     if (task) {
+      const wasTracked = currentActivity?.name === task.name || activeTask === task.name;
+      if (wasTracked) {
+        setActiveTask(null);
+        setActiveTaskStartTime(null);
+        try {
+          const impacts = await remoteStorageClient.getImpacts();
+          const todayStart = new Date();
+          todayStart.setHours(0, 0, 0, 0);
+          const todayImpacts = impacts.filter((imp: { date: number }) => imp.date >= todayStart.getTime());
+          todayImpacts.sort((a: { date: number }, b: { date: number }) => a.date - b.date);
+          if (todayImpacts.length > 0) {
+            const last = todayImpacts[todayImpacts.length - 1];
+            if (last.activity === task.name && last.endTime == null) {
+              let lastIndex = -1;
+              for (let i = impacts.length - 1; i >= 0; i--) {
+                if (impacts[i].date === last.date && impacts[i].activity === last.activity) {
+                  lastIndex = i;
+                  break;
+                }
+              }
+              if (lastIndex !== -1) {
+                const updated = [...impacts];
+                updated[lastIndex] = { ...updated[lastIndex], endTime: Date.now() };
+                await remoteStorageClient.saveImpacts(updated);
+                if (typeof window !== "undefined") {
+                  window.dispatchEvent(new CustomEvent("impactsUpdated"));
+                }
+              }
+            }
+          }
+        } catch (err) {
+          console.error("Failed to end impact on task complete:", err);
+        }
+      }
+
       // Complete the task immediately without emotions
       completeStandaloneTask(taskId, []);
 
@@ -524,7 +559,7 @@ export default function Home() {
         },
       });
     }
-  };
+  }, [standaloneTasks, currentActivity?.name, activeTask, completeStandaloneTask]);
 
   const handleCompleteWithEmotions = (emotions: Emotion[]) => {
     if (completedTaskForEmotions) {
