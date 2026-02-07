@@ -126,13 +126,15 @@ export default function QuickCapture({
         const textFileContents: string[] = [];
 
         if (pendingShare.files) {
+          const mime = (f: { type?: string; name?: string }) => f.type || 'application/octet-stream';
           for (const f of pendingShare.files) {
-            const file = base64ToFile(f.base64, f.type || 'application/octet-stream', f.name || 'file');
-            if (f.type.startsWith('image/')) {
+            const file = base64ToFile(f.base64, mime(f), f.name || 'file');
+            const type = f.type || '';
+            if (type.startsWith('image/')) {
               imageFiles.push(file);
-            } else if (f.type.startsWith('audio/')) {
+            } else if (type.startsWith('audio/')) {
               audioFiles.push(file);
-            } else if (f.type.startsWith('text/') || f.type === 'application/json' || f.name?.match(/\.(txt|md|json)$/i)) {
+            } else if (type.startsWith('text/') || type === 'application/json' || f.name?.match(/\.(txt|md|json)$/i)) {
               try {
                 const text = await file.text();
                 if (text.trim()) textFileContents.push(text.trim());

@@ -108,6 +108,7 @@ export default function Home() {
   const [nowForFilter, setNowForFilter] = useState(0);
   const [quickNoteTrigger, setQuickNoteTrigger] = useState(0);
   const [pendingShare, setPendingShare] = useState<PendingSharePayload | null>(null);
+  const handleProcessedShare = useCallback(() => setPendingShare(null), []);
 
   // Use refs for form inputs instead of state for better performance
   const taskNameRef = useRef<HTMLInputElement>(null);
@@ -969,7 +970,7 @@ export default function Home() {
                 currentActivityName={currentActivity?.name}
                 openTextNoteTrigger={quickNoteTrigger}
                 pendingShare={pendingShare}
-                onProcessedShare={() => setPendingShare(null)}
+                onProcessedShare={handleProcessedShare}
               />
             </div>
 
