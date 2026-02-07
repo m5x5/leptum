@@ -3,10 +3,11 @@
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useRef } from "react";
-import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon } from "@heroicons/react/solid";
+import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon, FireIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "./StandaloneTasksContext";
 import type { StandaloneTask } from "../utils/useStandaloneTasks";
 import { useRoutineScheduler } from "../utils/useRoutineScheduler";
+import { useRoutineCompletions } from "../utils/useRoutineCompletions";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { Routine } from "../components/Job/api";
 import StandaloneTaskItem from "../components/Tasks/StandaloneItem";
@@ -24,6 +25,7 @@ import {
   SheetContent,
   SheetHeader,
   SheetTitle,
+  SheetDescription,
 } from "../components/ui/sheet";
 import {
   Drawer,
@@ -89,6 +91,7 @@ export default function Home() {
 
   const { goals, reload: loadGoals } = useGoals({ loadOnMount: false });
   const { goalTypes, reload: loadGoalTypes } = useGoalTypes({ loadOnMount: false });
+  const { getStreaksForRoutine } = useRoutineCompletions();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
@@ -108,6 +111,7 @@ export default function Home() {
   const [nowForFilter, setNowForFilter] = useState(0);
   const [quickNoteTrigger, setQuickNoteTrigger] = useState(0);
   const [pendingShare, setPendingShare] = useState<PendingSharePayload | null>(null);
+  const [showStreakSheet, setShowStreakSheet] = useState(false);
   const handleProcessedShare = useCallback(() => setPendingShare(null), []);
 
   // Use refs for form inputs instead of state for better performance
@@ -899,10 +903,19 @@ export default function Home() {
     return () => io.disconnect();
   }, []);
 
+  const showUpStreakInfo = getStreaksForRoutine("show-up-routine");
+
+  // Open streak sheet from AppShell (desktop header button)
+  useEffect(() => {
+    const open = () => setShowStreakSheet(true);
+    window.addEventListener("openStreakSheet", open);
+    return () => window.removeEventListener("openStreakSheet", open);
+  }, []);
+
   return (
     <>
       <div className="max-w-6xl mx-auto pt-4 pb-32 md:pb-8">
-        {/* Mobile Logo - Full Leptum logo on mobile */}
+        {/* Mobile: logo + streak button + archive */}
         <div className="md:hidden mb-6 flex items-center justify-between">
           <Link href="/" className="inline-block">
             <span className="text-foreground text-2xl font-bold">
@@ -911,12 +924,23 @@ export default function Home() {
               </svg>
             </span>
           </Link>
-          <button
-            onClick={() => setShowArchiveSheet(true)}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ArchiveIcon className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-1">
+            <button
+              type="button"
+              onClick={() => setShowStreakSheet(true)}
+              className="min-h-[44px] flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/15 transition-colors text-foreground"
+              title="Show up streak"
+            >
+              <FireIcon className="w-5 h-5 text-orange-500 shrink-0" />
+              <span className="text-sm font-medium tabular-nums">{showUpStreakInfo.currentStreak}</span>
+            </button>
+            <button
+              onClick={() => setShowArchiveSheet(true)}
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              <ArchiveIcon className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
@@ -1308,6 +1332,35 @@ export default function Home() {
                 <p className="text-muted-foreground">No past activity found.</p>
               </div>
             )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Show up streak sheet - current & longest streak */}
+      <Sheet open={showStreakSheet} onOpenChange={setShowStreakSheet}>
+        <SheetContent side="bottom" className="sm:max-w-md sm:mx-auto">
+          <SheetHeader className="text-left">
+            <SheetTitle className="flex items-center gap-2">
+              <FireIcon className="w-5 h-5 text-orange-500" />
+              Show up streak
+            </SheetTitle>
+            <SheetDescription>
+              Daily app usage — visiting the app counts as showing up.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6 space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+              <span className="text-sm font-medium text-foreground">Current streak</span>
+              <span className="text-lg font-semibold text-orange-600 dark:text-orange-400">
+                {showUpStreakInfo.currentStreak} day{showUpStreakInfo.currentStreak !== 1 ? "s" : ""}
+              </span>
+            </div>
+            <div className="flex items-center justify-between p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+              <span className="text-sm font-medium text-foreground">Longest streak</span>
+              <span className="text-lg font-semibold text-yellow-600 dark:text-yellow-400">
+                {showUpStreakInfo.longestStreak} day{showUpStreakInfo.longestStreak !== 1 ? "s" : ""}
+              </span>
+            </div>
           </div>
         </SheetContent>
       </Sheet>

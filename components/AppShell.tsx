@@ -6,12 +6,13 @@ import { JobContextProvider } from "./Job/Context";
 import AppSidebar from "./Sidebar/new";
 import { ThemeProvider } from "next-themes";
 import { SidebarProvider, SidebarInset, SidebarTrigger } from "./ui/sidebar";
-import { PlusIcon } from "@heroicons/react/solid";
+import { PlusIcon, FireIcon } from "@heroicons/react/solid";
 import { startKeyUX, hotkeyKeyUX, pressKeyUX, getHotKeyHint, likelyWithKeyboard } from "keyux";
 import { CurrentActivityContext } from "./CurrentActivityContext";
 import { StandaloneTasksProvider } from "./StandaloneTasksContext";
 import { HighlightedMentions } from "./ui/mention-input";
 import { remoteStorageClient } from "../lib/remoteStorage";
+import { useRoutineCompletions } from "../utils/useRoutineCompletions";
 import { serviceWorkerManager, isOfflineModeEnabled } from "../utils/serviceWorker";
 import { Toaster } from "sonner";
 // Run migration when app router bundle loads
@@ -43,6 +44,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const [activeHash, setActiveHash] = useState("");
   const [mounted, setMounted] = useState(false);
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
+  const { getStreaksForRoutine } = useRoutineCompletions();
+  const showUpStreak = activePath === "/" ? getStreaksForRoutine("show-up-routine").currentStreak : 0;
   const [currentActivity, setCurrentActivity] = useState<{
     name: string;
     startTime: number;
@@ -255,23 +258,38 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </div>
               )}
               {activePath === "/" && (
-                <button
-                  aria-keyshortcuts="n"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      window.dispatchEvent(new CustomEvent("openTaskForm"));
-                    }
-                  }}
-                  className="flex items-center gap-2 min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-                >
-                  <PlusIcon className="w-5 h-5" />
-                  <span>Add Task</span>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("openStreakSheet"));
+                      }
+                    }}
+                    className="flex items-center gap-1.5 min-h-[44px] px-3 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/15 transition cursor-pointer text-foreground"
+                    title="Show up streak"
+                  >
+                    <FireIcon className="w-5 h-5 text-orange-500 shrink-0" />
+                    <span className="text-sm font-medium tabular-nums">{showUpStreak}</span>
+                  </button>
+                  <button
+                    aria-keyshortcuts="n"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("openTaskForm"));
+                      }
+                    }}
+                    className="flex items-center gap-2 min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                    <span>Add Task</span>
                   {showKeyboardHints && typeof window !== "undefined" && (
                     <kbd className="px-1.5 py-0.5 text-xs font-semibold text-primary-foreground/70 bg-primary-foreground/20 border border-primary-foreground/30 rounded">
                       {getHotKeyHint(window, "n")}
                     </kbd>
                   )}
                 </button>
+                </>
               )}
               {activePath === "/timeline" && (
                 <button

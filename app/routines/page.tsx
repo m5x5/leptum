@@ -343,6 +343,8 @@ export default function RoutinesPage() {
                           }}
                           embedded={true}
                           routineName={routine.name}
+                          showHistory={false}
+                          showQuickAdd={false}
                         />
                       </div>
                     ) : null;
@@ -418,6 +420,8 @@ export default function RoutinesPage() {
                           }}
                           embedded={true}
                           routineName={routine.name}
+                          showHistory={false}
+                          showQuickAdd={false}
                         />
                       </div>
                     ) : null;
