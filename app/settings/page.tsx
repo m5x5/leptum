@@ -561,7 +561,7 @@ export default function SettingsPage() {
           <h2 className="text-lg font-semibold mb-4">About</h2>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Leptum is an open-source personal productivity tracker with offline-first, user-owned data storage.
+              Leptum is an open-source personal productivity tracker with local-first, user-owned data storage.
             </p>
             <a
               href="https://github.com/m5x5/leptum"

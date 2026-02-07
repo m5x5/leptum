@@ -1,4 +1,4 @@
-// Service Worker for Leptum - Offline-first caching
+// Service Worker for Leptum - Local-first caching
 const CACHE_NAME = 'leptum-v1';
 const RUNTIME_CACHE = 'leptum-runtime-v1';
 

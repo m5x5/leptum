@@ -34,11 +34,14 @@ export function MentionInput({
   onFocus,
   autoFocus = false,
 }: MentionInputProps) {
-  // Convert entities to suggestions format
-  const suggestions: SuggestionDataItem[] = entities.map(entity => ({
-    id: entity.id,
-    display: entity.name,
-  }));
+  // Ensure value is always a string (react-mentions calls .replace() on it internally)
+  const safeValue = typeof value === 'string' ? value : (value != null ? String(value) : '');
+
+  // Convert entities to suggestions format; ensure id/display are never undefined (library may call .replace on them)
+  const suggestions: SuggestionDataItem[] = (entities ?? []).map(entity => ({
+    id: entity?.id != null ? String(entity.id) : '',
+    display: entity?.name != null ? String(entity.name) : '',
+  })).filter(s => s.id !== '' || s.display !== '');
 
   // Base styles matching the existing Input/Textarea components
   const baseInputStyle = {
@@ -107,9 +110,9 @@ export function MentionInput({
   return (
     <div className={cn('w-full', className)}>
       <MentionsInput
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
+        value={safeValue}
+        onChange={(e) => onChange(e?.target?.value ?? '')}
+        placeholder={placeholder ?? ''}
         style={baseInputStyle}
         singleLine={!multiline}
         disabled={disabled}

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Overview
 
-Leptum is a Next.js personal productivity tracker with **offline-first, user-owned data storage** using RemoteStorage.js. Users control where their data lives (5apps, Dropbox, Google Drive, or self-hosted), and the app works fully offline with automatic sync.
+Leptum is a Next.js personal productivity tracker with **local-first, user-owned data storage** using RemoteStorage.js. Users control where their data lives (5apps, Dropbox, Google Drive, or self-hosted), and the app works fully offline with automatic sync.
 
 **No backend required** - all data operations happen client-side through RemoteStorage.
 

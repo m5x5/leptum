@@ -43,7 +43,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
   const steps = [
     {
       title: "Welcome to Leptum!",
-      description: "Your personal productivity tracker with offline-first, user-owned data storage.",
+      description: "Your personal productivity tracker with local-first, user-owned data storage.",
       content: (
         <div className="space-y-4 mt-4">
           <p className="text-foreground">

@@ -1,12 +1,12 @@
 # Leptum - Personal Productivity Tracker
 
-A Next.js application for tracking habits, goals, and personal metrics with **offline-first data storage** powered by [RemoteStorage.js](https://remotestorage.io/).
+A Next.js application for tracking habits, goals, and personal metrics with **local-first data storage** powered by [RemoteStorage.js](https://remotestorage.io/).
 
 ## 🌟 Key Features
 
 - **🔒 User-Owned Data**: Your data stays with you - choose your own storage provider
 - **☁️ Cross-Device Sync**: Access your data from any device, anywhere
-- **📱 Offline-First**: Works without internet, syncs when you're back online
+- **📱 Local-First**: Works without internet, syncs when you're back online
 - **🎯 Habit Tracking**: Create and track recurring tasks with CRON scheduling
 - **📊 Goal Management**: Set and monitor personal goals
 - **📈 Impact Logging**: Track your daily metrics and progress
@@ -69,7 +69,7 @@ Visit `http://localhost:3000` to see the app.
 |---------|---------------------------|--------------------------|
 | **Data Ownership** | Stored on your servers | User controls their data |
 | **Backend Required** | Yes (MongoDB + API) | No backend needed |
-| **Offline Support** | Limited | Full offline-first |
+| **Offline Support** | Limited | Full local-first |
 | **Cross-Device Sync** | Manual implementation | Built-in automatic sync |
 | **Privacy** | Data on your servers | Data stays with user |
 | **Maintenance** | Database + server upkeep | Zero backend maintenance |
@@ -93,7 +93,7 @@ The app stores the following data types in RemoteStorage:
 
 ## 🤝 Contributing
 
-This app demonstrates the power of user-owned data and offline-first applications. Contributions welcome!
+This app demonstrates the power of user-owned data and local-first applications. Contributions welcome!
 
 ## 📄 License
 

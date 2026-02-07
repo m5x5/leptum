@@ -767,7 +767,7 @@ export default function ImpactPage() {
         </label>
         <MentionInput
           placeholder="When does this help? Any specific situations? Use @ to mention people, projects, or contexts"
-          value={insightFormData.notes}
+          value={insightFormData.notes ?? ""}
           onChange={(value) => setInsightFormData({ ...insightFormData, notes: value })}
           entities={entities}
           multiline={true}

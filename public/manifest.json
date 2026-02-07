@@ -1,7 +1,7 @@
 {
   "name": "Leptum - Personal Productivity Tracker",
   "short_name": "Leptum",
-  "description": "Offline-first personal productivity tracker with user-owned data",
+  "description": "Local-first personal productivity tracker with user-owned data",
   "start_url": "/",
   "id": "/",
   "display": "standalone",
