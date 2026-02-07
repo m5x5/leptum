@@ -1,12 +1,14 @@
+"use client";
+
 import { useEffect, useState } from 'react';
-import { useActivityWatch } from '../utils/useActivityWatch';
-import { remoteStorageClient } from '../lib/remoteStorage';
-import { serviceWorkerManager, isOfflineModeEnabled, setOfflineModeEnabled, ServiceWorkerState } from '../utils/serviceWorker';
-import { useEntities, Entity } from '../utils/useEntities';
-import { useMentions } from '../utils/useMentions';
-import { extractMentionedEntityIds } from '../components/ui/mention-input';
-import { Separator } from '../components/ui/separator';
-import { Switch } from '../components/ui/switch';
+import { useActivityWatch } from '../../utils/useActivityWatch';
+import { remoteStorageClient } from '../../lib/remoteStorage';
+import { serviceWorkerManager, isOfflineModeEnabled, setOfflineModeEnabled, ServiceWorkerState } from '../../utils/serviceWorker';
+import { useEntities, Entity } from '../../utils/useEntities';
+import { useMentions } from '../../utils/useMentions';
+import { extractMentionedEntityIds } from '../../components/ui/mention-input';
+import { Separator } from '../../components/ui/separator';
+import { Switch } from '../../components/ui/switch';
 
 export default function SettingsPage() {
   const { duplicateCount } = useActivityWatch();

@@ -126,8 +126,8 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined" || !searchParams) return;
     if (searchParams.get("capture") === "note") {
-      setQuickNoteTrigger(Date.now());
       window.history.replaceState(null, "", window.location.pathname || "/");
+      queueMicrotask(() => setQuickNoteTrigger(Date.now()));
     }
   }, [searchParams]);
 
@@ -139,7 +139,7 @@ export default function Home() {
       if (raw) {
         const payload = JSON.parse(raw) as PendingSharePayload;
         localStorage.removeItem("pendingShare");
-        setPendingShare(payload);
+        queueMicrotask(() => setPendingShare(payload));
       }
     } catch {
       localStorage.removeItem("pendingShare");

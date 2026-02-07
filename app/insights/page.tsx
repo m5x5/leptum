@@ -1,20 +1,22 @@
+"use client";
+
 import { useState, useEffect } from "react";
-import Head from "next/head";
-import { useInsights, Insight, AffectedMetric } from "../utils/useInsights";
+
+import { useInsights, Insight, AffectedMetric } from "../../utils/useInsights";
 import { PlusIcon, TrashIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/solid";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../components/ui/mention-input";
-import { useEntities } from "../utils/useEntities";
-import { useMentions } from "../utils/useMentions";
-import { useRoutineCompletions } from "../utils/useRoutineCompletions";
-import { useVelocity } from "../utils/useVelocity";
-import { useActivityWatch } from "../utils/useActivityWatch";
-import { remoteStorageClient } from "../lib/remoteStorage";
-import { Routine } from "../components/Job/api";
-import { StreakBadge } from "../components/StreakBadge";
-import Modal from "../components/Modal";
-import YearViewHeatmap from "../components/YearViewHeatmap";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../../components/ui/mention-input";
+import { useEntities } from "../../utils/useEntities";
+import { useMentions } from "../../utils/useMentions";
+import { useRoutineCompletions } from "../../utils/useRoutineCompletions";
+import { useVelocity } from "../../utils/useVelocity";
+import { useActivityWatch } from "../../utils/useActivityWatch";
+import { remoteStorageClient } from "../../lib/remoteStorage";
+import { Routine } from "../../components/Job/api";
+import { StreakBadge } from "../../components/StreakBadge";
+import Modal from "../../components/Modal";
+import YearViewHeatmap from "../../components/YearViewHeatmap";
 
 // Metric configuration matching impact.js
 const AVAILABLE_METRICS = [
@@ -208,9 +210,6 @@ export default function InsightsPage() {
 
   return (
     <>
-      <Head>
-        <title>Stats & Insights - Leptum</title>
-      </Head>
 
       <div className="max-w-4xl mx-auto pt-4 pb-32 md:pb-8">
         <div className="mb-6">

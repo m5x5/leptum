@@ -1,17 +1,19 @@
-import Head from "next/head";
+"use client";
+
+
 import { PlusIcon, TrashIcon, ClockIcon, CheckCircleIcon, PencilIcon } from "@heroicons/react/solid";
 import { useEffect, useState, useRef } from "react";
-import { remoteStorageClient } from "../lib/remoteStorage";
-import { Routine } from "../components/Job/api";
-import Modal from "../components/Modal";
-import { getDescription, getPrettyTimeTillNextOccurrence } from "../utils/cron";
-import { useRoutineCompletions } from "../utils/useRoutineCompletions";
-import EChartsHeatmap from "../components/RoutineHeatmap/EChartsHeatmap";
-import { useGoals } from "../utils/useGoals";
-import { Input } from "../components/ui/input";
-import { StreakBadge } from "../components/StreakBadge";
-import { GoalTrackingWidget } from "../components/Goals/GoalTrackingWidget";
-import { RichTextEditor } from "../components/ui/rich-text-editor";
+import { remoteStorageClient } from "../../lib/remoteStorage";
+import { Routine } from "../../components/Job/api";
+import Modal from "../../components/Modal";
+import { getDescription, getPrettyTimeTillNextOccurrence } from "../../utils/cron";
+import { useRoutineCompletions } from "../../utils/useRoutineCompletions";
+import EChartsHeatmap from "../../components/RoutineHeatmap/EChartsHeatmap";
+import { useGoals } from "../../utils/useGoals";
+import { Input } from "../../components/ui/input";
+import { StreakBadge } from "../../components/StreakBadge";
+import { GoalTrackingWidget } from "../../components/Goals/GoalTrackingWidget";
+import { RichTextEditor } from "../../components/ui/rich-text-editor";
 
 export default function RoutinesPage() {
   const [routines, setRoutines] = useState<(Routine| any)[]>([]);
@@ -266,9 +268,6 @@ export default function RoutinesPage() {
 
   return (
     <>
-      <Head>
-        <title>Routines - Leptum</title>
-      </Head>
 
       <div className="max-w-4xl mx-auto pt-4 pb-32 md:pb-8">
         <div className="flex flex-row w-full justify-between items-center mb-6">

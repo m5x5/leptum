@@ -45,8 +45,10 @@ export function AudioPlayer({ src, title, className, compact, onEnded }: AudioPl
   const [themeProgress, setThemeProgress] = useState("hsl(222, 47%, 11%)");
 
   useEffect(() => {
-    setThemeWave(getHslFromCssVar("--muted-foreground"));
-    setThemeProgress(getHslFromCssVar("--primary"));
+    queueMicrotask(() => {
+      setThemeWave(getHslFromCssVar("--muted-foreground"));
+      setThemeProgress(getHslFromCssVar("--primary"));
+    });
   }, []);
 
   const options = useMemo(
@@ -77,7 +79,7 @@ export function AudioPlayer({ src, title, className, compact, onEnded }: AudioPl
     if (!wavesurfer) return;
     const onReady = () => setDuration(wavesurfer.getDuration());
     wavesurfer.on("ready", onReady);
-    if (isReady) setDuration(wavesurfer.getDuration());
+    if (isReady) queueMicrotask(() => setDuration(wavesurfer.getDuration()));
     return () => {
       wavesurfer.un("ready", onReady);
     };

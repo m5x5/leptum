@@ -1,20 +1,16 @@
+"use client";
+
 import { PlusIcon, TrashIcon } from "@heroicons/react/solid";
 import { useEffect, useState } from "react";
-import EditableList from "../components/EditableList";
-import ConfirmDeleteModal from "../components/Modal/Confirm/ConfirmDeleteModal";
-import CreateStackModal from "../components/Modal/CreateStackModal";
-import AddHabitModal from "../components/Modal/AddHabitModal";
-import { remoteStorageClient } from "../lib/remoteStorage";
+import EditableList from "../../components/EditableList";
+import ConfirmDeleteModal from "../../components/Modal/Confirm/ConfirmDeleteModal";
+import CreateStackModal from "../../components/Modal/CreateStackModal";
+import AddHabitModal from "../../components/Modal/AddHabitModal";
+import { remoteStorageClient } from "../../lib/remoteStorage";
 
 const defaultStacks = [
-  {
-    name: "Morning Routine",
-    habits: []
-  },
-  {
-    name: "Evening Routine",
-    habits: []
-  },
+  { name: "Morning Routine", habits: [] as { id: string; name: string }[] },
+  { name: "Evening Routine", habits: [] as { id: string; name: string }[] },
 ];
 
 export default function StacksPage() {
@@ -22,15 +18,15 @@ export default function StacksPage() {
   const [showCreateStackModal, setShowCreateStackModal] = useState(false);
   const [showAddHabitModal, setShowAddHabitModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [selectedStack, setSelectedStack] = useState(null);
-  const [selectedStackForHabit, setSelectedStackForHabit] = useState(null);
+  const [selectedStack, setSelectedStack] = useState<number | null>(null);
+  const [selectedStackForHabit, setSelectedStackForHabit] = useState<number | null>(null);
 
   useEffect(() => {
     const loadStacks = async () => {
       try {
         const loadedStacks = await remoteStorageClient.getStacks();
         if (loadedStacks.length > 0) {
-          setStacks(loadedStacks);
+          setStacks(loadedStacks as typeof defaultStacks);
         }
       } catch (error) {
         console.error("Failed to load stacks:", error);
@@ -43,7 +39,6 @@ export default function StacksPage() {
   useEffect(() => {
     const saveStacks = async () => {
       try {
-        // Save each stack individually with its index as ID
         for (let i = 0; i < stacks.length; i++) {
           await remoteStorageClient.saveStack(stacks[i], i);
         }
@@ -57,38 +52,41 @@ export default function StacksPage() {
     }
   }, [stacks]);
 
-  const createStack = (name) => {
+  const createStack = (name: string) => {
     setStacks([...stacks, { name, habits: [] }]);
   };
 
   const deleteStack = async () => {
+    if (selectedStack === null) return;
     try {
       await remoteStorageClient.deleteStack(selectedStack);
       const newStacks = [...stacks];
       newStacks.splice(selectedStack, 1);
       setStacks(newStacks);
+      setShowDeleteModal(false);
+      setSelectedStack(null);
     } catch (error) {
       console.error("Failed to delete stack:", error);
     }
   };
 
-  const openDeleteModal = (index) => {
+  const openDeleteModal = (index: number) => {
     setSelectedStack(index);
     setShowDeleteModal(true);
   };
 
-  const openAddHabitModal = (stackIndex) => {
+  const openAddHabitModal = (stackIndex: number) => {
     setSelectedStackForHabit(stackIndex);
     setShowAddHabitModal(true);
   };
 
-  const addHabit = (habitName) => {
+  const addHabit = (habitName: string) => {
     if (selectedStackForHabit === null) return;
 
     const newStacks = [...stacks];
     const habit = {
       id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-      name: habitName
+      name: habitName,
     };
 
     if (!newStacks[selectedStackForHabit].habits) {
@@ -99,19 +97,18 @@ export default function StacksPage() {
     setStacks(newStacks);
   };
 
-  const removeHabit = (stackIndex, habitId) => {
+  const removeHabit = (stackIndex: number, habitId: string) => {
     const newStacks = [...stacks];
     if (newStacks[stackIndex].habits) {
       newStacks[stackIndex].habits = newStacks[stackIndex].habits.filter(
-        habit => habit.id !== habitId
+        (habit) => habit.id !== habitId
       );
       setStacks(newStacks);
     }
   };
 
   return (
-    <>
-      <div className="max-w-6xl mx-auto pt-4 pb-32 md:pb-8">
+    <div className="max-w-6xl mx-auto pt-4 pb-32 md:pb-8">
       <div className="flex flex-row w-full justify-between items-center mb-6">
         <div>
           <h1 className="text-2xl md:text-3xl font-bold text-foreground">Stacks</h1>
@@ -119,7 +116,6 @@ export default function StacksPage() {
             Organize habits into themed collections
           </p>
         </div>
-        {/* Desktop Create Stack Button */}
         <button
           onClick={() => setShowCreateStackModal(true)}
           className="hidden md:flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
@@ -129,7 +125,6 @@ export default function StacksPage() {
         </button>
       </div>
 
-      {/* Mobile Create Stack Button */}
       <button
         onClick={() => setShowCreateStackModal(true)}
         className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
@@ -181,12 +176,14 @@ export default function StacksPage() {
 
       <ConfirmDeleteModal
         isOpen={showDeleteModal}
-        onHide={() => setShowDeleteModal(false)}
+        onHide={() => {
+          setShowDeleteModal(false);
+          setSelectedStack(null);
+        }}
         onConfirm={deleteStack}
         title="Delete Stack"
         description="Are you sure you want to delete this stack? All habits in this stack will be deleted."
       />
-      </div>
-    </>
+    </div>
   );
 }

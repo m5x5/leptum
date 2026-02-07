@@ -1,30 +1,30 @@
-import Head from "next/head";
+"use client";
+
 import { useState, useEffect } from "react";
-import GoalList from "../components/Goals/List";
-import { useGoals } from "../utils/useGoals";
-import { useGoalTypes } from "../utils/useGoalTypes";
+import GoalList from "../../components/Goals/List";
+import { useGoals } from "../../utils/useGoals";
+import { useGoalTypes } from "../../utils/useGoalTypes";
 import { PlusIcon } from "@heroicons/react/solid";
-import AddGoalTypeModal from "../components/Modal/AddGoalTypeModal";
+import AddGoalTypeModal from "../../components/Modal/AddGoalTypeModal";
 
 export default function GoalsPage() {
   const { goals, isError } = useGoals();
   const { goalTypes, isError: isErrorGoalTypes, addGoalType } = useGoalTypes();
   const [showAddGoalTypeModal, setShowAddGoalTypeModal] = useState(false);
 
-  const handleRemove = (name: string) => {};
+  const handleRemove = (_name: string) => {};
 
   const handleAddGoalType = (name: string, description?: string) => {
     addGoalType(name, description || "");
   };
 
-  // Listen for openAddGoalCategory event from header button
   useEffect(() => {
     const handleOpenAddGoalCategory = () => {
       setShowAddGoalTypeModal(true);
     };
-    window.addEventListener('openAddGoalCategory', handleOpenAddGoalCategory);
+    window.addEventListener("openAddGoalCategory", handleOpenAddGoalCategory);
     return () => {
-      window.removeEventListener('openAddGoalCategory', handleOpenAddGoalCategory);
+      window.removeEventListener("openAddGoalCategory", handleOpenAddGoalCategory);
     };
   }, []);
 
@@ -34,11 +34,7 @@ export default function GoalsPage() {
   if (!goalTypes) return <div>loading...</div>;
 
   return (
-    <>
-      <Head>
-        <title>Goals - Leptum</title>
-      </Head>
-      <div className="max-w-7xl mx-auto pt-4 pb-32 md:pb-8">
+    <div className="max-w-7xl mx-auto pt-4 pb-32 md:pb-8">
       <div className="mb-6">
         <h1 className="text-2xl md:text-3xl font-bold text-foreground">Goals</h1>
         <p className="text-sm text-muted-foreground mt-1">
@@ -47,7 +43,6 @@ export default function GoalsPage() {
       </div>
 
       <div className="mb-4 flex justify-end">
-        {/* Mobile Add Goal Category Button */}
         <button
           onClick={() => setShowAddGoalTypeModal(true)}
           className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
@@ -80,7 +75,6 @@ export default function GoalsPage() {
           </div>
         )}
       </div>
-      </div>
-    </>
+    </div>
   );
 }

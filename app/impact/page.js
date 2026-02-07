@@ -1,23 +1,23 @@
+"use client";
 import { PlusIcon } from "@heroicons/react/solid";
-import Head from "next/head";
 import { useCallback, useEffect, useState, useMemo, useRef } from "react";
-import ActivitySelector from "../components/ActivitySelector";
-import SummaryChart from "../components/SummaryChart";
-import Modal from "../components/Modal";
+import ActivitySelector from "../../components/ActivitySelector";
+import SummaryChart from "../../components/SummaryChart";
+import Modal from "../../components/Modal";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-} from "../components/ui/drawer";
-import { remoteStorageClient } from "../lib/remoteStorage";
-import { useGoals } from "../utils/useGoals";
-import { useGoalTypes } from "../utils/useGoalTypes";
-import { useInsights } from "../utils/useInsights";
-import { usePatternNotes } from "../utils/usePatternNotes";
-import { useEntities } from "../utils/useEntities";
+} from "../../components/ui/drawer";
+import { remoteStorageClient } from "../../lib/remoteStorage";
+import { useGoals } from "../../utils/useGoals";
+import { useGoalTypes } from "../../utils/useGoalTypes";
+import { useInsights } from "../../utils/useInsights";
+import { usePatternNotes } from "../../utils/usePatternNotes";
+import { useEntities } from "../../utils/useEntities";
 import { TrashIcon, PencilIcon, ChartBarIcon, ChevronDownIcon } from "@heroicons/react/solid";
-import { analyzeActivityPatterns, getSuggestionsForMetrics } from "../utils/activityAnalysis";
+import { analyzeActivityPatterns, getSuggestionsForMetrics } from "../../utils/activityAnalysis";
 import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
@@ -25,13 +25,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "../components/ui/dropdown-menu";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../components/ui/mention-input";
-import { useMentions } from "../utils/useMentions";
-import EmotionSelector, { Emotion } from "../components/ui/emotion-selector";
-import { getCurrentTime, getRandomId } from "../utils/now";
+} from "../../components/ui/dropdown-menu";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../../components/ui/mention-input";
+import { useMentions } from "../../utils/useMentions";
+import EmotionSelector, { Emotion } from "../../components/ui/emotion-selector";
+import { getCurrentTime, getRandomId } from "../../utils/now";
 
 // Configuration for impact metrics
 const METRIC_CONFIG = {
@@ -793,10 +793,6 @@ export default function ImpactPage() {
 
   return (
     <>
-      <Head>
-        <title>Wellbeing - Leptum</title>
-      </Head>
-
       <div className="max-w-6xl mx-auto pt-4 pb-32 md:pb-8 w-full overflow-x-hidden">
       <div className="mb-6 flex items-start justify-between">
         <div>

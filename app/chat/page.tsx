@@ -1,9 +1,11 @@
+"use client";
+
 import { ChangeEvent, useState } from "react";
 import ReactMarkdown from "react-markdown";
-import { ollama } from "../utils/ollama";
-import { Input } from "../components/ui/input";
+import { ollama } from "../../utils/ollama";
+import { Input } from "../../components/ui/input";
 
-const ChatPage = () => {
+export default function ChatPage() {
   const [text, setText] = useState("");
   const [input, setInput] = useState("");
 
@@ -27,6 +29,7 @@ const ChatPage = () => {
       });
     setInput("");
   };
+
   return (
     <div className="pt-4 pb-32 md:pb-8">
       <h1 className="text-2xl md:text-3xl font-bold text-foreground">Chat Page</h1>
@@ -40,6 +43,4 @@ const ChatPage = () => {
       <ReactMarkdown>{text}</ReactMarkdown>
     </div>
   );
-};
-
-export default ChatPage;
+}

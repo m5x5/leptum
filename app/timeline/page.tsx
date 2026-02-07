@@ -1,36 +1,36 @@
-import Head from "next/head";
+"use client";
 import Image from "next/image";
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { remoteStorageClient } from "../lib/remoteStorage";
+import { remoteStorageClient } from "../../lib/remoteStorage";
 import { PlusIcon, TrashIcon, UploadIcon, FilterIcon } from "@heroicons/react/solid";
-import Modal from "../components/Modal";
+import Modal from "../../components/Modal";
 import {
   Drawer,
   DrawerContent,
   DrawerHeader,
   DrawerTitle,
-} from "../components/ui/drawer";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
-import { useGoals } from "../utils/useGoals";
-import { useGoalTypes } from "../utils/useGoalTypes";
-import { useActivityWatch } from "../utils/useActivityWatch";
-import { useMentions } from "../utils/useMentions";
-import { usePhotoAttachments, PhotoAttachment } from "../utils/usePhotoAttachments";
-import { extractMentionedEntityIds, HighlightedMentions } from "../components/ui/mention-input";
-import FilterControls from "../components/Timeline/FilterControls";
-      import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry, GapBlock } from "../components/Timeline/TimelineEntry";
+} from "../../components/ui/drawer";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { useGoals } from "../../utils/useGoals";
+import { useGoalTypes } from "../../utils/useGoalTypes";
+import { useActivityWatch } from "../../utils/useActivityWatch";
+import { useMentions } from "../../utils/useMentions";
+import { usePhotoAttachments, PhotoAttachment } from "../../utils/usePhotoAttachments";
+import { extractMentionedEntityIds, HighlightedMentions } from "../../components/ui/mention-input";
+import FilterControls from "../../components/Timeline/FilterControls";
+import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry, GapBlock } from "../../components/Timeline/TimelineEntry";
 
-import { ProcessedAWEvent, EventGroup } from "../activity-watch.d";
-import { groupAdjacentEvents, DEFAULT_GROUP_GAP_MINUTES } from "../utils/activityWatch";
-      import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES } from "../utils/timeBlocks";
+import { ProcessedAWEvent, EventGroup } from "../../activity-watch.d";
+import { groupAdjacentEvents, DEFAULT_GROUP_GAP_MINUTES } from "../../utils/activityWatch";
+import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES } from "../../utils/timeBlocks";
 
-import ActivityForm from "../components/Timeline/ActivityForm";
-import ImportActivityWatchForm from "../components/Timeline/ImportActivityWatchForm";
-import DraftTimelineEntry from "../components/Timeline/DraftTimelineEntry";
-import { LiveActivityDuration } from "../components/Timeline/LiveActivityDuration";
-import { LiveSummaryBar } from "../components/Timeline/LiveSummaryBar";
-import { TimelineScheduleView } from "../components/Timeline/TimelineScheduleView";
-import { TimelineWeekView } from "../components/Timeline/TimelineWeekView";
+import ActivityForm from "../../components/Timeline/ActivityForm";
+import ImportActivityWatchForm from "../../components/Timeline/ImportActivityWatchForm";
+import DraftTimelineEntry from "../../components/Timeline/DraftTimelineEntry";
+import { LiveActivityDuration } from "../../components/Timeline/LiveActivityDuration";
+import { LiveSummaryBar } from "../../components/Timeline/LiveSummaryBar";
+import { TimelineScheduleView } from "../../components/Timeline/TimelineScheduleView";
+import { TimelineWeekView } from "../../components/Timeline/TimelineWeekView";
 
 interface Impact {
   id?: string;
@@ -878,10 +878,6 @@ export default function TimelinePage() {
 
   return (
     <>
-      <Head>
-        <title>Timeline - Leptum</title>
-      </Head>
-
       <div className="w-full mx-auto pt-4 pb-32 md:pb-8">
         <div className="flex flex-col gap-4 mb-6">
           <div className="flex items-center justify-between">
