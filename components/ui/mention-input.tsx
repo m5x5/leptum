@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 import { Entity } from '../../utils/useEntities';
 
 interface MentionInputProps {
-  value: string;
+  value?: string;
   onChange: (value: string) => void;
   entities: Entity[];
   placeholder?: string;
@@ -22,7 +22,7 @@ interface MentionInputProps {
  * Replaces Input or Textarea with @mention functionality
  */
 export function MentionInput({
-  value,
+  value = '',
   onChange,
   entities,
   placeholder = '',
@@ -34,7 +34,7 @@ export function MentionInput({
   onFocus,
   autoFocus = false,
 }: MentionInputProps) {
-  // Ensure value is always a string (react-mentions calls .replace() on it internally)
+  // Ensure value is always a string (react-mentions calls .replace() on value and markup internally)
   const safeValue = typeof value === 'string' ? value : (value != null ? String(value) : '');
 
   // Convert entities to suggestions format; ensure id/display are never undefined (library may call .replace on them)
@@ -110,7 +110,7 @@ export function MentionInput({
   return (
     <div className={cn('w-full', className)}>
       <MentionsInput
-        value={safeValue}
+        value={safeValue ?? ''}
         onChange={(e) => onChange(e?.target?.value ?? '')}
         placeholder={placeholder ?? ''}
         style={baseInputStyle}
@@ -123,6 +123,7 @@ export function MentionInput({
       >
         <Mention
           trigger="@"
+          markup="@[__display__](__id__)"
           data={suggestions}
           style={{
             backgroundColor: 'hsl(var(--primary) / 0.1)',
@@ -131,7 +132,7 @@ export function MentionInput({
             borderRadius: '0.25rem',
             padding: '0 0.25rem',
           }}
-          displayTransform={(id, display) => `@${display}`}
+          displayTransform={(id, display) => `@${display ?? id ?? ''}`}
         />
       </MentionsInput>
     </div>
