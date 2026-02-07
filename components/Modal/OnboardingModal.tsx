@@ -71,7 +71,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
             </ul>
           </div>
           <p className="text-sm text-muted-foreground">
-            Let's create some sample data to help you get started. You can modify or delete these examples anytime.
+            Let&apos;s create some sample data to help you get started. You can modify or delete these examples anytime.
           </p>
         </div>
       )
@@ -289,7 +289,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
       content: (
         <div className="space-y-4 mt-4">
           <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
-            <h4 className="font-semibold text-foreground mb-2">What's Next?</h4>
+            <h4 className="font-semibold text-foreground mb-2">What&apos;s Next?</h4>
             <ul className="space-y-2 text-sm text-foreground">
               <li className="flex items-start gap-2">
                 <span className="text-primary font-bold">1.</span>
@@ -311,7 +311,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
           </div>
           <div className="bg-muted/50 border border-border rounded-lg p-3">
             <p className="text-sm text-foreground">
-              <strong>Remember:</strong> Your data is stored locally and only syncs when you connect a RemoteStorage provider. You're in full control!
+              <strong>Remember:</strong> Your data is stored locally and only syncs when you connect a RemoteStorage provider. You&apos;re in full control!
             </p>
           </div>
         </div>

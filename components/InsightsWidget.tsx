@@ -16,93 +16,92 @@ export default function InsightsWidget({ className = "" }: InsightsWidgetProps) 
   const [discoveredPatterns, setDiscoveredPatterns] = useState<any[]>([]);
 
   useEffect(() => {
+    const analyzeMood = async () => {
+      try {
+        // Get the latest impact log
+        const impacts = await remoteStorageClient.getImpacts();
+        if (impacts.length === 0) return;
+
+        const latestImpact = impacts[impacts.length - 1];
+
+        // Analyze patterns from all impact data
+        const patterns = analyzeActivityPatterns(impacts);
+
+        // Identify metrics that are low
+        const metrics = [
+          'happiness',
+          'confidence',
+          'stress',
+          'cleanliness',
+          'fulfillment',
+          'motivation',
+          'energy',
+          'focus',
+          'shame',
+          'guilt'
+        ];
+
+        const low: { metric: string; value: number }[] = [];
+
+        metrics.forEach(metric => {
+          const value = parseInt(latestImpact[metric]);
+          if (!isNaN(value)) {
+            // For bipolar metrics (happiness, confidence), consider < -20 as low
+            if ((metric === 'happiness' || metric === 'confidence') && value < -20) {
+              low.push({ metric, value });
+            }
+            // For inverted metrics (stress, shame, guilt), consider > 60 as "low" (high stress)
+            else if ((metric === 'stress' || metric === 'shame' || metric === 'guilt') && value > 60) {
+              low.push({ metric, value });
+            }
+            // For normal metrics, consider < 40 as low
+            else if (
+              metric !== 'happiness' &&
+              metric !== 'confidence' &&
+              metric !== 'stress' &&
+              metric !== 'shame' &&
+              metric !== 'guilt' &&
+              value < 40
+            ) {
+              low.push({ metric, value });
+            }
+          }
+        });
+
+        setLowMetrics(low);
+
+        // Find insights that could help with these low metrics
+        const relevant = insights.filter(insight =>
+          insight.affectedMetrics.some(am => {
+            const isLow = low.some(l => l.metric === am.metric);
+
+            // For inverted metrics (stress, shame, guilt), we want insights that decrease them
+            if ((am.metric === 'stress' || am.metric === 'shame' || am.metric === 'guilt')) {
+              return isLow && am.effect === 'negative';
+            }
+
+            // For normal metrics, we want insights that increase them
+            return isLow && am.effect === 'positive';
+          })
+        );
+
+        setRelevantInsights(relevant.slice(0, 2)); // Show max 2 manual insights
+
+        // Find discovered patterns that could help
+        const lowMetricNames = low.map(l => l.metric);
+        const relevantPatterns = patterns.filter(pattern =>
+          pattern.positiveEffects.some(effect =>
+            lowMetricNames.includes(effect.metric)
+          )
+        );
+
+        setDiscoveredPatterns(relevantPatterns.slice(0, 2)); // Show max 2 patterns
+      } catch (error) {
+        console.error('Failed to analyze mood:', error);
+      }
+    };
     analyzeMood();
   }, [insights]);
-
-  const analyzeMood = async () => {
-    try {
-      // Get the latest impact log
-      const impacts = await remoteStorageClient.getImpacts();
-      if (impacts.length === 0) return;
-
-      const latestImpact = impacts[impacts.length - 1];
-
-      // Analyze patterns from all impact data
-      const patterns = analyzeActivityPatterns(impacts);
-
-      // Identify metrics that are low
-      const metrics = [
-        'happiness',
-        'confidence',
-        'stress',
-        'cleanliness',
-        'fulfillment',
-        'motivation',
-        'energy',
-        'focus',
-        'shame',
-        'guilt'
-      ];
-
-      const low: { metric: string; value: number }[] = [];
-
-      metrics.forEach(metric => {
-        const value = parseInt(latestImpact[metric]);
-        if (!isNaN(value)) {
-          // For bipolar metrics (happiness, confidence), consider < -20 as low
-          if ((metric === 'happiness' || metric === 'confidence') && value < -20) {
-            low.push({ metric, value });
-          }
-          // For inverted metrics (stress, shame, guilt), consider > 60 as "low" (high stress)
-          else if ((metric === 'stress' || metric === 'shame' || metric === 'guilt') && value > 60) {
-            low.push({ metric, value });
-          }
-          // For normal metrics, consider < 40 as low
-          else if (
-            metric !== 'happiness' &&
-            metric !== 'confidence' &&
-            metric !== 'stress' &&
-            metric !== 'shame' &&
-            metric !== 'guilt' &&
-            value < 40
-          ) {
-            low.push({ metric, value });
-          }
-        }
-      });
-
-      setLowMetrics(low);
-
-      // Find insights that could help with these low metrics
-      const relevant = insights.filter(insight =>
-        insight.affectedMetrics.some(am => {
-          const isLow = low.some(l => l.metric === am.metric);
-
-          // For inverted metrics (stress, shame, guilt), we want insights that decrease them
-          if ((am.metric === 'stress' || am.metric === 'shame' || am.metric === 'guilt')) {
-            return isLow && am.effect === 'negative';
-          }
-
-          // For normal metrics, we want insights that increase them
-          return isLow && am.effect === 'positive';
-        })
-      );
-
-      setRelevantInsights(relevant.slice(0, 2)); // Show max 2 manual insights
-
-      // Find discovered patterns that could help
-      const lowMetricNames = low.map(l => l.metric);
-      const relevantPatterns = patterns.filter(pattern =>
-        pattern.positiveEffects.some(effect =>
-          lowMetricNames.includes(effect.metric)
-        )
-      );
-
-      setDiscoveredPatterns(relevantPatterns.slice(0, 2)); // Show max 2 patterns
-    } catch (error) {
-      console.error('Failed to analyze mood:', error);
-    }
-  };
 
   if (loading) return null;
   if (insights.length === 0) {

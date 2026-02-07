@@ -76,7 +76,7 @@ export default function GoalsPage() {
         ))}
         {goalTypes.length === 0 && (
           <div className="col-span-1 md:col-span-2 text-center py-8 text-muted-foreground">
-            No goal categories yet. Click "Add Goal Category" to create one.
+            No goal categories yet. Click &quot;Add Goal Category&quot; to create one.
           </div>
         )}
       </div>

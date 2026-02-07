@@ -5,6 +5,7 @@ import { usePhotoAttachments, PhotoAttachment } from '../../utils/usePhotoAttach
 import { Button } from '../ui/button';
 import { Input } from '../ui/input';
 import { Textarea } from '../ui/textarea';
+import Image from 'next/image';
 import Modal from '../Modal';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '../ui/drawer';
 import StandaloneTaskItem from '../Tasks/StandaloneItem';
@@ -400,7 +401,7 @@ export default function QuickCapture({
             <div className="grid grid-cols-3 gap-2">
               {photoPreviews.map((preview, index) => (
                 <div key={`preview-${index}-${preview.substring(0, 20)}`} className="relative">
-                  <img src={preview} alt={`Preview ${index}`} className="w-full h-24 object-cover rounded" />
+                  <Image src={preview} alt={`Preview ${index}`} width={200} height={96} unoptimized className="w-full h-24 object-cover rounded" />
                   <button
                     onClick={() => removePhoto(index)}
                     className="absolute top-1 right-1 bg-red-500 text-white rounded-full p-1"
@@ -609,10 +610,13 @@ export default function QuickCapture({
                   {photos.length > 0 && (
                     <div className="flex gap-2 flex-wrap">
                       {photos.map((photo) => (
-                        <img
+                        <Image
                           key={photo.id}
                           src={photo.thumbnail}
                           alt="Note photo"
+                          width={80}
+                          height={80}
+                          unoptimized
                           className="w-20 h-20 object-cover rounded"
                         />
                       ))}

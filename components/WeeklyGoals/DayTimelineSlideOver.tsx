@@ -319,7 +319,7 @@ export function DayTimelineSlideOver({
       >
         <Modal.Title>Delete Activity</Modal.Title>
         <Modal.Body>
-          Are you sure you want to delete "{editingImpact?.activity}"?
+          Are you sure you want to delete &quot;{editingImpact?.activity}&quot;?
         </Modal.Body>
         <Modal.Footer>
           <div className="flex gap-2 justify-end">

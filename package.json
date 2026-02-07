@@ -4,7 +4,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "generate-icons": "node scripts/generate-icons.js"
+    "generate-icons": "node scripts/generate-icons.js",
+    "lint": "next lint"
   },
   "dependencies": {
     "@headlessui/react": "^1.7.17",
@@ -60,6 +61,8 @@
     "worker-timers": "^7.0.37"
   },
   "devDependencies": {
+    "eslint": "^8.57.0",
+    "eslint-config-next": "^14.2.35",
     "@playwright/test": "^1.57.0",
     "@types/node": "25.0.3",
     "@types/react": "^18.3.27",

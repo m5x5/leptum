@@ -301,7 +301,7 @@ export default function StandaloneTaskItem({
       >
         <Modal.Title>Delete Task</Modal.Title>
         <Modal.Body>
-          Are you sure you want to delete "{task.name}"?
+          Are you sure you want to delete &quot;{task.name}&quot;?
         </Modal.Body>
         <Modal.Footer>
           <div className="flex gap-2 justify-end">

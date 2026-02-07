@@ -34,7 +34,7 @@ const LogImpactModal = ({onCreate, isOpen, name}) => {
 
     return (
         <Modal isOpen={isOpen} closeModal={closeModal}>
-            <Modal.Title>How was "{name}"?</Modal.Title>
+            <Modal.Title>How was &quot;{name}&quot;?</Modal.Title>
             <Modal.Body className="w-full">
                 <EmotionSelector
                     selectedEmotions={selectedEmotions}

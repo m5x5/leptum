@@ -1,5 +1,6 @@
 import Head from "next/head";
-import { useEffect, useState, useMemo } from "react";
+import Image from "next/image";
+import { useEffect, useState, useMemo, useCallback } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { PlusIcon, TrashIcon, UploadIcon, FilterIcon } from "@heroicons/react/solid";
 import Modal from "../components/Modal";
@@ -461,27 +462,25 @@ export default function TimelinePage() {
     return endTime - startTime;
   };
 
-  const groupByDate = (impacts: Impact[]) => {
-
-    // Cache "now" and "today" to avoid repeated Date.now() calls
+  const groupByDate = useCallback((impactsToGroup: Impact[]) => {
+    const toDateKey = (timestamp: number) => {
+      const date = new Date(timestamp);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
     const now = Date.now();
-    const today = new Date();
-    const todayKey = formatDateKey(now);
+    const todayKey = toDateKey(now);
 
-    // First, sort all impacts by time (descending - most recent first)
-    const sortedImpacts = [...impacts].sort((a, b) => b.date - a.date);
-
+    const sortedImpacts = [...impactsToGroup].sort((a, b) => b.date - a.date);
     const grouped: { [key: string]: Impact[] } = {};
-    let virtualCount = 0;
 
-    // Process each impact and potentially split it across multiple days
     sortedImpacts.forEach((impact, index) => {
-      // Calculate the end time for this impact
       let endTime: number;
 
       if (index === 0) {
-        // Most recent impact - extends to now (if today) or end of day
-        const impactDateKey = formatDateKey(impact.date);
+        const impactDateKey = toDateKey(impact.date);
         if (impactDateKey === todayKey) {
           endTime = now;
         } else {
@@ -490,32 +489,23 @@ export default function TimelinePage() {
           endTime = dayEnd.getTime();
         }
       } else {
-        // Duration goes until the next activity (which is at index - 1 due to descending sort)
         endTime = sortedImpacts[index - 1].date;
       }
 
-      // Get the start day
-      const startDateKey = formatDateKey(impact.date);
+      const startDateKey = toDateKey(impact.date);
+      const endDateKey = toDateKey(endTime);
 
-      // Get the end day
-      const endDateKey = formatDateKey(endTime);
-
-      // Add impact to its start day
       if (!grouped[startDateKey]) {
         grouped[startDateKey] = [];
       }
       grouped[startDateKey].push(impact);
 
-      // If the impact spans into the next day, create ONE virtual entry for the next day
-      // Only support spanning into the immediately next day (not multiple days)
       if (startDateKey !== endDateKey) {
         const nextDayStart = new Date(impact.date);
-        nextDayStart.setHours(24, 0, 0, 0); // Midnight of next day
-        const nextDateKey = formatDateKey(nextDayStart.getTime());
+        nextDayStart.setHours(24, 0, 0, 0);
+        const nextDateKey = toDateKey(nextDayStart.getTime());
 
-        // Only create virtual entry if it's the actual next day
         if (nextDateKey === endDateKey) {
-          // Create minimal virtual impact (don't spread entire object)
           const virtualImpact: Impact = {
             id: impact.id,
             activity: impact.activity,
@@ -529,18 +519,16 @@ export default function TimelinePage() {
             grouped[nextDateKey] = [];
           }
           grouped[nextDateKey].push(virtualImpact);
-          virtualCount++;
         }
       }
     });
 
-    // Sort each day's impacts by time (descending - most recent first)
     Object.keys(grouped).forEach((key) => {
       grouped[key].sort((a, b) => b.date - a.date);
     });
 
     return grouped;
-  };
+  }, []);
 
   const isToday = (timestamp: number) => {
     const date = new Date(timestamp);
@@ -602,7 +590,7 @@ export default function TimelinePage() {
     return summaries;
   };
 
-  const groupedImpacts = useMemo(() => groupByDate(impacts), [impacts]);
+  const groupedImpacts = useMemo(() => groupByDate(impacts), [impacts, groupByDate]);
 
   // Get all dates that have either manual impacts or AW events
   const allDates = useMemo(() => {
@@ -840,8 +828,7 @@ export default function TimelinePage() {
     }
   };
 
-  // Get filtered ActivityWatch events for a specific date
-  const getFilteredAWEventsForDate = (dateKey: string) => {
+  const getFilteredAWEventsForDate = useCallback((dateKey: string) => {
     if (!awData || !filterSettings.showActivityWatch) {
       return [];
     }
@@ -851,18 +838,12 @@ export default function TimelinePage() {
     const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 
     return awData.events.filter((event) => {
-      // Date range filter
       if (event.timestamp < dayStart || event.timestamp > dayEnd) return false;
-
-      // Bucket visibility filter
       if (!filterSettings.visibleBuckets.includes(event.bucketId)) return false;
-
-      // Hidden filter
       if (event.isHidden) return false;
-
       return true;
     });
-  };
+  }, [awData, filterSettings]);
 
   // Calculate total active time across all visible days
   const totalActiveTime = useMemo(() => {
@@ -897,7 +878,7 @@ export default function TimelinePage() {
     });
 
     return total;
-  }, [awData, filterSettings, dates]);
+  }, [awData, filterSettings, dates, getFilteredAWEventsForDate]);
 
   return (
     <>
@@ -1034,7 +1015,7 @@ export default function TimelinePage() {
           <div className="flex flex-col items-center justify-center py-32">
             <p className="text-lg text-muted-foreground mb-4">No timeline data yet</p>
             <p className="text-sm text-muted-foreground mb-6">
-              Click "Add Activity" above to start logging your activities
+              Click &quot;Add Activity&quot; above to start logging your activities
             </p>
           </div>
         )}
@@ -1092,7 +1073,7 @@ export default function TimelinePage() {
         >
           <Modal.Title>Delete Activity</Modal.Title>
           <Modal.Body>
-            Are you sure you want to delete "{editingImpact?.activity}"?
+            Are you sure you want to delete &quot;{editingImpact?.activity}&quot;?
           </Modal.Body>
           <Modal.Footer>
             <div className="flex gap-2 justify-end">
@@ -1667,10 +1648,13 @@ export default function TimelinePage() {
                                     {impact.id && getPhotosForImpact(impact.id).length > 0 && (
                                       <div className="flex gap-2 mt-2 pl-[4.5rem] overflow-x-auto">
                                         {getPhotosForImpact(impact.id).map((photo) => (
-                                          <img
+                                          <Image
                                             key={photo.id}
                                             src={photo.thumbnail}
                                             alt="Activity photo"
+                                            width={48}
+                                            height={48}
+                                            unoptimized
                                             className="w-12 h-12 object-cover rounded border border-border flex-shrink-0"
                                           />
                                         ))}

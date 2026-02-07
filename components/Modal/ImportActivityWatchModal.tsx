@@ -61,6 +61,19 @@ export default function ImportActivityWatchModal({
   );
 
   /**
+   * Handle close and reset state
+   */
+  const handleClose = useCallback(() => {
+    setSelectedFile(null);
+    setPreview(null);
+    setError(null);
+    setClearExisting(false);
+    setDaysBack(DEFAULT_DAYS_BACK);
+    setMinDuration(DEFAULT_MIN_DURATION_SECONDS);
+    closeModal();
+  }, [closeModal]);
+
+  /**
    * Handle import
    */
   const handleImport = useCallback(async () => {
@@ -85,20 +98,7 @@ export default function ImportActivityWatchModal({
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedFile, onImport, daysBack, minDuration, clearExisting]);
-
-  /**
-   * Handle close and reset state
-   */
-  const handleClose = useCallback(() => {
-    setSelectedFile(null);
-    setPreview(null);
-    setError(null);
-    setClearExisting(false);
-    setDaysBack(DEFAULT_DAYS_BACK);
-    setMinDuration(DEFAULT_MIN_DURATION_SECONDS);
-    closeModal();
-  }, [closeModal]);
+  }, [selectedFile, onImport, daysBack, minDuration, clearExisting, handleClose]);
 
   /**
    * Update preview when options change

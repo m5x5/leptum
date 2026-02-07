@@ -123,7 +123,7 @@ function MyApp({ Component, pageProps }: AppProps) {
         stopKeyUX();
       };
     }
-  }, []);
+  }, [router.asPath, Component, pageProps]);
 
   // Handle transitions and caching
   useEffect(() => {
@@ -174,7 +174,7 @@ function MyApp({ Component, pageProps }: AppProps) {
     } else {
       performTransition();
     }
-  }, [router.asPath, Component, pageProps, mounted]);
+  }, [router.asPath, Component, pageProps, mounted, activePath]);
 
   // Track hash changes for impact page
   useEffect(() => {

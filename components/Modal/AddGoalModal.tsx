@@ -117,7 +117,7 @@ const AddGoalModal = ({
     // Reset step when modal opens
     const shouldShowChoiceOnOpen = !isEdit && !initialName && allTemplates.length > 0;
     setStep(shouldShowChoiceOnOpen ? 'choice' : 'create-custom');
-  }, [isOpen, isEdit, initialName, allTemplates.length]); // Only run when modal opens
+  }, [isOpen, isEdit, initialName, allTemplates.length, initialColor, initialDescription, initialMilestones, initialTargetDate]);
 
   function resetForm() {
     setGoalName("");

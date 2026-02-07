@@ -1,7 +1,7 @@
 import { capitalize } from "../../utils";
 import { mentionsToPlainText } from "../ui/mention-input";
 
-export default function ({ active, payload, label }) {
+function CustomTooltip({ active, payload, label }) {
   if (!(active && payload && payload.length)) return null;
 
   const item = payload[0];
@@ -24,3 +24,5 @@ export default function ({ active, payload, label }) {
     </div>
   );
 }
+CustomTooltip.displayName = "CustomTooltip";
+export default CustomTooltip;

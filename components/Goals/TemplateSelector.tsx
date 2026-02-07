@@ -60,7 +60,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
 
   return (
     <Modal isOpen={isOpen} closeModal={onClose}>
-      <Modal.Title>Select Template for "{goal.name}"</Modal.Title>
+      <Modal.Title>Select Template for &quot;{goal.name}&quot;</Modal.Title>
       <Modal.Body>
         <div className="space-y-4 mt-4">
           {suggestedTemplate && (

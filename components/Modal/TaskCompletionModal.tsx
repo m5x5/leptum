@@ -44,7 +44,7 @@ export default function TaskCompletionModal({
           <DrawerHeader className="text-left">
             <DrawerTitle>Task Completed!</DrawerTitle>
             <p className="text-sm text-muted-foreground mt-1">
-              "{taskName}"
+              &quot;{taskName}&quot;
             </p>
           </DrawerHeader>
           <div className="px-4 pb-8 overflow-y-auto">
@@ -78,7 +78,7 @@ export default function TaskCompletionModal({
       <Modal.Title>Task Completed!</Modal.Title>
       <Modal.Body>
         <p className="text-sm text-muted-foreground mb-4">
-          "{taskName}"
+          &quot;{taskName}&quot;
         </p>
         <EmotionSelector
           selectedEmotions={selectedEmotions}

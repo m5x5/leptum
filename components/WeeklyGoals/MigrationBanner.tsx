@@ -110,7 +110,7 @@ export function MigrationBanner({
             </button>
           </div>
           <p className="text-xs text-yellow-600 dark:text-yellow-400 mt-2">
-            We'll try to match your text goals to existing goals. Your original data will be
+            We&apos;ll try to match your text goals to existing goals. Your original data will be
             preserved.
           </p>
         </div>

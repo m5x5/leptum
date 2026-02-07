@@ -1,6 +1,6 @@
 import { PlusIcon } from "@heroicons/react/solid";
 import Head from "next/head";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, useRef } from "react";
 import ActivitySelector from "../components/ActivitySelector";
 import ImpactCard from "../components/ImpactCard";
 import SummaryChart from "../components/SummaryChart";
@@ -107,14 +107,16 @@ export default function ImpactPage() {
   const [showDeleteThoughtConfirm, setShowDeleteThoughtConfirm] = useState(false);
   const [thoughtToDelete, setThoughtToDelete] = useState(null);
 
-  // Analyze activity patterns when impacts change
+  const openQuickLogModalRef = useRef(() => {});
+  const openAddInsightModalRef = useRef(() => {});
+
   // Listen for openAddLog and openAddInsight events from header button
   useEffect(() => {
     const handleOpenAddLog = () => {
-      openQuickLogModal();
+      openQuickLogModalRef.current();
     };
     const handleOpenAddInsight = () => {
-      openAddInsightModal();
+      openAddInsightModalRef.current();
     };
     window.addEventListener('openAddLog', handleOpenAddLog);
     window.addEventListener('openAddInsight', handleOpenAddInsight);
@@ -183,10 +185,10 @@ export default function ImpactPage() {
   // Listen for openAddLog and openAddInsight events from header button
   useEffect(() => {
     const handleOpenAddLog = () => {
-      openQuickLogModal();
+      openQuickLogModalRef.current();
     };
     const handleOpenAddInsight = () => {
-      openAddInsightModal();
+      openAddInsightModalRef.current();
     };
     window.addEventListener('openAddLog', handleOpenAddLog);
     window.addEventListener('openAddInsight', handleOpenAddInsight);
@@ -219,9 +221,14 @@ export default function ImpactPage() {
     }
   }, []);
 
+  const impactsKey = useMemo(
+    () => JSON.stringify(state.impacts ?? []),
+    [state.impacts]
+  );
+
   useEffect(() => {
     if (!isDataLoaded) return; // Don't save until data has been loaded from storage
-    
+
     const saveImpacts = async () => {
       try {
         await remoteStorageClient.saveImpacts(state.impacts);
@@ -231,16 +238,16 @@ export default function ImpactPage() {
     };
 
     saveImpacts();
-  }, [JSON.stringify(state.impacts), isDataLoaded]);
+  }, [impactsKey, isDataLoaded, state.impacts]);
 
   // Close timespan dropdown when clicking outside
   // Listen for openAddLog and openAddInsight events from header button
   useEffect(() => {
     const handleOpenAddLog = () => {
-      openQuickLogModal();
+      openQuickLogModalRef.current();
     };
     const handleOpenAddInsight = () => {
-      openAddInsightModal();
+      openAddInsightModalRef.current();
     };
     window.addEventListener('openAddLog', handleOpenAddLog);
     window.addEventListener('openAddInsight', handleOpenAddInsight);
@@ -301,6 +308,7 @@ export default function ImpactPage() {
       setShowQuickLogModal(true);
     }
   };
+  openQuickLogModalRef.current = openQuickLogModal;
 
   const saveQuickLog = async () => {
     const newState = { ...state };
@@ -512,6 +520,7 @@ export default function ImpactPage() {
       setShowInsightModal(true);
     }
   };
+  openAddInsightModalRef.current = openAddInsightModal;
 
   const openEditInsightModal = (insight) => {
     setEditingInsight(insight);

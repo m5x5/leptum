@@ -4,6 +4,8 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 import * as workerTimers from "worker-timers";
@@ -80,6 +82,8 @@ export function JobContextProvider({ children }: Props) {
     setJobs([...jobs]);
     saveJobs([...jobs]);
   };
+  const setJobCallbackRef = useRef(setJobCallback);
+  setJobCallbackRef.current = setJobCallback;
 
   const saveJobs = async (jobs: DbJob[]) => {
     if (typeof window === "undefined") return;
@@ -101,7 +105,7 @@ export function JobContextProvider({ children }: Props) {
   };
 
   // CRON
-  const setupCRONJobs = () => {
+  const setupCRONJobs = useCallback(() => {
     let cronJobs: number[] = [];
     jobs.forEach((job) => {
       if (job.status === "pending") return;
@@ -112,7 +116,7 @@ export function JobContextProvider({ children }: Props) {
           habit.status = "due";
         });
 
-        setJobCallback(jobs);
+        setJobCallbackRef.current(jobs);
 
         // Create and play only when about to play (avoids pre-downloading)
         const sound = new Audio("/piece-of-cake-611.mp3");
@@ -135,7 +139,7 @@ export function JobContextProvider({ children }: Props) {
       } catch {}
     });
     return cronJobs;
-  };
+  }, [jobs]);
 
   const destroyCRONJobs = (cronJobs: number[]) => {
     cronJobs.forEach((cronJob) => {
@@ -175,12 +179,13 @@ export function JobContextProvider({ children }: Props) {
     setJobCallback(jobs);
   };
 
+  const jobsKey = useMemo(() => JSON.stringify(jobs), [jobs]);
   useEffect(() => {
     const cronJobs = setupCRONJobs();
     return () => {
       destroyCRONJobs(cronJobs);
     };
-  }, [JSON.stringify(jobs)]);
+  }, [jobsKey, setupCRONJobs]);
 
   const addJobCallback = useCallback(async (cron: string, name: string) => {
     const newJob: DbJob = {

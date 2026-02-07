@@ -55,7 +55,7 @@ export default function StacksPage() {
     if (stacks.length > 0) {
       saveStacks();
     }
-  }, [JSON.stringify(stacks)]);
+  }, [stacks]);
 
   const createStack = (name) => {
     setStacks([...stacks, { name, habits: [] }]);

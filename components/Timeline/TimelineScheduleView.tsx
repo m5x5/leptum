@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useCallback } from 'react';
 import { PlusIcon } from '@heroicons/react/solid';
 import { HighlightedMentions } from '../ui/mention-input';
 
@@ -90,21 +90,26 @@ export function TimelineScheduleView({
     return "bg-gray-400";
   };
 
-  const groupByDate = (impacts: Impact[]) => {
+  const groupByDate = useCallback((impactsToGroup: Impact[]) => {
+    const toDateKey = (timestamp: number) => {
+      const date = new Date(timestamp);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
+    };
     const now = Date.now();
-    const today = new Date();
-    const todayKey = formatDateKey(now);
+    const todayKey = toDateKey(now);
 
-    const sortedImpacts = [...impacts].sort((a, b) => b.date - a.date);
+    const sortedImpacts = [...impactsToGroup].sort((a, b) => b.date - a.date);
 
     const grouped: { [key: string]: Impact[] } = {};
-    let virtualCount = 0;
 
     sortedImpacts.forEach((impact, index) => {
       let endTime: number;
 
       if (index === 0) {
-        const impactDateKey = formatDateKey(impact.date);
+        const impactDateKey = toDateKey(impact.date);
         if (impactDateKey === todayKey) {
           endTime = now;
         } else {
@@ -116,8 +121,8 @@ export function TimelineScheduleView({
         endTime = sortedImpacts[index - 1].date;
       }
 
-      const startDateKey = formatDateKey(impact.date);
-      const endDateKey = formatDateKey(endTime);
+      const startDateKey = toDateKey(impact.date);
+      const endDateKey = toDateKey(endTime);
 
       if (!grouped[startDateKey]) {
         grouped[startDateKey] = [];
@@ -127,7 +132,7 @@ export function TimelineScheduleView({
       if (startDateKey !== endDateKey) {
         const nextDayStart = new Date(impact.date);
         nextDayStart.setHours(24, 0, 0, 0);
-        const nextDateKey = formatDateKey(nextDayStart.getTime());
+        const nextDateKey = toDateKey(nextDayStart.getTime());
 
         if (nextDateKey === endDateKey) {
           const virtualImpact: Impact = {
@@ -143,7 +148,6 @@ export function TimelineScheduleView({
             grouped[nextDateKey] = [];
           }
           grouped[nextDateKey].push(virtualImpact);
-          virtualCount++;
         }
       }
     });
@@ -153,9 +157,9 @@ export function TimelineScheduleView({
     });
 
     return grouped;
-  };
+  }, []);
 
-  const groupedImpacts = useMemo(() => groupByDate(impacts), [impacts]);
+  const groupedImpacts = useMemo(() => groupByDate(impacts), [impacts, groupByDate]);
 
   const allDates = useMemo(() => {
     const dateSet = new Set<string>(Object.keys(groupedImpacts));

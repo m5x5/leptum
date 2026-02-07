@@ -18,17 +18,15 @@ export default function JobListItem({ job, isValid }:Props) {
   const { setSelected, selected } = useJobContext();
   const [count, update] = useState(0);
   const [showEditModal, setShowEditModal] = useState(false);
-  if (!job.cron) return null;
-  
+
   const isSelected = selected === job.cron;
 
-  let descriptiveName = getDescription(job.cron) || "";
-
+  let descriptiveName = job.cron ? (getDescription(job.cron) || "") : "";
   if (descriptiveName.length > MAX_NAME_LENGTH) {
     descriptiveName = descriptiveName.substring(0, MAX_NAME_LENGTH) + "...";
   }
 
-  const time = getPrettyTimeTillNextOccurrence(job.cron);
+  const time = job.cron ? getPrettyTimeTillNextOccurrence(job.cron) : null;
 
   useEffect(() => {
     const timeout = setTimeout(() => {
@@ -36,6 +34,8 @@ export default function JobListItem({ job, isValid }:Props) {
     }, 1000);
     return () => clearTimeout(timeout);
   }, [count]);
+
+  if (!job.cron) return null;
 
   const onClick = () => {
     // Toggle selection: if already selected, unselect it

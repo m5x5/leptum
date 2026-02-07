@@ -1,6 +1,6 @@
 import Head from "next/head";
 import { PlusIcon, TrashIcon, ClockIcon, CheckCircleIcon, PencilIcon } from "@heroicons/react/solid";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { Routine } from "../components/Job/api";
 import Modal from "../components/Modal";
@@ -40,8 +40,9 @@ export default function RoutinesPage() {
     return () => window.removeEventListener('goalUpdated', handleGoalUpdate);
   }, [reloadGoals]);
 
+  const loadRoutinesRef = useRef<() => Promise<void>>(() => Promise.resolve());
   useEffect(() => {
-    loadRoutines();
+    loadRoutinesRef.current();
   }, []);
 
   // Listen for openCreateRoutine event from header button
@@ -70,6 +71,7 @@ export default function RoutinesPage() {
       console.error("Failed to load routines:", error);
     }
   };
+  loadRoutinesRef.current = loadRoutines;
 
   const migrateFromOldData = async () => {
     try {
@@ -644,7 +646,7 @@ export default function RoutinesPage() {
           <Modal.Title>Delete Routine</Modal.Title>
           <Modal.Body>
             <p className="text-foreground">
-              Are you sure you want to delete "{selectedRoutine?.name || 'this routine'}"? 
+              Are you sure you want to delete &quot;{selectedRoutine?.name || 'this routine'}&quot;? 
               <br />
               <span className="text-sm text-muted-foreground mt-2 block">
                 Note: Tasks created from this routine will be kept, but routine completions will be removed.

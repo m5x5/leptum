@@ -54,7 +54,7 @@ export function TrackingCounter({ goal, config, entries, onUpdate, embedded = fa
       }
     };
     loadRoutine();
-  }, [goal.id]);
+  }, [goal.id, goal.name]);
   
   // Count today's completions for this routine
   const todayStart = getStartOfDay();

@@ -5,6 +5,7 @@ import { Input } from "../ui/input";
 import { MentionInput } from "../ui/mention-input";
 import { useEntities } from "../../utils/useEntities";
 import { generateThumbnail, PhotoAttachment } from "../../utils/usePhotoAttachments";
+import Image from "next/image";
 import { PhotographIcon, XIcon } from "@heroicons/react/solid";
 
 interface PendingPhoto {
@@ -232,9 +233,12 @@ export default function ActivityForm({
           <div className="flex flex-wrap gap-2 mb-3">
             {existingPhotos.map((photo) => (
               <div key={photo.id} className="relative group">
-                <img
+                <Image
                   src={photo.thumbnail}
                   alt="Attached photo"
+                  width={64}
+                  height={64}
+                  unoptimized
                   className="w-16 h-16 object-cover rounded-lg border border-border"
                 />
                 {onDeletePhoto && (
@@ -256,9 +260,12 @@ export default function ActivityForm({
           <div className="flex flex-wrap gap-2 mb-3">
             {pendingPhotos.map((photo) => (
               <div key={photo.id} className="relative group">
-                <img
+                <Image
                   src={photo.thumbnail}
                   alt="Pending photo"
+                  width={64}
+                  height={64}
+                  unoptimized
                   className="w-16 h-16 object-cover rounded-lg border border-primary"
                 />
                 <button

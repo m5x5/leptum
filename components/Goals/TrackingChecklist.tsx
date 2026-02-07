@@ -35,7 +35,7 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
   
   // Memoize options to prevent unnecessary re-renders
   // If routineName is provided, filter to show only the option matching that routine
-  const allOptions = config.options || [];
+  const allOptions = useMemo(() => config.options || [], [config.options]);
   const options = useMemo(() => {
     if (routineName && allOptions.length > 0) {
       // Find the option that matches the routine name (e.g., "Breakfast Reminder" -> "Breakfast")
@@ -78,7 +78,7 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
       }
     };
     loadRoutines();
-  }, [goal.id, optionsString]); // Use stringified options to avoid reference changes
+  }, [goal.id, optionsString, options]);
   
   // Memoize today's start/end times to prevent recalculation on every render
   const [todayBounds, setTodayBounds] = useState(() => {
@@ -154,7 +154,7 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
     });
     
     setCompletedItems(completed);
-  }, [todayCompletions, linkedRoutines, optionsString]); // Use stringified options
+  }, [todayCompletions, linkedRoutines, optionsString, options]);
   
   const toggleItem = async (item: string) => {
     if (linkedRoutines.length === 0) return;

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "./StandaloneTasksContext";
 import type { StandaloneTask } from "../utils/useStandaloneTasks";
@@ -115,7 +115,7 @@ export default function Home() {
 
   const currentActivity = useCurrentActivity();
 
-  const loadRoutines = async () => {
+  const loadRoutines = useCallback(async () => {
     try {
       const loadedRoutines = await remoteStorageClient.getRoutines();
       const list = (loadedRoutines as Routine[]).filter(r => r.cron).sort((a, b) => a.index - b.index);
@@ -123,7 +123,7 @@ export default function Home() {
     } catch (error) {
       console.error("Failed to load routines:", error);
     }
-  };
+  }, []);
 
   // Show Up: tick "showed up" for today. Fetches routine + completions in parallel.
   const initShowUpRoutineOnce = async () => {
@@ -189,7 +189,7 @@ export default function Home() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [loadRoutines, loadGoals, loadGoalTypes]);
 
   // When stats section (Today's Progress) is in view, load goals so we can show goal names
   useEffect(() => {
@@ -206,7 +206,7 @@ export default function Home() {
     );
     io.observe(el);
     return () => io.disconnect();
-  }, []);
+  }, [loadGoals, loadGoalTypes]);
 
   // Reload routines when goals are updated (for tracking widgets)
   useEffect(() => {
@@ -216,7 +216,7 @@ export default function Home() {
     };
     window.addEventListener('goalUpdated', handleGoalUpdate);
     return () => window.removeEventListener('goalUpdated', handleGoalUpdate);
-  }, []);
+  }, [loadRoutines]);
 
   // Listen for openTaskForm event from header button
   useEffect(() => {
@@ -497,7 +497,7 @@ export default function Home() {
 
       {goals && goals.length === 0 && (
         <p className="text-sm text-muted-foreground">
-          No goals available. <a href="/goals" className="text-primary hover:underline">Create goals</a> to track progress.
+          No goals available. <Link href="/goals" className="text-primary hover:underline">Create goals</Link> to track progress.
         </p>
       )}
 
@@ -1070,12 +1070,12 @@ export default function Home() {
                     <p className="text-sm text-muted-foreground mb-3">
                       {routines.length > 0 ? "No routines in the next 10 hours" : "No scheduled routines yet"}
                     </p>
-                    <a
+                    <Link
                       href="/routines"
                       className="text-sm text-primary hover:underline"
                     >
                       {routines.length > 0 ? "View all routines →" : "Create a routine →"}
-                    </a>
+                    </Link>
                   </div>
                 );
               })()}
@@ -1084,7 +1084,7 @@ export default function Home() {
             {/* Quick Stats (load today's time when this section is in view) */}
             <div ref={statsSectionRef} className="hidden md:block bg-card border border-border rounded-lg p-4">
               <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-foreground">Today's Progress</h3>
+                <h3 className="text-sm font-semibold text-foreground">Today&apos;s Progress</h3>
                 <Link href="/insights" className="text-xs text-primary hover:underline">
                   View all stats
                 </Link>
