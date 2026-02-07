@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Modal from ".";
 import { Input } from "../ui/input";
 import { RichTextEditor } from "../ui/rich-text-editor";
@@ -60,9 +60,10 @@ const AddGoalModal = ({
   const [selectedColor, setSelectedColor] = useState(initialColor);
   const [description, setDescription] = useState(initialDescription);
   const [targetDate, setTargetDate] = useState(dateToInputValue(initialTargetDate));
+  const baseDateRef = useRef(0);
   const [milestones, setMilestones] = useState<Array<{ name: string; order: number; targetDate?: number }>>(
     initialMilestones.map((m, idx) => {
-      const baseDate = initialTargetDate || Date.now();
+      const baseDate = initialTargetDate ?? 0;
       const targetDate = m.daysOffset ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000) : undefined;
       return {
         name: m.name,
@@ -71,6 +72,20 @@ const AddGoalModal = ({
       };
     })
   );
+  useEffect(() => {
+    if (baseDateRef.current === 0) {
+      baseDateRef.current = Date.now();
+      if (!initialTargetDate && initialMilestones.length > 0) {
+        queueMicrotask(() => {
+          setMilestones(initialMilestones.map((m, idx) => {
+            const baseDate = baseDateRef.current;
+            const targetDate = m.daysOffset ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000) : undefined;
+            return { name: m.name, order: m.order ?? idx, targetDate };
+          }));
+        });
+      }
+    }
+  }, [initialTargetDate, initialMilestones]);
   const [newMilestoneName, setNewMilestoneName] = useState("");
   const [showMilestones, setShowMilestones] = useState(initialMilestones.length > 0);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined);
@@ -81,17 +96,20 @@ const AddGoalModal = ({
     if (!isOpen) {
       // Reset step when modal closes
       const shouldShowChoice = !isEdit && !initialName && allTemplates.length > 0;
-      setStep(shouldShowChoice ? 'choice' : 'create-custom');
+      queueMicrotask(() => setStep(shouldShowChoice ? 'choice' : 'create-custom'));
       return;
     }
 
-    setGoalName(initialName);
-    setSelectedColor(initialColor);
-    setDescription(initialDescription);
-    setTargetDate(dateToInputValue(initialTargetDate));
+    queueMicrotask(() => {
+      setGoalName(initialName);
+      setSelectedColor(initialColor);
+      setDescription(initialDescription);
+      setTargetDate(dateToInputValue(initialTargetDate));
+    });
 
+    if (baseDateRef.current === 0) baseDateRef.current = Date.now();
+    const baseDate = initialTargetDate ?? baseDateRef.current;
     const milestonesData = initialMilestones.map((m, idx) => {
-      const baseDate = initialTargetDate || Date.now();
       const targetDate = m.daysOffset ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000) : undefined;
       return {
         name: m.name,
@@ -99,24 +117,20 @@ const AddGoalModal = ({
         targetDate
       };
     });
-    setMilestones(milestonesData);
-    setShowMilestones(initialMilestones.length > 0);
-
-    // Check if initialName matches a template with tracking (from template gallery or pre-selection)
-    if (initialName) {
-      const matchingTemplate = GOAL_TEMPLATES_WITH_TRACKING.find(t => t.name === initialName);
-      if (matchingTemplate) {
-        setSelectedTemplateId(matchingTemplate.id);
+    queueMicrotask(() => {
+      setMilestones(milestonesData);
+      setShowMilestones(initialMilestones.length > 0);
+      if (initialName) {
+        const matchingTemplate = GOAL_TEMPLATES_WITH_TRACKING.find(t => t.name === initialName);
+        setSelectedTemplateId(matchingTemplate ? matchingTemplate.id : undefined);
       } else {
         setSelectedTemplateId(undefined);
       }
-    } else {
-      setSelectedTemplateId(undefined);
-    }
+    });
 
     // Reset step when modal opens
     const shouldShowChoiceOnOpen = !isEdit && !initialName && allTemplates.length > 0;
-    setStep(shouldShowChoiceOnOpen ? 'choice' : 'create-custom');
+    queueMicrotask(() => setStep(shouldShowChoiceOnOpen ? 'choice' : 'create-custom'));
   }, [isOpen, isEdit, initialName, allTemplates.length, initialColor, initialDescription, initialMilestones, initialTargetDate]);
 
   function resetForm() {
@@ -154,7 +168,7 @@ const AddGoalModal = ({
     
     // Convert milestones if they exist
     if (template.milestones && template.milestones.length > 0) {
-      const baseDate = Date.now();
+      const baseDate = baseDateRef.current || 0;
       const milestonesData = template.milestones.map((m) => {
         const targetDate = m.daysOffset 
           ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000)

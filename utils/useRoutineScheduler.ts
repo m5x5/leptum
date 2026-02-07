@@ -17,73 +17,11 @@ export function useRoutineScheduler(
 ) {
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const optionsRef = useRef(options);
-  optionsRef.current = options;
+  const checkAndTriggerRoutinesRef = useRef<(now: number) => Promise<void>>(() => Promise.resolve());
 
   useEffect(() => {
-    checkAndTriggerRoutines();
-
-    intervalRef.current = setInterval(() => {
-      checkAndTriggerRoutines();
-    }, CHECK_INTERVAL);
-
-    return () => {
-      if (intervalRef.current) {
-        clearInterval(intervalRef.current);
-      }
-    };
-  }, []);
-
-  const checkAndTriggerRoutines = async () => {
-    try {
-      const opts = optionsRef.current;
-      const now = Date.now();
-      const lastCheck = parseInt(localStorage.getItem(ROUTINE_CHECK_KEY) || '0', 10);
-
-      let routines: Routine[];
-      let existingTasks: any[];
-
-      if (opts?.currentTasks !== undefined && !opts?.tasksLoading) {
-        existingTasks = opts.currentTasks;
-        routines = await remoteStorageClient.getRoutines() as Routine[];
-      } else {
-        [routines, existingTasks] = await Promise.all([
-          remoteStorageClient.getRoutines() as Promise<Routine[]>,
-          remoteStorageClient.getStandaloneTasks()
-        ]);
-      }
-
-      const today = new Date(now);
-      today.setHours(0, 0, 0, 0);
-      const todayStart = today.getTime();
-
-      for (const routine of routines) {
-        if (!routine.cron || !routine.tasks || routine.tasks.length === 0) {
-          continue;
-        }
-
-        const hasTasksToday = routine.tasks.some(task =>
-          existingTasks.some((t: any) =>
-            t.routineId === routine.id &&
-            t.name === task.name &&
-            t.status === 'due' &&
-            t.createdAt >= todayStart
-          )
-        );
-
-        if (hasTasksToday) {
-          continue;
-        }
-
-        if (shouldTrigger(routine.cron, lastCheck, now)) {
-          await triggerRoutine(routine, existingTasks);
-        }
-      }
-
-      localStorage.setItem(ROUTINE_CHECK_KEY, now.toString());
-    } catch (error) {
-      console.error('Failed to check routines:', error);
-    }
-  };
+    optionsRef.current = options;
+  });
 
   const shouldTrigger = (
     cronExpression: string, 
@@ -169,4 +107,73 @@ export function useRoutineScheduler(
       console.error('Failed to trigger routine:', routine.name, error);
     }
   };
+
+  const checkAndTriggerRoutines = async (now: number) => {
+    try {
+      const opts = optionsRef.current;
+      const lastCheck = parseInt(localStorage.getItem(ROUTINE_CHECK_KEY) || '0', 10);
+
+      let routines: Routine[];
+      let existingTasks: any[];
+
+      if (opts?.currentTasks !== undefined && !opts?.tasksLoading) {
+        existingTasks = opts.currentTasks;
+        routines = await remoteStorageClient.getRoutines() as Routine[];
+      } else {
+        [routines, existingTasks] = await Promise.all([
+          remoteStorageClient.getRoutines() as Promise<Routine[]>,
+          remoteStorageClient.getStandaloneTasks()
+        ]);
+      }
+
+      const today = new Date(now);
+      today.setHours(0, 0, 0, 0);
+      const todayStart = today.getTime();
+
+      for (const routine of routines) {
+        if (!routine.cron || !routine.tasks || routine.tasks.length === 0) {
+          continue;
+        }
+
+        const hasTasksToday = routine.tasks.some(task =>
+          existingTasks.some((t: any) =>
+            t.routineId === routine.id &&
+            t.name === task.name &&
+            t.status === 'due' &&
+            t.createdAt >= todayStart
+          )
+        );
+
+        if (hasTasksToday) {
+          continue;
+        }
+
+        if (shouldTrigger(routine.cron, lastCheck, now)) {
+          await triggerRoutine(routine, existingTasks);
+        }
+      }
+
+      localStorage.setItem(ROUTINE_CHECK_KEY, now.toString());
+    } catch (error) {
+      console.error('Failed to check routines:', error);
+    }
+  };
+
+  useEffect(() => {
+    checkAndTriggerRoutinesRef.current = checkAndTriggerRoutines;
+  });
+
+  useEffect(() => {
+    queueMicrotask(() => checkAndTriggerRoutinesRef.current(Date.now()));
+
+    intervalRef.current = setInterval(() => {
+      checkAndTriggerRoutinesRef.current(Date.now());
+    }, CHECK_INTERVAL);
+
+    return () => {
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, []);
 }

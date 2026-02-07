@@ -111,6 +111,29 @@ export default function TimelinePage() {
     time: string;
   } | null>(null);
 
+  // Helpers for add-activity (used in effect and handlers below)
+  const getLocalDateTimeStrings = useCallback((timestamp: number) => {
+    const date = new Date(timestamp);
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    const hours = String(date.getHours()).padStart(2, '0');
+    const minutes = String(date.getMinutes()).padStart(2, '0');
+    return {
+      dateStr: `${year}-${month}-${day}`,
+      timeStr: `${hours}:${minutes}`
+    };
+  }, []);
+  const roundToNearest15Minutes = useCallback((timestamp: number): number => {
+    const date = new Date(timestamp);
+    const minutes = date.getMinutes();
+    const roundedMinutes = Math.round(minutes / 15) * 15;
+    date.setMinutes(roundedMinutes);
+    date.setSeconds(0);
+    date.setMilliseconds(0);
+    return date.getTime();
+  }, []);
+
   // Effect to close detail views when clicking outside
   useEffect(() => {
     const handleDocumentClick = () => {
@@ -144,7 +167,7 @@ export default function TimelinePage() {
     return () => {
       window.removeEventListener('openAddActivity', handleOpenAddActivity);
     };
-  }, []);
+  }, [getLocalDateTimeStrings, roundToNearest15Minutes]);
 
   // Pagination state
   const [daysToShow, setDaysToShow] = useState(3);
@@ -432,21 +455,6 @@ export default function TimelinePage() {
     return `${year}-${month}-${day}`;
   };
 
-  // Extract date and time strings in local time (not UTC) for form inputs
-  const getLocalDateTimeStrings = (timestamp: number) => {
-    const date = new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
-    const hours = String(date.getHours()).padStart(2, '0');
-    const minutes = String(date.getMinutes()).padStart(2, '0');
-    return {
-      dateStr: `${year}-${month}-${day}`,
-      timeStr: `${hours}:${minutes}`
-    };
-  };
-
-
   const getDuration = (startTime: number, endTime: number) => {
     const durationMs = endTime - startTime;
     const hours = Math.floor(durationMs / (1000 * 60 * 60));
@@ -616,7 +624,7 @@ export default function TimelinePage() {
 
     // Set initial active date to the first (most recent) date
     if (!activeDateKey && dates.length > 0) {
-      setActiveDateKey(dates[0]);
+      queueMicrotask(() => setActiveDateKey(dates[0]));
     }
 
     const observer = new IntersectionObserver(
@@ -662,8 +670,7 @@ export default function TimelinePage() {
     };
   }, [dates, viewMode, activeDateKey]);
 
-  const AWEventDetailContent = ({ event, onCreateManualEntry, onClose }: { event: ProcessedAWEvent, onCreateManualEntry?: (event: ProcessedAWEvent) => void, onClose: () => void }) => {
-    return (
+  const renderAWEventDetailContent = ({ event, onCreateManualEntry, onClose }: { event: ProcessedAWEvent, onCreateManualEntry?: (event: ProcessedAWEvent) => void, onClose: () => void }) => (
       <div className="space-y-4 mt-4">
         {/* Header Info */}
         <div className="flex items-center gap-3 p-3 bg-muted rounded-lg">
@@ -725,8 +732,7 @@ export default function TimelinePage() {
           </button>
         </div>
       </div>
-    );
-  };
+  );
 
   const getActivityColor = (impact: Impact) => {
     // If the activity is associated with a goal, use the goal's color
@@ -748,19 +754,6 @@ export default function TimelinePage() {
       return `${hours}h ${minutes}m`;
     }
     return `${minutes}m`;
-  };
-
-  // Round timestamp to nearest 15-minute boundary
-  const roundToNearest15Minutes = (timestamp: number): number => {
-    const date = new Date(timestamp);
-    const minutes = date.getMinutes();
-    const roundedMinutes = Math.round(minutes / 15) * 15;
-
-    date.setMinutes(roundedMinutes);
-    date.setSeconds(0);
-    date.setMilliseconds(0);
-
-    return date.getTime();
   };
 
   // Handle add activity for a specific date
@@ -2160,13 +2153,11 @@ export default function TimelinePage() {
         >
           <Modal.Title>ActivityWatch Event Details</Modal.Title>
           <Modal.Body>
-            {selectedAWEvent && (
-              <AWEventDetailContent
-                event={selectedAWEvent}
-                onCreateManualEntry={handleCreateManualEntry}
-                onClose={() => setShowAWDetailModal(false)}
-              />
-            )}
+            {selectedAWEvent && renderAWEventDetailContent({
+              event: selectedAWEvent,
+              onCreateManualEntry: handleCreateManualEntry,
+              onClose: () => setShowAWDetailModal(false)
+            })}
           </Modal.Body>
         </Modal>
 
@@ -2222,13 +2213,11 @@ export default function TimelinePage() {
               <DrawerTitle>ActivityWatch Event Details</DrawerTitle>
             </DrawerHeader>
             <div className="px-4 pb-8 overflow-y-auto">
-              {selectedAWEvent && (
-                <AWEventDetailContent
-                  event={selectedAWEvent}
-                  onCreateManualEntry={handleCreateManualEntry}
-                  onClose={() => setShowMobileAWDetailDrawer(false)}
-                />
-              )}
+              {selectedAWEvent && renderAWEventDetailContent({
+                event: selectedAWEvent,
+                onCreateManualEntry: handleCreateManualEntry,
+                onClose: () => setShowMobileAWDetailDrawer(false)
+              })}
             </div>
           </DrawerContent>
         </Drawer>

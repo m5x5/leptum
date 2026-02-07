@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { Impact } from '../../utils/timeCalculations';
 
 interface DailyActivityBarProps {
@@ -19,12 +19,20 @@ interface ActivitySegment {
 }
 
 export function DailyActivityBar({ dateKey, impacts, goals }: DailyActivityBarProps) {
+  const [now, setNow] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(id);
+  }, []);
+
   const segments = useMemo(() => {
     // Filter impacts for this specific day
     const [year, month, day] = dateKey.split('-').map(Number);
     const dayStart = new Date(year, month - 1, day).getTime();
     const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
     const fullDayInMs = dayEnd - dayStart;
+    const nowDate = now ? new Date(now) : new Date(0);
+    const todayKey = `${nowDate.getFullYear()}-${String(nowDate.getMonth() + 1).padStart(2, '0')}-${String(nowDate.getDate()).padStart(2, '0')}`;
 
     // Sort all impacts chronologically first
     const sortedImpacts = [...impacts].sort((a, b) => a.date - b.date);
@@ -50,10 +58,9 @@ export function DailyActivityBar({ dateKey, impacts, goals }: DailyActivityBarPr
         if (!nextImpact) {
           // Last activity - check if it's today and ongoing
           const impactDateKey = `${impactDate.getFullYear()}-${String(impactDate.getMonth() + 1).padStart(2, '0')}-${String(impactDate.getDate()).padStart(2, '0')}`;
-          const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
           
           if (impactDateKey === todayKey) {
-            endTime = Date.now();
+            endTime = now || dayEnd;
           } else {
             const dayEndOfImpact = new Date(impact.date);
             dayEndOfImpact.setHours(23, 59, 59, 999);
@@ -128,18 +135,16 @@ export function DailyActivityBar({ dateKey, impacts, goals }: DailyActivityBarPr
             endTime = Math.min(nextAfterOriginal.date, dayEnd);
           } else {
             // Original activity is still ongoing - check if today
-            const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
             if (dateKey === todayKey) {
-              endTime = Date.now();
+              endTime = now || dayEnd;
             } else {
               endTime = dayEnd;
             }
           }
         } else {
           // Regular activity - use end of day or current time if today
-          const todayKey = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
           if (dateKey === todayKey) {
-            endTime = Math.min(Date.now(), dayEnd);
+            endTime = Math.min(now || dayEnd, dayEnd);
           } else {
             endTime = dayEnd;
           }
@@ -168,7 +173,7 @@ export function DailyActivityBar({ dateKey, impacts, goals }: DailyActivityBarPr
     }
 
     return segments;
-  }, [dateKey, impacts, goals]);
+  }, [dateKey, impacts, goals, now]);
 
   if (segments.length === 0) return null;
 

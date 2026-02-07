@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "./StandaloneTasksContext";
 import type { StandaloneTask } from "../utils/useStandaloneTasks";
@@ -35,6 +35,7 @@ import { HighlightedMentions } from "../components/ui/mention-input";
 import OnboardingModal from "../components/Modal/OnboardingModal";
 import QuickCapture from "../components/QuickCapture/QuickCapture";
 import { useCurrentActivity } from "../components/CurrentActivityContext";
+import { getCurrentTime } from "../utils/now";
 import { v4 as uuidv4 } from "uuid";
 
 // Format duration in human readable form
@@ -54,7 +55,7 @@ function formatDurationStatic(ms: number) {
 
 // Self-contained timer component to avoid re-rendering the entire page every second
 function LiveDuration({ baseMs = 0, startTime }: { baseMs?: number; startTime?: number }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!startTime) return; // No interval needed if no live tracking
@@ -103,6 +104,7 @@ export default function Home() {
   const [archivedBucketIds, setArchivedBucketIds] = useState<string[]>([]);
   const [loadedArchiveBuckets, setLoadedArchiveBuckets] = useState(0);
   const [editingTask, setEditingTask] = useState<StandaloneTask | null>(null);
+  const [nowForFilter, setNowForFilter] = useState(0);
 
   // Use refs for form inputs instead of state for better performance
   const taskNameRef = useRef<HTMLInputElement>(null);
@@ -114,6 +116,12 @@ export default function Home() {
   const statsSectionRef = useRef<HTMLDivElement>(null);
 
   const currentActivity = useCurrentActivity();
+
+  useEffect(() => {
+    queueMicrotask(() => setNowForFilter(Date.now()));
+    const id = setInterval(() => setNowForFilter(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   const loadRoutines = useCallback(async () => {
     try {
@@ -277,13 +285,13 @@ export default function Home() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     if (localStorage.getItem("leptum_onboarding_completed")) {
-      setShowOnboarding(false);
+      queueMicrotask(() => setShowOnboarding(false));
       return;
     }
     if (!tasksLoading && standaloneTasks.length === 0) {
-      setShowOnboarding(true);
+      queueMicrotask(() => setShowOnboarding(true));
     } else {
-      setShowOnboarding(false);
+      queueMicrotask(() => setShowOnboarding(false));
     }
   }, [tasksLoading, standaloneTasks.length]);
 
@@ -382,21 +390,23 @@ export default function Home() {
     }
   };
 
-  const startTask = async (taskName: string, goalId?: string) => {
+  const startTask = async (taskName: string, goalId?: string, timestamp?: number) => {
     // Stop previous task if any
     if (activeTask) {
       await stopTask();
     }
 
+    const now = timestamp ?? getCurrentTime();
+
     setActiveTask(taskName);
-    setActiveTaskStartTime(Date.now());
+    setActiveTaskStartTime(now);
 
     // Log to impacts
     try {
       const impacts = await remoteStorageClient.getImpacts();
       const newImpact: any = {
         activity: taskName,
-        date: Date.now()
+        date: now
       };
       if (goalId) {
         newImpact.goalId = goalId;
@@ -454,7 +464,7 @@ export default function Home() {
     }
   };
 
-  const StartTaskForm = ({ onCancel }: { onCancel: () => void }) => (
+  const renderStartTaskForm = (onCancel: () => void) => (
     <form onSubmit={handleStartTask} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-foreground mb-2">
@@ -655,7 +665,21 @@ export default function Home() {
     setShowOnboarding(false);
   };
 
-  const TaskForm = () => (
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Escape') {
+      setEditingTask(null);
+      setShowTaskForm(false);
+      setShowMobileTaskDrawer(false);
+      // Clear the refs
+      if (taskNameRef.current) taskNameRef.current.value = "";
+      if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
+      if (taskEffortRef.current) taskEffortRef.current.value = "";
+      if (taskNumericEstimateRef.current) taskNumericEstimateRef.current.value = "";
+    }
+    // Enter key is now handled by form submit
+  };
+
+  const taskFormContent = (
     <form onSubmit={handleCreateTask} className="pt-2 space-y-3">
       <div>
         <label htmlFor="task-name" className="block text-sm font-medium text-foreground mb-2">
@@ -724,21 +748,7 @@ export default function Home() {
     </form>
   );
 
-  const handleKeyDown = (e: React.KeyboardEvent) => {
-    if (e.key === 'Escape') {
-      setEditingTask(null);
-      setShowTaskForm(false);
-      setShowMobileTaskDrawer(false);
-      // Clear the refs
-      if (taskNameRef.current) taskNameRef.current.value = "";
-      if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
-      if (taskEffortRef.current) taskEffortRef.current.value = "";
-      if (taskNumericEstimateRef.current) taskNumericEstimateRef.current.value = "";
-    }
-    // Enter key is now handled by form submit
-  };
-
-  const twoWeeksAgo = Date.now() - (14 * 24 * 60 * 60 * 1000);
+  const twoWeeksAgo = nowForFilter - (14 * 24 * 60 * 60 * 1000);
   const activeTasks = standaloneTasks.filter(task =>
     task.status !== 'completed' && task.createdAt > twoWeeksAgo
   );
@@ -865,7 +875,7 @@ export default function Home() {
             <div className="relative overflow-visible">
               {showTaskForm ? (
                 <div className="mb-4">
-                  <TaskForm />
+                  {taskFormContent}
                 </div>
               ) : (
                 <>
@@ -984,7 +994,7 @@ export default function Home() {
               {(() => {
                 // Filter routines to only show those within the next 10 hours
                 // Exclude the Show Up routine since it auto-completes
-                const tenHoursFromNow = Date.now() + (10 * 60 * 60 * 1000);
+                const tenHoursFromNow = nowForFilter + (10 * 60 * 60 * 1000);
                 const upcomingRoutines = routines
                   .filter(routine => {
                     if (routine.isShowUpRoutine) return false;
@@ -1167,7 +1177,7 @@ export default function Home() {
         <Modal.Title>Start Activity</Modal.Title>
         <Modal.Body>
           <div className="mt-4">
-            <StartTaskForm onCancel={() => setShowStartTaskModal(false)} />
+            {renderStartTaskForm(() => setShowStartTaskModal(false))}
           </div>
         </Modal.Body>
       </Modal>
@@ -1178,7 +1188,7 @@ export default function Home() {
             <DrawerTitle>Start Activity</DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-8">
-            <StartTaskForm onCancel={() => setShowMobileStartTaskDrawer(false)} />
+            {renderStartTaskForm(() => setShowMobileStartTaskDrawer(false))}
           </div>
         </DrawerContent>
       </Drawer>
@@ -1291,7 +1301,7 @@ export default function Home() {
               </DrawerClose>
             </DrawerHeader>
             <div className="px-4 pb-8">
-              <TaskForm />
+              {taskFormContent}
             </div>
           </DrawerContent>
         </Drawer>

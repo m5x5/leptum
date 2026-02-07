@@ -97,7 +97,7 @@ export function useStandaloneTasks() {
       console.error('Failed to update standalone task:', error);
       throw error;
     }
-  }, [tasks]);
+  }, []);
 
   // Delete a task
   const deleteTask = useCallback(async (taskId: string) => {

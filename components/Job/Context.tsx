@@ -78,13 +78,6 @@ export function JobContextProvider({ children }: Props) {
   const job = selected ? jobs.find((job) => job.cron === selected) || null : null;
   const jobIndex = selected ? jobs.findIndex((job) => job.cron === selected) : -1;
 
-  const setJobCallback = (jobs: DbJob[]) => {
-    setJobs([...jobs]);
-    saveJobs([...jobs]);
-  };
-  const setJobCallbackRef = useRef(setJobCallback);
-  setJobCallbackRef.current = setJobCallback;
-
   const saveJobs = async (jobs: DbJob[]) => {
     if (typeof window === "undefined") return;
     // Save all jobs to RemoteStorage
@@ -92,11 +85,20 @@ export function JobContextProvider({ children }: Props) {
       await remoteStorageClient.saveJob(job);
     }
   };
+  const setJobCallback = (jobs: DbJob[]) => {
+    setJobs([...jobs]);
+    saveJobs([...jobs]);
+  };
+  const setJobCallbackRef = useRef(setJobCallback);
+  useEffect(() => {
+    setJobCallbackRef.current = setJobCallback;
+  });
 
   const updateJob = (updated: DbJob) => {
     if (!job || jobIndex === -1) return;
-    jobs[jobIndex] = {...job, ...updated};
-    setJobCallback(jobs);
+    const next = jobs.slice();
+    next[jobIndex] = {...job, ...updated};
+    setJobCallback(next);
   };
 
   const deleteJob = (cron: string) => {

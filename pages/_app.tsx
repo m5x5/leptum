@@ -37,7 +37,7 @@ function formatDurationStatic(ms: number) {
 
 // Self-contained timer component to avoid re-rendering the entire page every second
 function LiveDuration({ baseMs = 0, startTime }: { baseMs?: number; startTime?: number }) {
-  const [now, setNow] = useState(Date.now());
+  const [now, setNow] = useState(() => Date.now());
 
   useEffect(() => {
     if (!startTime) return; // No interval needed if no live tracking
@@ -105,16 +105,16 @@ function MyApp({ Component, pageProps }: AppProps) {
   }, [activePath]);
 
   useEffect(() => {
-    setMounted(true);
+    queueMicrotask(() => setMounted(true));
     const initialPath = router.asPath.split('?')[0].split('#')[0];
-    setCache(prev => ({
+    queueMicrotask(() => setCache(prev => ({
       ...prev,
       [initialPath]: { Component, props: pageProps }
-    }));
+    })));
 
     // Initialize KeyUX for keyboard shortcuts
     if (typeof window !== 'undefined') {
-      setShowKeyboardHints(likelyWithKeyboard(window));
+      queueMicrotask(() => setShowKeyboardHints(likelyWithKeyboard(window)));
       const stopKeyUX = startKeyUX(window, [
         hotkeyKeyUX(),
         pressKeyUX('is-pressed')
@@ -131,14 +131,14 @@ function MyApp({ Component, pageProps }: AppProps) {
 
     const newPath = router.asPath.split('?')[0].split('#')[0];
     const newHash = router.asPath.split('#')[1] || '';
-    setActiveHash(newHash);
-    
+    queueMicrotask(() => setActiveHash(newHash));
+
     if (newPath === activePath) {
       // Just update props for current page
-      setCache(prev => ({
+      queueMicrotask(() => setCache(prev => ({
         ...prev,
         [newPath]: { Component, props: pageProps }
-      }));
+      })));
       return;
     }
 

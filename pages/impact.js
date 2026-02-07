@@ -1,6 +1,6 @@
 import { PlusIcon } from "@heroicons/react/solid";
 import Head from "next/head";
-import { useEffect, useState, useMemo, useRef } from "react";
+import { useCallback, useEffect, useState, useMemo, useRef } from "react";
 import ActivitySelector from "../components/ActivitySelector";
 import ImpactCard from "../components/ImpactCard";
 import SummaryChart from "../components/SummaryChart";
@@ -33,6 +33,7 @@ import { Textarea } from "../components/ui/textarea";
 import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../components/ui/mention-input";
 import { useMentions } from "../utils/useMentions";
 import EmotionSelector, { Emotion } from "../components/ui/emotion-selector";
+import { getCurrentTime, getRandomId } from "../utils/now";
 
 // Configuration for impact metrics
 const METRIC_CONFIG = {
@@ -106,9 +107,16 @@ export default function ImpactPage() {
   const [patternNoteText, setPatternNoteText] = useState("");
   const [showDeleteThoughtConfirm, setShowDeleteThoughtConfirm] = useState(false);
   const [thoughtToDelete, setThoughtToDelete] = useState(null);
+  const [nowForFilter, setNowForFilter] = useState(0);
 
   const openQuickLogModalRef = useRef(() => {});
   const openAddInsightModalRef = useRef(() => {});
+
+  useEffect(() => {
+    queueMicrotask(() => setNowForFilter(Date.now()));
+    const id = setInterval(() => setNowForFilter(Date.now()), 60000);
+    return () => clearInterval(id);
+  }, []);
 
   // Listen for openAddLog and openAddInsight events from header button
   useEffect(() => {
@@ -129,7 +137,7 @@ export default function ImpactPage() {
   useEffect(() => {
     if (state.impacts && state.impacts.length >= 2) {
       const patterns = analyzeActivityPatterns(state.impacts);
-      setActivityPatterns(patterns);
+      queueMicrotask(() => setActivityPatterns(patterns));
     }
   }, [state.impacts]);
 
@@ -217,7 +225,7 @@ export default function ImpactPage() {
 
     // Check URL hash to set active tab
     if (window.location.hash === '#insights') {
-      setActiveTab('insights');
+      queueMicrotask(() => setActiveTab('insights'));
     }
   }, []);
 
@@ -283,7 +291,7 @@ export default function ImpactPage() {
     setState(newState);
   };
 
-  const openQuickLogModal = () => {
+  const openQuickLogModal = useCallback(() => {
     // Get the last entry's values as placeholders
     const lastEntry = state.impacts[state.impacts.length - 1] || {};
     const placeholderValues = selectedLines.reduce((acc, line) => {
@@ -307,14 +315,17 @@ export default function ImpactPage() {
     } else {
       setShowQuickLogModal(true);
     }
-  };
-  openQuickLogModalRef.current = openQuickLogModal;
+  }, [state.impacts, selectedLines]);
+
+  useEffect(() => {
+    openQuickLogModalRef.current = openQuickLogModal;
+  }, [openQuickLogModal]);
 
   const saveQuickLog = async () => {
     const newState = { ...state };
     // Add a new entry with the logged data
-    const now = new Date();
-    const timestamp = Date.now();
+    const timestamp = getCurrentTime();
+    const now = new Date(timestamp);
     const defaultActivity = tempLogData.activity ||
       `Now - ${now.toLocaleDateString()} ${now.toLocaleTimeString()}`;
 
@@ -337,7 +348,7 @@ export default function ImpactPage() {
     }
 
     // Generate unique ID for the impact
-    const impactId = `impact-${timestamp}-${Math.random().toString(36).substr(2, 9)}`;
+    const impactId = `impact-${timestamp}-${getRandomId()}`;
 
     const newEntry = {
       id: impactId,
@@ -467,8 +478,7 @@ export default function ImpactPage() {
   };
 
   const getFilteredImpacts = () => {
-    const now = Date.now();
-    const todayStart = new Date();
+    const todayStart = new Date(nowForFilter || undefined);
     todayStart.setHours(0, 0, 0, 0);
 
     // Check if dateFilter is a specific date (YYYY-MM-DD format)
@@ -483,15 +493,15 @@ export default function ImpactPage() {
       case "day":
         return state.impacts.filter(impact => impact.date >= todayStart.getTime());
       case "week":
-        const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+        const weekAgo = new Date((nowForFilter || 0) - 7 * 24 * 60 * 60 * 1000);
         weekAgo.setHours(0, 0, 0, 0);
         return state.impacts.filter(impact => impact.date >= weekAgo.getTime());
       case "month":
-        const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+        const monthAgo = new Date((nowForFilter || 0) - 30 * 24 * 60 * 60 * 1000);
         monthAgo.setHours(0, 0, 0, 0);
         return state.impacts.filter(impact => impact.date >= monthAgo.getTime());
       case "year":
-        const yearAgo = new Date(now - 365 * 24 * 60 * 60 * 1000);
+        const yearAgo = new Date((nowForFilter || 0) - 365 * 24 * 60 * 60 * 1000);
         yearAgo.setHours(0, 0, 0, 0);
         return state.impacts.filter(impact => impact.date >= yearAgo.getTime());
       case "all":
@@ -506,7 +516,7 @@ export default function ImpactPage() {
   const allDates = [...new Set(state.impacts.map(impact => formatDateKey(impact.date)))].sort().reverse();
 
   // Insights management functions
-  const openAddInsightModal = () => {
+  const openAddInsightModal = useCallback(() => {
     setEditingInsight(null);
     setInsightFormData({
       name: '',
@@ -519,8 +529,11 @@ export default function ImpactPage() {
     } else {
       setShowInsightModal(true);
     }
-  };
-  openAddInsightModalRef.current = openAddInsightModal;
+  }, []);
+
+  useEffect(() => {
+    openAddInsightModalRef.current = openAddInsightModal;
+  }, [openAddInsightModal]);
 
   const openEditInsightModal = (insight) => {
     setEditingInsight(insight);
@@ -620,7 +633,7 @@ export default function ImpactPage() {
     return effect === 'positive' ? ' ↑' : ' ↓';
   };
 
-  const QuickLogForm = ({ onSave, onCancel }) => (
+  const renderQuickLogForm = (onSave, onCancel) => (
     <div className="space-y-4 mt-4">
       {/* Activity Name Input */}
       <div>
@@ -700,7 +713,7 @@ export default function ImpactPage() {
     </div>
   );
 
-  const InsightForm = ({ onSave, onCancel }) => (
+  const renderInsightForm = (onSave, onCancel) => (
     <div className="space-y-4 mt-4">
       <div>
         <label className="block text-sm font-medium text-foreground mb-2">
@@ -847,10 +860,7 @@ export default function ImpactPage() {
       >
         <Modal.Title>Quick Log</Modal.Title>
         <Modal.Body>
-          <QuickLogForm 
-            onSave={saveQuickLog} 
-            onCancel={() => setShowQuickLogModal(false)} 
-          />
+          {renderQuickLogForm(saveQuickLog, () => setShowQuickLogModal(false))}
         </Modal.Body>
       </Modal>
 
@@ -860,10 +870,7 @@ export default function ImpactPage() {
             <DrawerTitle>Quick Log</DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-8 overflow-y-auto">
-            <QuickLogForm 
-              onSave={saveQuickLog} 
-              onCancel={() => setShowMobileQuickLogDrawer(false)} 
-            />
+            {renderQuickLogForm(saveQuickLog, () => setShowMobileQuickLogDrawer(false))}
           </div>
         </DrawerContent>
       </Drawer>
@@ -1024,7 +1031,6 @@ export default function ImpactPage() {
       {filteredImpacts.length > 0 && (
         <SummaryChart
           impacts={filteredImpacts}
-          activities={state.activities}
           selectedLines={selectedLines}
           dateFilter={dateFilter}
           currentActivityTimestamp={state.impacts[activityIndex]?.date}
@@ -1069,12 +1075,11 @@ export default function ImpactPage() {
           {/* Recent Entries from Previous Days */}
           {(() => {
             // Get entries from previous days (excluding current filter period)
-            const now = Date.now();
-            const todayStart = new Date();
+            const todayStart = new Date(nowForFilter || undefined);
             todayStart.setHours(0, 0, 0, 0);
-            
+
             let recentImpacts = [];
-            
+
             if (dateFilter === 'day') {
               // Show last 5 days excluding today
               recentImpacts = state.impacts
@@ -1083,7 +1088,7 @@ export default function ImpactPage() {
                 .slice(0, 5);
             } else if (dateFilter === 'week') {
               // Show entries from before this week
-              const weekAgo = new Date(now - 7 * 24 * 60 * 60 * 1000);
+              const weekAgo = new Date((nowForFilter || 0) - 7 * 24 * 60 * 60 * 1000);
               weekAgo.setHours(0, 0, 0, 0);
               recentImpacts = state.impacts
                 .filter(impact => impact.date < weekAgo.getTime())
@@ -1091,7 +1096,7 @@ export default function ImpactPage() {
                 .slice(0, 5);
             } else if (dateFilter === 'month') {
               // Show entries from before this month
-              const monthAgo = new Date(now - 30 * 24 * 60 * 60 * 1000);
+              const monthAgo = new Date((nowForFilter || 0) - 30 * 24 * 60 * 60 * 1000);
               monthAgo.setHours(0, 0, 0, 0);
               recentImpacts = state.impacts
                 .filter(impact => impact.date < monthAgo.getTime())
@@ -1637,10 +1642,7 @@ export default function ImpactPage() {
           {editingInsight ? 'Edit Insight' : 'Add Insight'}
         </Modal.Title>
         <Modal.Body>
-          <InsightForm 
-            onSave={handleSaveInsight} 
-            onCancel={() => setShowInsightModal(false)} 
-          />
+          {renderInsightForm(handleSaveInsight, () => setShowInsightModal(false))}
         </Modal.Body>
       </Modal>
 
@@ -1650,10 +1652,7 @@ export default function ImpactPage() {
             <DrawerTitle>{editingInsight ? 'Edit Insight' : 'Add Insight'}</DrawerTitle>
           </DrawerHeader>
           <div className="px-4 pb-8 overflow-y-auto">
-            <InsightForm
-              onSave={handleSaveInsight}
-              onCancel={() => setShowMobileInsightDrawer(false)}
-            />
+            {renderInsightForm(handleSaveInsight, () => setShowMobileInsightDrawer(false))}
           </div>
         </DrawerContent>
       </Drawer>
