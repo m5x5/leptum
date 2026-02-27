@@ -2,7 +2,7 @@ import { useState } from "react";
 import Modal from ".";
 import { Input } from "../ui/input";
 import { RichTextEditor } from "../ui/rich-text-editor";
-import { v4 as uuidv4 } from "uuid";
+
 
 interface OnboardingModalProps {
   isOpen: boolean;

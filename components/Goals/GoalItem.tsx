@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { TrashIcon, ChevronDownIcon, ChevronUpIcon, CheckIcon } from '@heroicons/react/outline';
+import { TrashIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/outline';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import type { PluggableList } from 'unified';
@@ -7,13 +7,12 @@ import { Goal, GoalMilestone } from '../../utils/useGoals';
 import { DeadlineIndicator } from './DeadlineIndicator';
 import { MilestoneList } from './MilestoneList';
 import { getMilestoneProgress } from '../../utils/deadlineUtils';
-import { GoalTrackingWidget } from './GoalTrackingWidget';
+
 
 interface GoalItemProps {
   goal: Goal;
   onDelete: (id: string) => void;
   onEdit: (id: string, goal: Goal) => void;
-  onComplete: (id: string) => void;
   onAddMilestone: (goalId: string, milestone: Omit<GoalMilestone, 'id' | 'order'>) => void;
   onUpdateMilestone: (goalId: string, milestoneId: string, updates: Partial<GoalMilestone>) => void;
   onDeleteMilestone: (goalId: string, milestoneId: string) => void;
@@ -25,7 +24,6 @@ export function GoalItem({
   goal,
   onDelete,
   onEdit,
-  onComplete,
   onAddMilestone,
   onUpdateMilestone,
   onDeleteMilestone,
@@ -35,26 +33,11 @@ export function GoalItem({
   const [isExpanded, setIsExpanded] = useState(false);
   const hasMilestones = goal.milestones && goal.milestones.length > 0;
   const progress = getMilestoneProgress(goal.milestones);
-  const isCompleted = goal.status === 'completed';
 
   return (
-    <div className={`bg-card border border-border rounded-xl overflow-hidden ${isCompleted ? 'opacity-60' : ''}`}>
+    <div className="bg-card border border-border rounded-xl overflow-hidden">
       {/* Main content row */}
       <div className="p-3 flex items-center gap-3">
-        {/* Completion checkbox */}
-        <button
-          onClick={() => !isCompleted && onComplete(goal.id)}
-          disabled={isCompleted}
-          className={`flex-shrink-0 w-5 h-5 rounded-full border-2 flex items-center justify-center transition-colors ${
-            isCompleted
-              ? 'bg-primary border-primary text-primary-foreground'
-              : 'border-muted-foreground hover:border-primary cursor-pointer'
-          }`}
-          title={isCompleted ? 'Completed' : 'Mark as complete'}
-        >
-          {isCompleted && <CheckIcon className="w-3 h-3" />}
-        </button>
-
         {/* Color indicator */}
         {goal.color && (
           <div className={`w-3 h-3 rounded-full ${goal.color} flex-shrink-0`}></div>
@@ -66,10 +49,10 @@ export function GoalItem({
           onClick={() => onEdit(goal.id, goal)}
         >
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className={`text-lg font-bold text-foreground hover:text-primary transition ${isCompleted ? 'line-through' : ''}`}>
+            <h3 className="text-lg font-bold text-foreground hover:text-primary transition">
               {goal.name}
             </h3>
-            {!isCompleted && goal.targetDate && (
+            {goal.targetDate && (
               <DeadlineIndicator targetDate={goal.targetDate} compact />
             )}
           </div>
@@ -82,15 +65,16 @@ export function GoalItem({
                 rehypePlugins={[rehypeRaw] as PluggableList}
                 components={{
                   p: ({ children }) => <span className="inline">{children}</span>,
-                  a: ({ node, href, children, ...props }) => {
+                  a: ({ node, href, children }) => {
                     // Get href from node properties if href prop is missing or modified
                     // Try multiple sources to get the original URL, including accessing raw data
-                    const nodeProps = node?.properties as any;
+                    const nodeProps = node?.properties as Record<string, unknown>;
                     // Check the raw markdown AST for the original URL
-                    const rawHref = (node as any)?.data?.hProperties?.href || 
-                                   (node as any)?.data?.hProperties?.url ||
-                                   nodeProps?.href || 
-                                   nodeProps?.url || 
+                    const nodeData = (node as unknown as { data?: { hProperties?: { href?: string; url?: string } } })?.data;
+                    const rawHref = nodeData?.hProperties?.href ||
+                                   nodeData?.hProperties?.url ||
+                                   (nodeProps?.href as string | undefined) ||
+                                   (nodeProps?.url as string | undefined) ||
                                    href || '';
                     
                     const actualHref = rawHref;
@@ -178,15 +162,16 @@ export function GoalItem({
               <ReactMarkdown
                 rehypePlugins={[rehypeRaw] as PluggableList}
                 components={{
-                  a: ({ node, href, children, ...props }) => {
+                  a: ({ node, href, children }) => {
                     // Get href from node properties if href prop is missing or modified
                     // Try multiple sources to get the original URL, including accessing raw data
-                    const nodeProps = node?.properties as any;
+                    const nodeProps = node?.properties as Record<string, unknown>;
                     // Check the raw markdown AST for the original URL
-                    const rawHref = (node as any)?.data?.hProperties?.href || 
-                                   (node as any)?.data?.hProperties?.url ||
-                                   nodeProps?.href || 
-                                   nodeProps?.url || 
+                    const nodeData = (node as unknown as { data?: { hProperties?: { href?: string; url?: string } } })?.data;
+                    const rawHref = nodeData?.hProperties?.href ||
+                                   nodeData?.hProperties?.url ||
+                                   (nodeProps?.href as string | undefined) ||
+                                   (nodeProps?.url as string | undefined) ||
                                    href || '';
                     
                     const actualHref = rawHref;
@@ -224,7 +209,7 @@ export function GoalItem({
               onDelete={(milestoneId) => onDeleteMilestone(goal.id, milestoneId)}
               onUpdate={(milestoneId, updates) => onUpdateMilestone(goal.id, milestoneId, updates)}
               onAdd={(milestone) => onAddMilestone(goal.id, milestone)}
-              readOnly={isCompleted}
+              readOnly={false}
             />
           </div>
         </div>

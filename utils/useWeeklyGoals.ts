@@ -21,7 +21,7 @@ export interface WeeklyGoal {
     saturday: (string | WeeklyGoalItem)[];
     sunday: (string | WeeklyGoalItem)[];
   };
-  legacyGoals?: any; // Backup of text-based goals
+  legacyGoals?: Record<string, unknown>; // Backup of text-based goals
 }
 
 // Helper function to get the Monday of the current week
@@ -49,7 +49,7 @@ export function useWeeklyGoals() {
     loadWeeklyGoal(currentWeekStart);
 
     // Listen for changes from RemoteStorage
-    const handleChange = (event: any) => {
+    const handleChange = (event: { relativePath: string }) => {
       if (event.relativePath.startsWith('weekly-goals/')) {
         loadWeeklyGoal(currentWeekStart);
       }

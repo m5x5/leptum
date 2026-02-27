@@ -10,7 +10,6 @@ import {
   splitMidnightActivity,
   getWeekDateRange,
   isToday,
-  isSameDay
 } from './timeCalculations';
 
 export interface ActivityInfo {
@@ -59,7 +58,7 @@ export function useWeeklyGoalTimeTracking(weekStart: string, goals: Goal[] | nul
   useEffect(() => {
     loadImpacts();
 
-    const handleChange = (event: any) => {
+    const handleChange = (event: { relativePath: string }) => {
       if (event.relativePath === 'impacts') {
         loadImpacts();
       }
@@ -197,7 +196,7 @@ export function useWeeklyGoalTimeTracking(weekStart: string, goals: Goal[] | nul
     const uncategorizedActivities: ActivityInfo[] = [];
     let uncategorizedTotalMinutes = 0;
 
-    uncategorizedImpacts.forEach((impact, index) => {
+    uncategorizedImpacts.forEach((impact, _index) => {
       // Find the next impact across ALL impacts (not just uncategorized)
       const impactIndex = sortedImpacts.findIndex(i => i === impact);
       const nextImpact = impactIndex < sortedImpacts.length - 1 ? sortedImpacts[impactIndex + 1] : null;

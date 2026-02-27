@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Goal, GoalTrackingConfig } from '../../utils/useGoals';
-import { remoteStorageClient } from '../../lib/remoteStorage';
+import { Goal, GoalTrackingConfig, DailyTrackingEntry } from '../../utils/useGoals';
+import { remoteStorageClient, Routine } from '../../lib/remoteStorage';
 import { PlusIcon } from '@heroicons/react/solid';
 import { useRoutineCompletions } from '../../utils/useRoutineCompletions';
 import { v4 as uuidv4 } from 'uuid';
@@ -8,16 +8,11 @@ import { v4 as uuidv4 } from 'uuid';
 interface TrackingCounterProps {
   goal: Goal;
   config: GoalTrackingConfig;
-  entries: any[]; // Not used anymore - we read from RoutineCompletions
+  entries: DailyTrackingEntry[]; // Not used anymore - we read from RoutineCompletions
   onUpdate: () => void;
   embedded?: boolean; // When true, removes card border and title for integration into routine view
   showHistory?: boolean; // When false, hides the 7-day history chart
   showQuickAdd?: boolean; // When false, hides the quick add buttons
-}
-
-// Helper to format date consistently (YYYY-MM-DD in local timezone)
-function formatDateLocal(date: Date): string {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 // Helper to get start of day timestamp
@@ -27,11 +22,11 @@ function getStartOfDay(): number {
   return today.getTime();
 }
 
-export function TrackingCounter({ goal, config, entries, onUpdate, embedded = false, showHistory = true, showQuickAdd = true }: TrackingCounterProps) {
+export function TrackingCounter({ goal, config, entries: _entries, onUpdate, embedded = false, showHistory = true, showQuickAdd = true }: TrackingCounterProps) {
   const { completions, reload: reloadCompletions, loading: completionsLoading } = useRoutineCompletions();
   
   // Find the linked routine for this goal
-  const [linkedRoutine, setLinkedRoutine] = useState<any>(null);
+  const [linkedRoutine, setLinkedRoutine] = useState<Routine | null>(null);
   const [routineLoading, setRoutineLoading] = useState(true);
   
   useEffect(() => {
@@ -39,10 +34,10 @@ export function TrackingCounter({ goal, config, entries, onUpdate, embedded = fa
       setRoutineLoading(true);
       try {
         const routines = await remoteStorageClient.getRoutines();
-        const routine = (routines as any[]).find(
-          (r: any) => r.goalIds?.includes(goal.id)
+        const routine = routines.find(
+          (r) => r.goalIds?.includes(goal.id)
         );
-        setLinkedRoutine(routine);
+        setLinkedRoutine(routine ?? null);
         
         if (!routine) {
           console.warn(`TrackingCounter: No linked routine found for goal "${goal.name}" (ID: ${goal.id})`);
@@ -105,10 +100,10 @@ export function TrackingCounter({ goal, config, entries, onUpdate, embedded = fa
         // Create a StandaloneTask for each task in the routine, marked as completed
         // This makes it show up in the task list as a completed task
         if (linkedRoutine.tasks && linkedRoutine.tasks.length > 0) {
-          for (const taskName of linkedRoutine.tasks) {
+          for (const routineTask of linkedRoutine.tasks) {
             const task = {
               id: uuidv4(),
-              name: taskName,
+              name: routineTask.name,
               status: 'completed' as const,
               createdAt: completedAt,
               completedAt,
@@ -152,13 +147,13 @@ export function TrackingCounter({ goal, config, entries, onUpdate, embedded = fa
         // Delete associated StandaloneTasks (batch delete to avoid conflicts)
         const tasks = await remoteStorageClient.getStandaloneTasks();
         const tasksToDelete = tasks.filter(
-          (t: any) => t.routineInstanceId === completion.routineInstanceId
+          (t) => t.routineInstanceId === completion.routineInstanceId
         );
-        
+
         // Batch delete: remove all tasks in one operation
         if (tasksToDelete.length > 0) {
-          const taskIdsToDelete = new Set(tasksToDelete.map((t: any) => t.id));
-          const remainingTasks = tasks.filter((t: any) => !taskIdsToDelete.has(t.id));
+          const taskIdsToDelete = new Set(tasksToDelete.map((t) => t.id));
+          const remainingTasks = tasks.filter((t) => !taskIdsToDelete.has(t.id));
           await remoteStorageClient.saveStandaloneTasks(remainingTasks);
         }
       }
@@ -194,7 +189,7 @@ export function TrackingCounter({ goal, config, entries, onUpdate, embedded = fa
     }
   };
   
-  const getIconForIndex = (index: number) => {
+  const getIconForIndex = (_index: number) => {
     // Use cup emoji for hydration, fallback to config icon
     // 🥤 = beverage box, 💧 = water drop, 🍶 = sake bottle and cup
     return '🥤';

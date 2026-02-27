@@ -20,7 +20,7 @@ export function useQuickNotes() {
     loadNotes();
 
     // Listen for changes from RemoteStorage
-    const handleChange = (event: any) => {
+    const handleChange = (event: { relativePath: string }) => {
       if (event.relativePath === 'quick-notes' || event.relativePath.startsWith('quick-note-audio/')) {
         loadNotes();
       }
@@ -33,8 +33,9 @@ export function useQuickNotes() {
     try {
       const loadedNotes = await remoteStorageClient.getQuickNotes();
       setNotes(loadedNotes);
-    } catch (error: any) {
-      if (!(error?.status === 404 || error?.toString?.().includes('404') || error?.missing)) {
+    } catch (error: unknown) {
+      const err = error as { status?: number; missing?: boolean };
+      if (!(err?.status === 404 || String(error).includes('404') || err?.missing)) {
         console.error('Failed to load quick notes:', error);
       }
     } finally {

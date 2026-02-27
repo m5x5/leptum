@@ -43,8 +43,8 @@ export default function ImportActivityWatchForm({
         const welcomeData: Welcome = await parseActivityWatchJSON(file);
         const previewData = getImportPreview(welcomeData, { daysBack, minDurationSeconds: minDuration });
         setPreview(previewData);
-      } catch (err: any) {
-        setError(err.message || 'Failed to parse file');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to parse file');
         setPreview(null);
       } finally {
         setIsProcessing(false);
@@ -67,8 +67,8 @@ export default function ImportActivityWatchForm({
         minDurationSeconds: minDuration,
         clearExisting,
       });
-    } catch (err: any) {
-      setError(err.message || 'Failed to import data');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to import data');
     } finally {
       setIsProcessing(false);
     }
@@ -86,8 +86,8 @@ export default function ImportActivityWatchForm({
           minDurationSeconds: newMinDuration,
         });
         setPreview(previewData);
-      } catch (err: any) {
-        setError(err.message || 'Failed to update preview');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to update preview');
       } finally {
         setIsProcessing(false);
       }

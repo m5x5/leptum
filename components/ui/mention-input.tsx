@@ -1,4 +1,4 @@
-import React from 'react';
+
 import { Mention, MentionsInput, SuggestionDataItem } from 'react-mentions';
 import { cn } from '../../lib/utils';
 import { Entity } from '../../utils/useEntities';
@@ -28,7 +28,7 @@ export function MentionInput({
   placeholder = '',
   className = '',
   multiline = false,
-  rows = 1,
+  rows: _rows = 1,
   disabled = false,
   onBlur,
   onFocus,

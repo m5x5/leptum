@@ -18,7 +18,7 @@ export interface Impact {
   guilt?: string | number;
   notes?: string;
   photoIds?: string[];
-  [key: string]: any;
+  endTime?: number;
 }
 
 export function useImpacts() {
@@ -40,7 +40,7 @@ export function useImpacts() {
     loadImpacts();
 
     // Listen for changes
-    const handleChange = (event: any) => {
+    const handleChange = (event: { relativePath: string }) => {
       if (event.relativePath === 'impacts') {
         loadImpacts();
       }

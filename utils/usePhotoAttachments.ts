@@ -104,7 +104,7 @@ export function usePhotoAttachments() {
     loadPhotos();
 
     // Listen for changes from RemoteStorage
-    const handleChange = (event: any) => {
+    const handleChange = (event: { relativePath: string }) => {
       if (event.relativePath === 'photos' || event.relativePath.startsWith('photo-images/')) {
         loadPhotos();
       }
@@ -121,9 +121,10 @@ export function usePhotoAttachments() {
     try {
       const loadedPhotos = await remoteStorageClient.getPhotos();
       setPhotos(loadedPhotos);
-    } catch (error: any) {
+    } catch (error: unknown) {
+      const err = error as { status?: number; missing?: boolean };
       // 404 errors are expected when photos collection doesn't exist yet
-      if (!(error?.status === 404 || error?.toString?.().includes('404') || error?.missing)) {
+      if (!(err?.status === 404 || String(error).includes('404') || err?.missing)) {
         console.error('Failed to load photos:', error);
       } else {
         console.warn('Photos collection does not exist yet (404 - expected)');
@@ -185,7 +186,7 @@ export function usePhotoAttachments() {
       });
 
       return newPhoto;
-    } catch (error: any) {
+    } catch (error: unknown) {
       // If addPhoto failed, try saving directly (handles 404 and other cases)
       if (newPhoto) {
         try {
@@ -195,9 +196,10 @@ export function usePhotoAttachments() {
           await remoteStorageClient.savePhotos(allPhotos);
           setPhotos(prev => [...prev, newPhoto!]);
           return newPhoto;
-        } catch (retryError: any) {
+        } catch (retryError: unknown) {
+          const retryErr = retryError as { status?: number; missing?: boolean };
           // Only log if it's not a 404 (404s are expected when creating new collection)
-          if (!(retryError?.status === 404 || retryError?.toString?.().includes('404') || retryError?.missing)) {
+          if (!(retryErr?.status === 404 || String(retryError).includes('404') || retryErr?.missing)) {
             console.error('Failed to save photos after retry:', retryError);
           }
           // Still return null if retry failed

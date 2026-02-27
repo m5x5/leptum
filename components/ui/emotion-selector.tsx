@@ -1,4 +1,4 @@
-import { useState } from "react";
+
 
 export type Emotion = 
   | 'happy' 

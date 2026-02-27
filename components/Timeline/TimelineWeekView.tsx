@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid';
 
 interface Impact {
@@ -14,7 +14,6 @@ interface Impact {
   isVirtualContinuation?: boolean;
   originalStartTime?: number;
   photoIds?: string[];
-  [key: string]: any;
 }
 
 interface Goal {
@@ -56,11 +55,11 @@ function getWeekStart(timestamp: number): Date {
 
 export function TimelineWeekView({
   impacts,
-  goals,
+  goals: _goals,
   onEditActivity,
   onAddActivity,
   getActivityColor,
-  formatDate,
+  formatDate: _formatDate,
   formatTime,
   isToday,
   getDurationInMs,

@@ -15,7 +15,7 @@ import { Routine } from '../components/Job/api';
 export async function migrateRoutineCompletionsToTracking(routineId: string): Promise<DailyTrackingEntry[]> {
   try {
     const completions = await remoteStorageClient.getRoutineCompletions();
-    const routineCompletions = completions.filter((c: any) => c.routineId === routineId);
+    const routineCompletions = completions.filter(c => c.routineId === routineId);
     
     // Group by date (YYYY-MM-DD)
     const dailyEntries: Record<string, number> = {};
@@ -25,7 +25,7 @@ export async function migrateRoutineCompletionsToTracking(routineId: string): Pr
       return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
     };
     
-    routineCompletions.forEach((completion: any) => {
+    routineCompletions.forEach(completion => {
       // Use consistent date formatting (YYYY-MM-DD in local timezone)
       const completionDate = new Date(completion.completedAt);
       const date = formatDateLocal(completionDate);
@@ -54,12 +54,12 @@ export async function migrateRoutineCompletionsToTracking(routineId: string): Pr
 export async function migrateImpactsToTracking(goalId: string): Promise<DailyTrackingEntry[]> {
   try {
     const impacts = await remoteStorageClient.getImpacts();
-    const goalImpacts = impacts.filter((i: any) => i.goalId === goalId);
+    const goalImpacts = impacts.filter(i => i.goalId === goalId);
     
     // Group by date (YYYY-MM-DD)
     const dailyEntries: Record<string, number> = {};
     
-    goalImpacts.forEach((impact: any) => {
+    goalImpacts.forEach(impact => {
       const date = new Date(impact.date).toISOString().split('T')[0]; // YYYY-MM-DD
       // Count each impact as +1 (assuming each impact = 1 glass/unit)
       dailyEntries[date] = (dailyEntries[date] || 0) + 1;

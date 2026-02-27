@@ -1,5 +1,5 @@
 import { PlusIcon } from "@heroicons/react/solid";
-import { useEffect, useState } from "react";
+
 import EditableListItem from "./Item";
 
 interface IProps {
@@ -8,7 +8,7 @@ interface IProps {
   children?: JSX.Element[] | JSX.Element;
   remove?: (index: number) => void;
   id?: string;
-  items?: any[];
+  items?: ListItem[];
   onAddItem?: () => void;
   onRemoveItem?: (id: string) => void;
 }
@@ -20,10 +20,10 @@ interface ListItem {
 
 export default function EditableList({
   name = "",
-  stored = false,
+  stored: _stored = false,
   children,
-  remove,
-  id,
+  remove: _remove,
+  id: _id,
   items = [],
   onAddItem,
   onRemoveItem,

@@ -1,6 +1,6 @@
 "use client";
 
-import { PlusIcon, TrashIcon, ClockIcon, CheckCircleIcon, PencilIcon } from "@heroicons/react/solid";
+import { PlusIcon, TrashIcon, CheckCircleIcon, PencilIcon } from "@heroicons/react/solid";
 import { useEffect, useState, useRef } from "react";
 import { remoteStorageClient } from "../../lib/remoteStorage";
 import { Routine } from "../../components/Job/api";
@@ -15,7 +15,7 @@ import { GoalTrackingWidget } from "../../components/Goals/GoalTrackingWidget";
 import { RichTextEditor } from "../../components/ui/rich-text-editor";
 
 export default function RoutinesPageContent() {
-  const [routines, setRoutines] = useState<(Routine| any)[]>([]);
+  const [routines, setRoutines] = useState<Routine[]>([]);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -44,6 +44,13 @@ export default function RoutinesPageContent() {
   const loadRoutinesRef = useRef<() => Promise<void>>(() => Promise.resolve());
   useEffect(() => {
     loadRoutinesRef.current();
+
+    const handleChange = (event: { relativePath: string }) => {
+      if (event.relativePath.startsWith('routines/')) {
+        loadRoutinesRef.current();
+      }
+    };
+    remoteStorageClient.onChange(handleChange);
   }, []);
 
   // Listen for openCreateRoutine event from header button
@@ -64,9 +71,9 @@ export default function RoutinesPageContent() {
 
       // If no routines exist, migrate from old jobs and stacks
       if (loadedRoutines.length === 0) {
-        await migrateFromOldData();
       } else {
         setRoutines((loadedRoutines as Routine[]).sort((a, b) => a.index - b.index));
+        await migrateFromOldData();
       }
     } catch (error) {
       console.error("Failed to load routines:", error);
@@ -79,12 +86,13 @@ export default function RoutinesPageContent() {
       // Migrate from Jobs (scheduled routines with tasks)
       const oldJobs = await remoteStorageClient.getJobs();
       const oldStacks = await remoteStorageClient.getStacks();
+      console.log({oldJobs, oldStacks});
 
       const migratedRoutines: Routine[] = [];
       let index = 0;
 
       // Convert jobs to routines
-      for (const job of oldJobs as any[]) {
+      for (const job of oldJobs) {
         const routine: Routine = {
           id: job.id || `routine-${Date.now()}-${index}`,
           name: job.name || getDescription(job.cron) || "Untitled Routine",
@@ -92,14 +100,13 @@ export default function RoutinesPageContent() {
           status: job.status || "pending",
           lastEndTime: job.lastEndTime,
           index: index++,
-          tasks: (job.habits || []).map((habit: any, taskIndex: number) => ({
+          tasks: (job.habits || []).map((habit, taskIndex) => ({
             id: habit.id || `task-${Date.now()}-${taskIndex}`,
             name: habit.name,
             routineId: job.id,
             index: taskIndex,
             status: habit.status || "pending",
-            description: habit.description,
-            completedAt: habit.completedAt
+            description: habit.description
           }))
         };
         migratedRoutines.push(routine);
@@ -107,12 +114,12 @@ export default function RoutinesPageContent() {
       }
 
       // Convert stacks to routines (without CRON)
-      for (const stack of oldStacks as any[]) {
+      for (const stack of oldStacks) {
         const routine: Routine = {
           id: `routine-${Date.now()}-${index}`,
           name: stack.name,
           index: index++,
-          tasks: (stack.habits || []).map((habit: any, taskIndex: number) => ({
+          tasks: (stack.habits || []).map((habit, taskIndex) => ({
             id: habit.id || `task-${Date.now()}-${taskIndex}`,
             name: habit.name,
             routineId: `routine-${Date.now()}-${index}`,
@@ -201,7 +208,7 @@ export default function RoutinesPageContent() {
       try {
         const completions = await remoteStorageClient.getRoutineCompletions();
         const filteredCompletions = completions.filter(
-          (c: any) => c.routineId !== selectedRoutine.id
+          (c) => c.routineId !== selectedRoutine.id
         );
         await remoteStorageClient.saveRoutineCompletions(filteredCompletions);
       } catch (error) {
@@ -582,9 +589,9 @@ export default function RoutinesPageContent() {
                       type="text"
                       value={formData.newTask}
                       onChange={(e) => setFormData({ ...formData, newTask: e.target.value })}
-                      onKeyPress={(e) => e.key === 'Enter' && addTaskToForm()}
+                      onKeyDown={(e) => e.key === 'Enter' && addTaskToForm()}
                       placeholder="Add a task..."
-                      className="flex-grow"
+                      className="grow"
                     />
                     <button
                       onClick={addTaskToForm}

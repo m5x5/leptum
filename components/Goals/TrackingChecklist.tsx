@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Goal, GoalTrackingConfig } from '../../utils/useGoals';
-import { remoteStorageClient } from '../../lib/remoteStorage';
+import { Goal, GoalTrackingConfig, DailyTrackingEntry } from '../../utils/useGoals';
+import { remoteStorageClient, Routine } from '../../lib/remoteStorage';
 import { useRoutineCompletions } from '../../utils/useRoutineCompletions';
 import { v4 as uuidv4 } from 'uuid';
 import { CheckIcon } from '@heroicons/react/solid';
@@ -8,7 +8,7 @@ import { CheckIcon } from '@heroicons/react/solid';
 interface TrackingChecklistProps {
   goal: Goal;
   config: GoalTrackingConfig;
-  entries: any[]; // Not used anymore - we read from RoutineCompletions
+  entries: DailyTrackingEntry[]; // Not used anymore - we read from RoutineCompletions
   onUpdate: () => void;
   embedded?: boolean;
   showHistory?: boolean;
@@ -23,15 +23,15 @@ function getStartOfDay(): number {
   return today.getTime();
 }
 
-export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = false, showHistory = true, showQuickAdd = true, routineName }: TrackingChecklistProps) {
+export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, embedded = false, showHistory = true, showQuickAdd: _showQuickAdd = true, routineName }: TrackingChecklistProps) {
   const { completions, reload: reloadCompletions, loading: completionsLoading } = useRoutineCompletions();
   
   // Find all linked routines for this goal (nutrition has multiple routines)
-  const [linkedRoutines, setLinkedRoutines] = useState<any[]>([]);
+  const [linkedRoutines, setLinkedRoutines] = useState<Routine[]>([]);
   const [routineLoading, setRoutineLoading] = useState(true);
-  
+
   // Map meal types to routines
-  const [mealTypeToRoutine, setMealTypeToRoutine] = useState<Map<string, any>>(new Map());
+  const [mealTypeToRoutine, setMealTypeToRoutine] = useState<Map<string, Routine>>(new Map());
   
   // Memoize options to prevent unnecessary re-renders
   // If routineName is provided, filter to show only the option matching that routine
@@ -53,13 +53,13 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
       setRoutineLoading(true);
       try {
         const routines = await remoteStorageClient.getRoutines();
-        const goalRoutines = (routines as any[]).filter(
-          (r: any) => r.goalIds?.includes(goal.id)
+        const goalRoutines = routines.filter(
+          r => r.goalIds?.includes(goal.id)
         );
         setLinkedRoutines(goalRoutines);
-        
+
         // Map meal types to routines based on routine name
-        const mealMap = new Map<string, any>();
+        const mealMap = new Map<string, Routine>();
         
         goalRoutines.forEach(routine => {
           const routineNameLower = routine.name.toLowerCase();
@@ -137,7 +137,7 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
     // Map completions to meal types based on routine names
     const completed = new Set<string>();
     
-    todayCompletions.forEach((completion: any) => {
+    todayCompletions.forEach((completion) => {
       // Find which routine this completion belongs to
       const routine = linkedRoutines.find(
         r => r.id === completion.routineId || r.name === completion.routineName
@@ -180,7 +180,7 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
         if (completionsForMeal.length > 0) {
           // Sort by completedAt descending and remove the most recent
           const sortedCompletions = completionsForMeal.sort(
-            (a: any, b: any) => b.completedAt - a.completedAt
+            (a, b) => b.completedAt - a.completedAt
           );
           const completionToRemove = sortedCompletions[0];
           
@@ -189,13 +189,13 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
           // Also delete associated tasks (batch delete to avoid conflicts)
           const tasks = await remoteStorageClient.getStandaloneTasks();
           const tasksToDelete = tasks.filter(
-            (t: any) => t.routineInstanceId === completionToRemove.routineInstanceId
+            (t) => t.routineInstanceId === completionToRemove.routineInstanceId
           );
-          
+
           // Batch delete: remove all tasks in one operation
           if (tasksToDelete.length > 0) {
-            const taskIdsToDelete = new Set(tasksToDelete.map((t: any) => t.id));
-            const remainingTasks = tasks.filter((t: any) => !taskIdsToDelete.has(t.id));
+            const taskIdsToDelete = new Set(tasksToDelete.map((t) => t.id));
+            const remainingTasks = tasks.filter((t) => !taskIdsToDelete.has(t.id));
             await remoteStorageClient.saveStandaloneTasks(remainingTasks);
           }
         }
@@ -367,7 +367,7 @@ export function TrackingChecklist({ goal, config, entries, onUpdate, embedded = 
               
               // Count unique meal types (one per routine)
               const uniqueMeals = new Set<string>();
-              dayCompletions.forEach((c: any) => {
+              dayCompletions.forEach((c) => {
                 const routine = linkedRoutines.find(
                   r => r.id === c.routineId || r.name === c.routineName
                 );

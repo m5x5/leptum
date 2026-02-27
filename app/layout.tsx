@@ -6,7 +6,6 @@ import { AppShell } from "../components/AppShell";
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://leptum.mpeters.dev";
 
 export const viewport: Viewport = {
-  themeColor: "#ffffff",
   viewportFit: "cover",
 };
 
@@ -16,7 +15,7 @@ export const metadata: Metadata = {
   description: "Personal productivity tracker with local-first, user-owned data storage.",
   manifest: "/manifest.json",
   icons: {
-    icon: ["/favicon.ico", { type: "image/svg+xml", url: "/icon.svg" }],
+    icon: [{ type: "image/svg+xml", url: "/icon.svg" }, "/favicon.ico"],
     apple: "/icon-192.png",
   },
   appleWebApp: {
@@ -64,6 +63,8 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
+        <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
+        <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#020818" />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{

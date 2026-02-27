@@ -1,15 +1,14 @@
-import { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import { CameraIcon, MicrophoneIcon, DocumentTextIcon, XIcon, StopIcon, PlayIcon } from '@heroicons/react/solid';
+import { useState, useRef, useEffect, useMemo } from 'react';
+import { CameraIcon, MicrophoneIcon, DocumentTextIcon, XIcon, StopIcon } from '@heroicons/react/solid';
 import { useQuickNotes, QuickNote } from '../../utils/useQuickNotes';
 import { usePhotoAttachments, PhotoAttachment } from '../../utils/usePhotoAttachments';
 import { Button } from '../ui/button';
-import { Input } from '../ui/input';
+
 import { Textarea } from '../ui/textarea';
 import { AudioPlayer } from '../ui/audio-player';
 import Image from 'next/image';
-import { Dialog, Transition } from '@headlessui/react';
-import { Fragment } from 'react';
 import Modal from '../Modal';
+import { Dialog, DialogContent } from '../ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '../ui/drawer';
 import StandaloneTaskItem from '../Tasks/StandaloneItem';
 import type { StandaloneTask } from '../../utils/useStandaloneTasks';
@@ -79,7 +78,7 @@ interface QuickCaptureProps {
 
 export default function QuickCapture({
   tasks = [],
-  tasksLoading = false,
+  tasksLoading: _tasksLoading = false,
   onTaskComplete,
   onTaskUncomplete,
   onTaskDelete,
@@ -791,53 +790,27 @@ export default function QuickCapture({
       </Modal>
 
       {/* Image lightbox — click note photo to view large */}
-      <Transition appear show={!!lightboxPhoto} as={Fragment}>
-        <Dialog
-          as="div"
-          className="fixed inset-0 z-50 overflow-y-auto"
-          onClose={() => { setLightboxPhoto(null); setLightboxSrc(null); }}
-        >
-          <Transition.Child
-            as={Fragment}
-            enter="ease-out duration-200"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in duration-150"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
-          >
-            <Dialog.Overlay className="fixed inset-0 bg-black/80 backdrop-blur-sm" />
-          </Transition.Child>
-          <div className="fixed inset-0 flex items-center justify-center p-4">
-            <Transition.Child
-              as={Fragment}
-              enter="ease-out duration-200"
-              enterFrom="opacity-0 scale-95"
-              enterTo="opacity-100 scale-100"
-              leave="ease-in duration-150"
-              leaveFrom="opacity-100 scale-100"
-              leaveTo="opacity-0 scale-95"
-            >
-              <Dialog.Panel className="w-full max-w-4xl">
-                {lightboxPhoto && (lightboxSrc ?? lightboxPhoto.thumbnail) && (
-                  <img
-                    src={lightboxSrc ?? lightboxPhoto.thumbnail}
-                    alt="Note photo"
-                    className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto"
-                  />
-                )}
-                {lightboxPhoto && !lightboxSrc && lightboxPhoto.thumbnail && (
-                  <img
-                    src={lightboxPhoto.thumbnail}
-                    alt="Note photo"
-                    className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto animate-pulse"
-                  />
-                )}
-              </Dialog.Panel>
-            </Transition.Child>
-          </div>
-        </Dialog>
-      </Transition>
+      <Dialog
+        open={!!lightboxPhoto}
+        onOpenChange={(open) => { if (!open) { setLightboxPhoto(null); setLightboxSrc(null); } }}
+      >
+        <DialogContent className="max-w-4xl bg-black/90 border-none shadow-none p-4 flex items-center justify-center">
+          {lightboxPhoto && (lightboxSrc ?? lightboxPhoto.thumbnail) && (
+            <img
+              src={lightboxSrc ?? lightboxPhoto.thumbnail}
+              alt="Note photo"
+              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto"
+            />
+          )}
+          {lightboxPhoto && !lightboxSrc && lightboxPhoto.thumbnail && (
+            <img
+              src={lightboxPhoto.thumbnail}
+              alt="Note photo"
+              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto animate-pulse"
+            />
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Mobile Drawer */}
       <Drawer open={showMobileDrawer} onOpenChange={setShowMobileDrawer}>

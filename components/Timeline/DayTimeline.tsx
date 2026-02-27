@@ -43,7 +43,6 @@ export function DayTimeline({
 
   // Filter impacts for this specific day
   const [year, month, day] = dateKey.split('-').map(Number);
-  const dayStart = new Date(year, month - 1, day).getTime();
   const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 
   const dayImpacts = impacts
@@ -193,7 +192,7 @@ export function DayTimeline({
 
   const handleAddActivityClick = () => {
     const now = Date.now();
-    const { dateStr, timeStr } = getLocalDateTimeStrings(now);
+    const { timeStr } = getLocalDateTimeStrings(now);
 
     setAddFormInitialData({
       activity: "",
@@ -202,18 +201,6 @@ export function DayTimeline({
       goalId: "",
     });
     setShowAddModal(true);
-  };
-
-  const roundToNearest15Minutes = (timestamp: number): number => {
-    const date = new Date(timestamp);
-    const minutes = date.getMinutes();
-    const roundedMinutes = Math.round(minutes / 15) * 15;
-
-    date.setMinutes(roundedMinutes);
-    date.setSeconds(0);
-    date.setMilliseconds(0);
-
-    return date.getTime();
   };
 
   return (

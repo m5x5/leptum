@@ -71,7 +71,7 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
     if (loadOnMount) loadGoals();
 
     // Listen for changes from RemoteStorage
-    const handleChange = (event: any) => {
+    const handleChange = (event: { relativePath: string }) => {
       if (event.relativePath.startsWith('goals/')) {
         loadGoals();
       }

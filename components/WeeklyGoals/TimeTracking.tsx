@@ -22,7 +22,7 @@ interface WeeklyGoalTimeTrackingProps {
 
 export function WeeklyGoalTimeTracking({
   weekStart,
-  weeklyGoal,
+  weeklyGoal: _weeklyGoal,
   goals
 }: WeeklyGoalTimeTrackingProps) {
   const [isExpanded, setIsExpanded] = useState(false);

@@ -26,7 +26,7 @@ interface DayCardProps {
 }
 
 export function DayCard({
-  day,
+  day: _day,
   dayLabel,
   goalItems,
   availableGoals,

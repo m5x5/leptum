@@ -96,15 +96,6 @@ export function DailyActivityBar({ dateKey, impacts, goals }: DailyActivityBarPr
       return 'bg-gray-400';
     };
 
-    const formatTime = (timestamp: number) => {
-      const date = new Date(timestamp);
-      return date.toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit',
-        hour12: false,
-      });
-    };
-
     // Build timeline segments with actual positions
     const segments: ActivitySegment[] = [];
 

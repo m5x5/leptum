@@ -1,10 +1,3 @@
-type Job = {
-  status: string;
-  cron: string;
-  lastEndTime?: number;
-  name?: string;
-};
-
 export type DbJob = {
   id: string;
   cron: string;

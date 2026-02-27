@@ -1,5 +1,5 @@
 import { ProcessedAWEvent, EventGroup } from '../../activity-watch.d';
-import { ChevronDownIcon, ChevronRightIcon } from '@heroicons/react/solid';
+
 import { useState } from 'react';
 import { TimeBlock, getBlockActivityBreakdown, isLoginWindowOnlyBlock } from '../../utils/timeBlocks';
 import { useMemo } from 'react';
@@ -456,7 +456,7 @@ export function TimeBlockEntry({
               <div className="text-xs font-semibold text-muted-foreground mb-2 px-2">
                 Activities in this {blockDurationMinutes}min block:
               </div>
-              {breakdown.map(({ event, duration, percentage }, idx) => (
+              {breakdown.map(({ event, duration }, idx) => (
                 <div
                   key={`${event.id}-${idx}`}
                   className="flex items-center justify-between text-sm p-2 rounded hover:bg-muted/50 transition-colors group/item focus-within:bg-muted/50 cursor-pointer"

@@ -3,7 +3,7 @@ import Link from "next/link";
 import { LightBulbIcon, ChevronRightIcon } from "@heroicons/react/solid";
 import { useInsights } from "../utils/useInsights";
 import { remoteStorageClient } from "../lib/remoteStorage";
-import { analyzeActivityPatterns, getSuggestionsForMetrics } from "../utils/activityAnalysis";
+import { analyzeActivityPatterns, ActivityPattern } from "../utils/activityAnalysis";
 
 interface InsightsWidgetProps {
   className?: string;
@@ -12,8 +12,8 @@ interface InsightsWidgetProps {
 export default function InsightsWidget({ className = "" }: InsightsWidgetProps) {
   const { insights, loading } = useInsights();
   const [lowMetrics, setLowMetrics] = useState<{ metric: string; value: number }[]>([]);
-  const [relevantInsights, setRelevantInsights] = useState<any[]>([]);
-  const [discoveredPatterns, setDiscoveredPatterns] = useState<any[]>([]);
+  const [relevantInsights, setRelevantInsights] = useState<typeof insights>([]);
+  const [discoveredPatterns, setDiscoveredPatterns] = useState<ActivityPattern[]>([]);
 
   useEffect(() => {
     const analyzeMood = async () => {
@@ -44,7 +44,8 @@ export default function InsightsWidget({ className = "" }: InsightsWidgetProps) 
         const low: { metric: string; value: number }[] = [];
 
         metrics.forEach(metric => {
-          const value = parseInt(latestImpact[metric]);
+          const impactRecord = latestImpact as unknown as Record<string, string | number | undefined>;
+          const value = parseInt(String(impactRecord[metric] ?? ''));
           if (!isNaN(value)) {
             // For bipolar metrics (happiness, confidence), consider < -20 as low
             if ((metric === 'happiness' || metric === 'confidence') && value < -20) {
@@ -189,8 +190,8 @@ export default function InsightsWidget({ className = "" }: InsightsWidgetProps) 
               </p>
               <div className="flex flex-wrap gap-1 mt-1">
                 {pattern.positiveEffects
-                  .filter((effect: any) => lowMetrics.some(l => l.metric === effect.metric))
-                  .map((effect: any) => (
+                  .filter(effect => lowMetrics.some(l => l.metric === effect.metric))
+                  .map(effect => (
                     <span
                       key={effect.metric}
                       className="text-xs text-green-600 dark:text-green-400 capitalize"
@@ -219,8 +220,8 @@ export default function InsightsWidget({ className = "" }: InsightsWidgetProps) 
               </p>
               <div className="flex flex-wrap gap-1 mt-1">
                 {insight.affectedMetrics
-                  .filter((am: any) => lowMetrics.some(l => l.metric === am.metric))
-                  .map((am: any) => (
+                  .filter(am => lowMetrics.some(l => l.metric === am.metric))
+                  .map(am => (
                     <span
                       key={am.metric}
                       className="text-xs text-green-600 dark:text-green-400 capitalize"

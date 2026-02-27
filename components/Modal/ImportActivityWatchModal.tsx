@@ -9,7 +9,7 @@ import {
   DEFAULT_DAYS_BACK,
   DEFAULT_MIN_DURATION_SECONDS,
 } from '../../utils/activityWatch';
-import { UploadIcon, XIcon } from '@heroicons/react/outline';
+import { UploadIcon } from '@heroicons/react/outline';
 import { Input } from '../ui/input';
 
 interface ImportActivityWatchModalProps {
@@ -50,8 +50,8 @@ export default function ImportActivityWatchModal({
         const welcomeData: Welcome = await parseActivityWatchJSON(file);
         const previewData = getImportPreview(welcomeData, { daysBack, minDurationSeconds: minDuration });
         setPreview(previewData);
-      } catch (err: any) {
-        setError(err.message || 'Failed to parse file');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to parse file');
         setPreview(null);
       } finally {
         setIsProcessing(false);
@@ -93,8 +93,8 @@ export default function ImportActivityWatchModal({
 
       // Close modal on success
       handleClose();
-    } catch (err: any) {
-      setError(err.message || 'Failed to import data');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Failed to import data');
     } finally {
       setIsProcessing(false);
     }
@@ -115,8 +115,8 @@ export default function ImportActivityWatchModal({
           minDurationSeconds: newMinDuration,
         });
         setPreview(previewData);
-      } catch (err: any) {
-        setError(err.message || 'Failed to update preview');
+      } catch (err: unknown) {
+        setError(err instanceof Error ? err.message : 'Failed to update preview');
       } finally {
         setIsProcessing(false);
       }

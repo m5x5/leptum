@@ -32,7 +32,7 @@ export function useGoalTypes(options?: { loadOnMount?: boolean }) {
     if (loadOnMount) loadGoalTypes();
 
     // Listen for changes from RemoteStorage
-    const handleChange = (event: any) => {
+    const handleChange = (event: { relativePath: string }) => {
       if (event.relativePath.startsWith('goal-types/')) {
         loadGoalTypes();
       }

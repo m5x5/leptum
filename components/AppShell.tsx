@@ -42,7 +42,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const activePath = pathname?.split("?")[0].split("#")[0] ?? "/";
   const [activeHash, setActiveHash] = useState("");
-  const [mounted, setMounted] = useState(false);
   const [showKeyboardHints, setShowKeyboardHints] = useState(false);
   const { getStreaksForRoutine } = useRoutineCompletions();
   const showUpStreak = activePath === "/" ? getStreaksForRoutine("show-up-routine").currentStreak : 0;
@@ -124,7 +123,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
       try {
         const routines = await remoteStorageClient.getRoutines();
-        let showUpRoutine = (routines as any[]).find((r: any) => r.isShowUpRoutine);
+        let showUpRoutine = routines.find((r) => r.isShowUpRoutine);
 
         if (!showUpRoutine) {
           showUpRoutine = {
@@ -143,9 +142,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         const todayStart = new Date();
         todayStart.setHours(0, 0, 0, 0);
 
-        const completedToday = (completions as any[]).some(
-          (c: any) =>
-            c.routineId === showUpRoutine.id && c.completedAt >= todayStart.getTime()
+        const completedToday = completions.some(
+          (c) =>
+            c.routineId === showUpRoutine?.id && c.completedAt >= todayStart.getTime()
         );
 
         if (!completedToday) {
@@ -170,7 +169,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     queueMicrotask(() => {
-      setMounted(true);
       if (typeof window !== "undefined") {
         setShowKeyboardHints(likelyWithKeyboard(window));
       }

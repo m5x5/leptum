@@ -1,9 +1,7 @@
 
 import {
   Welcome,
-  Bucket,
   Event,
-  EventData,
   ProcessedAWEvent,
   ActivityWatchData,
   BucketMetadata,

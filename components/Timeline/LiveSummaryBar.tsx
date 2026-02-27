@@ -12,7 +12,12 @@ interface Impact {
   activity: string;
   date: number;
   goalId?: string;
-  [key: string]: any;
+  endTime?: number;
+  notes?: string;
+  stress?: string | number;
+  fulfillment?: string | number;
+  motivation?: string | number;
+  energy?: string | number;
 }
 
 interface LiveSummaryBarProps {

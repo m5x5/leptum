@@ -379,11 +379,9 @@ export default function SettingsPageContent() {
               <div className="space-y-4">
                 {isServiceWorkerSupported ? (
                   <>
-                    <button
-                      type="button"
+                    <div
                       onClick={() => !isChecking && handleToggleOfflineMode(!offlineModeEnabled)}
-                      disabled={isChecking}
-                      className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left disabled:opacity-70 disabled:cursor-not-allowed"
+                      className={`w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors cursor-pointer ${isChecking ? 'opacity-70 pointer-events-none' : ''}`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-foreground">Application ready for offline use</span>
@@ -401,7 +399,7 @@ export default function SettingsPageContent() {
                           disabled={isChecking}
                         />
                       </span>
-                    </button>
+                    </div>
                     
                     {swState.updateAvailable && (
                       <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3">

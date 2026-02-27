@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
 import {
   ActivityWatchData,
-  ProcessedAWEvent,
   BucketMetadata,
   Welcome,
 } from '../activity-watch.d';
@@ -145,9 +144,9 @@ export function useActivityWatch(): UseActivityWatchReturn {
           ...prev,
           visibleBuckets: finalData.buckets.map((b) => b.id),
         }));
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error('Failed to import ActivityWatch data:', err);
-        setError(err.message || 'Failed to import ActivityWatch data');
+        setError(err instanceof Error ? err.message : 'Failed to import ActivityWatch data');
         throw err; // Re-throw so caller can handle
       } finally {
         setIsLoading(false);

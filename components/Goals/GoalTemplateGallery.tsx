@@ -1,12 +1,12 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { GOAL_TEMPLATES, GoalTemplate } from '../../utils/goalTemplates';
 
 interface GoalTemplateGalleryProps {
-  onSelectTemplate: (template: GoalTemplate) => void;
+  onSelectTemplate: (template: GoalTemplate | null) => void;
   categoryName?: string;
 }
 
-export default function GoalTemplateGallery({ onSelectTemplate, categoryName }: GoalTemplateGalleryProps) {
+export default function GoalTemplateGallery({ onSelectTemplate }: GoalTemplateGalleryProps) {
   const [searchTerm, setSearchTerm] = useState('');
 
   const filteredTemplates = GOAL_TEMPLATES.filter((template) => {
@@ -121,7 +121,7 @@ export default function GoalTemplateGallery({ onSelectTemplate, categoryName }: 
           Prefer to start from scratch?
         </p>
         <button
-          onClick={() => onSelectTemplate(null as any)}
+          onClick={() => onSelectTemplate(null)}
           className="min-h-[44px] px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-accent hover:border-primary transition-colors"
         >
           Create Custom Goal

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Goal } from '../../utils/useGoals';
-import { GOAL_TEMPLATES_WITH_TRACKING, GoalTemplateWithTracking, isHydrationGoal, isNutritionGoal } from '../../utils/goalTemplatesWithTracking';
+import { GOAL_TEMPLATES_WITH_TRACKING, isHydrationGoal, isNutritionGoal } from '../../utils/goalTemplatesWithTracking';
 import { applyTemplateToGoal } from '../../utils/migrateGoalToTemplate';
 import { remoteStorageClient } from '../../lib/remoteStorage';
 import { Routine } from '../../components/Job/api';
@@ -15,7 +15,6 @@ interface TemplateSelectorProps {
 
 export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: TemplateSelectorProps) {
   const [applying, setApplying] = useState(false);
-  const [selectedTemplate, setSelectedTemplate] = useState<string | null>(null);
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [selectedRoutineId, setSelectedRoutineId] = useState<string>('');
 

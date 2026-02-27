@@ -1,4 +1,4 @@
-import { Goal, GoalMilestone } from './useGoals';
+import { GoalMilestone } from './useGoals';
 
 export interface DeadlineStatus {
   daysRemaining: number;

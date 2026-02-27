@@ -1,6 +1,40 @@
 // Dynamic imports to avoid SSR issues
-let RemoteStorage: any;
-let Widget: any;
+
+// Minimal interface for the RemoteStorage library (untyped third-party)
+interface RemoteStorageInstance {
+  access: { claim: (scope: string, mode: string) => void };
+  scope: (path: string) => RemoteStorageScopedClient;
+  setApiKeys: (keys: Record<string, string>) => void;
+  on: (event: string, callback: (...args: unknown[]) => void) => void;
+  connected: boolean;
+  _handlers?: Record<string, ((...args: unknown[]) => void)[]>;
+}
+
+interface RemoteStorageScopedClient {
+  declareType: (name: string, schema: Record<string, unknown>) => void;
+  storeObject: (type: string, path: string, obj: unknown) => Promise<unknown>;
+  storeFile: (mimeType: string, path: string, data: string) => Promise<unknown>;
+  getObject: (path: string) => Promise<Record<string, unknown> | null>;
+  getFile: (path: string) => Promise<{ data: string } | null>;
+  getAll: (path: string) => Promise<Record<string, unknown>>;
+  remove: (path: string) => Promise<unknown>;
+  cache: (path: string) => void;
+  on: (event: string, callback: (event: RemoteStorageChangeEvent) => void) => void;
+}
+
+export interface RemoteStorageChangeEvent {
+  relativePath: string;
+  origin: string;
+  oldValue: unknown;
+  newValue: unknown;
+}
+
+interface RemoteStorageWidgetInstance {
+  attach: (containerId: string) => void;
+}
+
+let RemoteStorage: new (opts: Record<string, unknown>) => RemoteStorageInstance;
+let Widget: new (rs: RemoteStorageInstance, opts: Record<string, unknown>) => RemoteStorageWidgetInstance;
 
 if (typeof window !== 'undefined') {
   RemoteStorage = require('remotestoragejs');
@@ -225,7 +259,11 @@ const StandaloneTaskSchema = {
         } 
       },
       routineId: { type: 'string' },
-      routineInstanceId: { type: 'string' }
+      routineInstanceId: { type: 'string' },
+      lat: { type: 'number' },
+      lon: { type: 'number' },
+      indoorX: { type: 'number' },
+      indoorY: { type: 'number' }
    },
    required: ['id', 'name', 'status', 'createdAt']
 };
@@ -275,16 +313,6 @@ const ArchivedIndexSchema = {
     }
   },
   required: ['bucketIds']
-};
-
-const WeeklyGoalItemSchema = {
-  type: 'object',
-  properties: {
-    goalId: { type: 'string' },
-    targetMinutes: { type: 'number' },
-    note: { type: 'string' }
-  },
-  required: ['goalId']
 };
 
 const WeeklyGoalSchema = {
@@ -577,6 +605,256 @@ const MentionsCollectionSchema = {
    required: ['mentions']
 };
 
+// ---- Domain type interfaces exported from this module ----
+
+export interface Job {
+  id: string;
+  cron: string;
+  status: string;
+  index: number;
+  name: string;
+  lastEndTime: number;
+  habits: {
+    id: string;
+    name: string;
+    jobId: string;
+    index: number;
+    status: string;
+    description?: string;
+  }[];
+}
+
+export interface GoalMilestone {
+  id: string;
+  name: string;
+  targetDate?: number | null;
+  completed: boolean;
+  completedAt?: number | null;
+  order: number;
+}
+
+export interface DailyTrackingEntry {
+  date: string;
+  value?: number;
+  completed?: boolean;
+  notes?: string;
+  timestamp?: number;
+}
+
+export interface GoalTrackingConfig {
+  type: 'counter' | 'checklist' | 'timer' | 'amount';
+  unit: string;
+  icon: string;
+  dailyTarget?: number;
+  maxPerDay?: number;
+  increments?: number[];
+  options?: string[];
+}
+
+export interface Goal {
+  id: string;
+  name: string;
+  type: string;
+  color?: string | null;
+  description?: string | null;
+  targetDate?: number | null;
+  createdAt?: number | null;
+  completedAt?: number | null;
+  status?: string | null;
+  milestones?: GoalMilestone[] | null;
+  templateId?: string | null;
+  trackingConfig?: GoalTrackingConfig;
+  trackingData?: { entries: DailyTrackingEntry[] } | null;
+}
+
+export interface GoalType {
+  id: string;
+  name: string;
+  description?: string | null;
+}
+
+export interface PhotoAttachment {
+  id: string;
+  impactId: string;
+  thumbnail: string;
+  fullImagePath?: string;
+  mimeType: string;
+  width?: number;
+  height?: number;
+  createdAt: number;
+  caption?: string;
+}
+
+export interface Impact {
+  id?: string;
+  activity: string;
+  date: number;
+  stress?: string | number;
+  fulfillment?: string | number;
+  motivation?: string | number;
+  cleanliness?: string | number;
+  happiness?: string | number;
+  confidence?: string | number;
+  energy?: string | number;
+  focus?: string | number;
+  shame?: string | number;
+  guilt?: string | number;
+  goalId?: string;
+  notes?: string;
+  photoIds?: string[];
+  endTime?: number;
+}
+
+export interface StackHabit {
+  name: string;
+  id: string;
+}
+
+export interface Stack {
+  name: string;
+  habits: StackHabit[];
+}
+
+export type Emotion = 'happy' | 'sad' | 'neutral' | 'excited' | 'anxious' | 'calm' | 'frustrated' | 'proud' | 'tired' | 'energized';
+
+export interface StandaloneTask {
+  id: string;
+  name: string;
+  description?: string;
+  status: 'due' | 'completed' | 'pending';
+  createdAt: number;
+  completedAt?: number;
+  archivedAt?: number;
+  goalId?: string;
+  effort?: 'XS' | 'S' | 'M' | 'L' | 'XL';
+  numericEstimate?: number;
+  emotions?: Emotion[];
+  routineId?: string;
+  routineInstanceId?: string;
+  // Geolocation (WGS84)
+  lat?: number;
+  lon?: number;
+  // Indoor / apartment-local coordinates (metres from a reference corner)
+  indoorX?: number;
+  indoorY?: number;
+}
+
+export interface HomeTask extends StandaloneTask {}
+
+export interface RoutineCompletion {
+  routineId: string;
+  routineInstanceId: string;
+  routineName: string;
+  completedAt: number;
+  taskCount: number;
+}
+
+export interface RoutineTask {
+  id: string;
+  name: string;
+  routineId: string;
+  index: number;
+  status: string;
+  description?: string;
+  completedAt?: number;
+}
+
+export interface Routine {
+  id: string;
+  name: string;
+  cron?: string;
+  status?: string;
+  lastEndTime?: number;
+  index: number;
+  description?: string | null;
+  goalIds?: string[];
+  goalId?: string;
+  isShowUpRoutine?: boolean;
+  tasks: RoutineTask[];
+}
+
+export interface WeeklyGoalItem {
+  goalId: string;
+  targetMinutes?: number;
+  note?: string;
+}
+
+export interface WeeklyGoal {
+  id: string;
+  weekStart: string;
+  version?: number;
+  goals: {
+    monday: (string | WeeklyGoalItem)[];
+    tuesday: (string | WeeklyGoalItem)[];
+    wednesday: (string | WeeklyGoalItem)[];
+    thursday: (string | WeeklyGoalItem)[];
+    friday: (string | WeeklyGoalItem)[];
+    saturday: (string | WeeklyGoalItem)[];
+    sunday: (string | WeeklyGoalItem)[];
+  };
+  legacyGoals?: Record<string, unknown>;
+}
+
+export interface AffectedMetric {
+  metric: string;
+  effect: 'positive' | 'negative';
+}
+
+export interface Insight {
+  id: string;
+  name: string;
+  affectedMetrics: AffectedMetric[];
+  notes?: string;
+  category?: string;
+  createdAt: number;
+}
+
+export interface PatternNote {
+  activity: string;
+  notes: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface QuickNote {
+  id: string;
+  text?: string;
+  photoIds?: string[];
+  audioPath?: string;
+  audioDuration?: number;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface Entity {
+  id: string;
+  name: string;
+  type?: 'person' | 'project' | 'context' | null;
+  description?: string;
+  tags?: string[];
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface Mention {
+  id: string;
+  sourceType: string;
+  sourceId: string;
+  entityId: string;
+  context?: string;
+  position?: number;
+  fieldName?: string;
+  createdAt: number;
+}
+
+export interface TodonnaItem {
+  todo_item_text: string;
+  todo_item_status: string;
+  todo_item_id: string;
+  '@context': string;
+  date?: string;
+}
+
 // Velocity tracking schemas
 interface VelocityEntry {
    id: string;
@@ -614,10 +892,10 @@ const VelocityCollectionSchema = {
 };
 
 export class RemoteStorageClient {
-  private remoteStorage: any = null;
-  private client: any = null;
-  private todonnaClient: any = null;
-  private widget: any = null;
+  private remoteStorage: RemoteStorageInstance | null = null;
+  private client: RemoteStorageScopedClient | null = null;
+  private todonnaClient: RemoteStorageScopedClient | null = null;
+  private widget: RemoteStorageWidgetInstance | null = null;
   private initialized = false;
 
   constructor() {
@@ -713,7 +991,7 @@ export class RemoteStorageClient {
     this.widget.attach(containerId);
 
     // Enable caching for all paths
-    this.client.cache('');
+    this.client!.cache('');
   }
 
   // Detach widget (cleanup)
@@ -726,22 +1004,22 @@ export class RemoteStorageClient {
   }
 
   // Job operations
-  public async getJobs() {
+  public async getJobs(): Promise<Job[]> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return [];
-    
+
     try {
       const jobs = await this.client.getAll('jobs/') || {};
-      return Object.values(jobs).filter(job => job);
+      return Object.values(jobs).filter((job): job is Job => !!job) as Job[];
     } catch (error) {
       console.error('Failed to get jobs:', error);
       return [];
     }
   }
 
-  public async saveJob(job: any) {
+  public async saveJob(job: Job) {
     if (!this.client) {
       this.initialize();
     }
@@ -767,32 +1045,32 @@ export class RemoteStorageClient {
     }
   }
 
-  // Goal operations  
-  public async getGoals() {
+  // Goal operations
+  public async getGoals(): Promise<Goal[]> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return [];
-    
+
     try {
       const goals = await this.client.getAll('goals/') || {};
-      return Object.values(goals).filter(goal => goal);
+      return Object.values(goals).filter((goal): goal is Goal => !!goal) as Goal[];
     } catch (error) {
       console.error('Failed to get goals:', error);
       return [];
     }
   }
 
-  public async saveGoal(goal: any) {
+  public async saveGoal(goal: Goal) {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return;
-    
+
     try {
       // Filter out undefined values to avoid schema validation errors
       const cleanedGoal = Object.fromEntries(
-        Object.entries(goal).filter(([_, value]) => value !== undefined)
+        Object.entries(goal).filter(([, value]) => value !== undefined)
       );
       
       return await this.client.storeObject('Goal', `goals/${goal.id}`, cleanedGoal);
@@ -816,22 +1094,22 @@ export class RemoteStorageClient {
   }
 
   // Goal Type operations
-  public async getGoalTypes() {
+  public async getGoalTypes(): Promise<GoalType[]> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return [];
-    
+
     try {
       const goalTypes = await this.client.getAll('goal-types/') || {};
-      return Object.values(goalTypes).filter(type => type);
+      return Object.values(goalTypes).filter((type): type is GoalType => !!type) as GoalType[];
     } catch (error) {
       console.error('Failed to get goal types:', error);
       return [];
     }
   }
 
-  public async saveGoalType(goalType: any) {
+  public async saveGoalType(goalType: GoalType) {
     if (!this.client) {
       this.initialize();
     }
@@ -845,22 +1123,22 @@ export class RemoteStorageClient {
   }
 
   // Impact operations
-  public async getImpacts() {
+  public async getImpacts(): Promise<Impact[]> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return [];
-    
+
     try {
-      const impacts = await this.client.getObject('impacts') || { impacts: [] };
-      return impacts.impacts || [];
+      const result = await this.client.getObject('impacts') || { impacts: [] };
+      return (result['impacts'] as Impact[]) || [];
     } catch (error) {
       console.error('Failed to get impacts:', error);
       return [];
     }
   }
 
-  public async saveImpacts(impacts: any[]) {
+  public async saveImpacts(impacts: Impact[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -874,22 +1152,22 @@ export class RemoteStorageClient {
   }
 
   // Stack operations
-  public async getStacks() {
+  public async getStacks(): Promise<Stack[]> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return [];
-    
+
     try {
       const stacks = await this.client.getAll('stacks/') || {};
-      return Object.values(stacks).filter(stack => stack);
+      return Object.values(stacks).filter((stack): stack is Stack => !!stack) as Stack[];
     } catch (error) {
       console.error('Failed to get stacks:', error);
       return [];
     }
   }
 
-  public async saveStack(stack: any, index: number) {
+  public async saveStack(stack: Stack, index: number) {
     if (!this.client) {
       this.initialize();
     }
@@ -916,7 +1194,7 @@ export class RemoteStorageClient {
   }
 
   // Routine operations (unified Jobs + Stacks)
-  public async getRoutines() {
+  public async getRoutines(): Promise<Routine[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -924,7 +1202,8 @@ export class RemoteStorageClient {
 
     try {
       const routines = await this.client.getAll('routines/') || {};
-      return Object.values(routines).filter(routine => routine);
+      console.log({routines});
+      return Object.values(routines).filter((routine): routine is Routine => !!routine) as Routine[];
     } catch (error) {
       console.error('Failed to get routines:', error);
       return [];
@@ -932,7 +1211,7 @@ export class RemoteStorageClient {
   }
 
   /** Get a single routine by id (e.g. for Show Up) without loading all routines. */
-  public async getRoutine(id: string) {
+  public async getRoutine(id: string): Promise<Routine | null> {
     if (!this.client) {
       this.initialize();
     }
@@ -940,14 +1219,14 @@ export class RemoteStorageClient {
 
     try {
       const routine = await this.client.getObject(`routines/${id}`);
-      return routine ?? null;
+      return routine ? (routine as unknown as Routine) : null;
     } catch (error) {
       console.error('Failed to get routine:', error);
       return null;
     }
   }
 
-  public async saveRoutine(routine: any) {
+  public async saveRoutine(routine: Routine) {
     if (!this.client) {
       this.initialize();
     }
@@ -981,25 +1260,26 @@ export class RemoteStorageClient {
     return this.getHomeTasks();
   }
 
-  public async saveStandaloneTasks(tasks: any[], retries: number = 3): Promise<void> {
+  public async saveStandaloneTasks(tasks: StandaloneTask[], retries: number = 3): Promise<void> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return;
-    
+
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         return await this.saveHomeTasks(tasks, retries);
-      } catch (error: any) {
+      } catch (error: unknown) {
+        const err = error as { status?: number; message?: string };
         // Handle 412 Precondition Failed (ETag conflict) by retrying with fresh data
-        if (error.status === 412 && attempt < retries - 1) {
+        if (err.status === 412 && attempt < retries - 1) {
           console.warn(`Standalone tasks conflict (attempt ${attempt + 1}/${retries}), refreshing and retrying...`);
           // Get fresh data and merge
           const freshTasks = await this.getStandaloneTasks();
           // Merge: keep existing tasks, add new ones that don't exist
-          const taskIds = new Set(freshTasks.map((t: any) => t.id));
+          const taskIds = new Set(freshTasks.map(t => t.id));
           const mergedTasks = [...freshTasks];
-          tasks.forEach((task: any) => {
+          tasks.forEach(task => {
             if (!taskIds.has(task.id)) {
               mergedTasks.push(task);
             }
@@ -1010,7 +1290,7 @@ export class RemoteStorageClient {
           continue;
         }
         // Handle "maximum debt" errors - wait longer and retry
-        if (error.message && error.message.includes('debt') && attempt < retries - 1) {
+        if (err.message && err.message.includes('debt') && attempt < retries - 1) {
           console.warn(`RemoteStorage debt limit reached (attempt ${attempt + 1}/${retries}), waiting longer before retry...`);
           // Wait longer for debt to clear (exponential backoff, longer delays)
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
@@ -1022,24 +1302,25 @@ export class RemoteStorageClient {
     }
   }
 
-  public async addStandaloneTask(task: any) {
+  public async addStandaloneTask(task: StandaloneTask) {
     const tasks = await this.getHomeTasks();
     tasks.push(task);
     return await this.saveHomeTasks(tasks);
   }
 
-  public async updateStandaloneTask(taskId: string, updates: any, retries: number = 3) {
+  public async updateStandaloneTask(taskId: string, updates: Partial<StandaloneTask>, retries: number = 3) {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const tasks = await this.getHomeTasks();
-        const index = tasks.findIndex((task: any) => task.id === taskId);
+        const index = tasks.findIndex(task => task.id === taskId);
         if (index !== -1) {
           tasks[index] = { ...tasks[index], ...updates };
           return await this.saveHomeTasks(tasks);
         }
         return;
-      } catch (error: any) {
-        if (error.status === 412 && attempt < retries - 1) {
+      } catch (error: unknown) {
+        const err = error as { status?: number };
+        if (err.status === 412 && attempt < retries - 1) {
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
           continue;
         }
@@ -1052,10 +1333,11 @@ export class RemoteStorageClient {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const tasks = await this.getHomeTasks();
-        const filteredTasks = tasks.filter((task: any) => task.id !== taskId);
+        const filteredTasks = tasks.filter(task => task.id !== taskId);
         return await this.saveHomeTasks(filteredTasks);
-      } catch (error: any) {
-        if (error.status === 412 && attempt < retries - 1) {
+      } catch (error: unknown) {
+        const err = error as { status?: number };
+        if (err.status === 412 && attempt < retries - 1) {
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
           continue;
         }
@@ -1067,21 +1349,21 @@ export class RemoteStorageClient {
   // Home tasks: single file for homepage (non-archived only)
   private static readonly ARCHIVED_BUCKET_MAX = 250;
 
-  public async getHomeTasks(): Promise<any[]> {
+  public async getHomeTasks(): Promise<StandaloneTask[]> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return [];
     try {
       const result = await this.client.getObject('home-tasks') || { tasks: [] };
-      return result.tasks || [];
+      return (result['tasks'] as StandaloneTask[]) || [];
     } catch (error) {
       console.error('Failed to get home tasks:', error);
       return [];
     }
   }
 
-  public async saveHomeTasks(tasks: any[], retries: number = 3): Promise<void> {
+  public async saveHomeTasks(tasks: StandaloneTask[], retries: number = 3): Promise<void> {
     if (!this.client) {
       this.initialize();
     }
@@ -1089,16 +1371,18 @@ export class RemoteStorageClient {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         // Clean undefined fields (e.g. optional effort/numericEstimate) to satisfy JSON schema
-        const cleanedTasks = tasks.map((t: any) =>
-          Object.fromEntries(Object.entries(t).filter(([_, v]) => v !== undefined))
+        const cleanedTasks = tasks.map(t =>
+          Object.fromEntries(Object.entries(t).filter(([, v]) => v !== undefined))
         );
-        return await this.client.storeObject('HomeTasksCollection', 'home-tasks', { tasks: cleanedTasks });
-      } catch (error: any) {
-        if (error.status === 412 && attempt < retries - 1) {
+        await this.client.storeObject('HomeTasksCollection', 'home-tasks', { tasks: cleanedTasks });
+        return;
+      } catch (error: unknown) {
+        const err = error as { status?: number };
+        if (err.status === 412 && attempt < retries - 1) {
           const fresh = await this.getHomeTasks();
-          const freshIds = new Set(fresh.map((t: any) => t.id));
+          const freshIds = new Set(fresh.map(t => t.id));
           const merged = [...fresh];
-          tasks.forEach((t: any) => {
+          tasks.forEach(t => {
             if (!freshIds.has(t.id)) merged.push(t);
           });
           tasks = merged;
@@ -1117,7 +1401,7 @@ export class RemoteStorageClient {
     if (!this.client) return { bucketIds: [] };
     try {
       const result = await this.client.getObject('archived-tasks/_index') || { bucketIds: [] };
-      return { bucketIds: result.bucketIds || [] };
+      return { bucketIds: (result['bucketIds'] as string[]) || [] };
     } catch (error) {
       console.error('Failed to get archived index:', error);
       return { bucketIds: [] };
@@ -1137,7 +1421,7 @@ export class RemoteStorageClient {
     }
   }
 
-  public async getArchivedBucket(bucketId: string): Promise<{ tasks: any[]; createdAt: number } | null> {
+  public async getArchivedBucket(bucketId: string): Promise<{ tasks: StandaloneTask[]; createdAt: number } | null> {
     if (!this.client) {
       this.initialize();
     }
@@ -1146,8 +1430,8 @@ export class RemoteStorageClient {
       const result = await this.client.getObject(`archived-tasks/${bucketId}`);
       if (!result) return null;
       return {
-        tasks: result.tasks || [],
-        createdAt: result.createdAt ?? parseInt(bucketId, 10)
+        tasks: (result['tasks'] as StandaloneTask[]) || [],
+        createdAt: (result['createdAt'] as number) ?? parseInt(bucketId, 10)
       };
     } catch (error) {
       console.error('Failed to get archived bucket:', bucketId, error);
@@ -1156,7 +1440,7 @@ export class RemoteStorageClient {
   }
 
   /** Append tasks to archived storage; creates new bucket if current one would exceed ARCHIVED_BUCKET_MAX. */
-  public async appendArchivedTasks(tasksToArchive: any[]): Promise<void> {
+  public async appendArchivedTasks(tasksToArchive: StandaloneTask[]): Promise<void> {
     if (!tasksToArchive.length) return;
     if (!this.client) {
       this.initialize();
@@ -1194,7 +1478,7 @@ export class RemoteStorageClient {
   }
 
   /** Fetch only the latest archived bucket (for archive view). */
-  public async getLatestArchivedBucket(): Promise<{ tasks: any[]; createdAt: number } | null> {
+  public async getLatestArchivedBucket(): Promise<{ tasks: StandaloneTask[]; createdAt: number } | null> {
     const { bucketIds } = await this.getArchivedIndex();
     if (bucketIds.length === 0) return null;
     const latestId = bucketIds[bucketIds.length - 1];
@@ -1211,13 +1495,13 @@ export class RemoteStorageClient {
       const existingHome = await this.client.getObject('home-tasks');
       if (existingHome != null) return; // Already migrated
       const legacy = await this.client.getObject('standalone-tasks') || { tasks: [] };
-      const all = legacy.tasks || [];
+      const all = ((legacy['tasks'] as StandaloneTask[]) || []);
       if (all.length === 0) {
         await this.client.storeObject('HomeTasksCollection', 'home-tasks', { tasks: [] });
         return;
       }
-      const home = all.filter((t: any) => !t.archivedAt);
-      const archived = all.filter((t: any) => t.archivedAt);
+      const home = all.filter(t => !t.archivedAt);
+      const archived = all.filter(t => t.archivedAt);
       await this.client.storeObject('HomeTasksCollection', 'home-tasks', { tasks: home });
       if (archived.length > 0) {
         await this.appendArchivedTasks(archived);
@@ -1228,7 +1512,7 @@ export class RemoteStorageClient {
   }
 
   // Routine Completion operations
-  public async getRoutineCompletions() {
+  public async getRoutineCompletions(): Promise<RoutineCompletion[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1236,14 +1520,14 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('routine-completions') || { completions: [] };
-      return result.completions || [];
+      return (result['completions'] as RoutineCompletion[]) || [];
     } catch (error) {
       console.error('Failed to get routine completions:', error);
       return [];
     }
   }
 
-  public async saveRoutineCompletions(completions: any[]) {
+  public async saveRoutineCompletions(completions: RoutineCompletion[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -1256,7 +1540,7 @@ export class RemoteStorageClient {
     }
   }
 
-  public async addRoutineCompletion(completion: any) {
+  public async addRoutineCompletion(completion: RoutineCompletion) {
     const completions = await this.getRoutineCompletions();
     completions.push(completion);
     return await this.saveRoutineCompletions(completions);
@@ -1264,14 +1548,14 @@ export class RemoteStorageClient {
 
   public async deleteRoutineCompletion(routineInstanceId: string) {
     const completions = await this.getRoutineCompletions();
-    const filtered = completions.filter((c: any) => c.routineInstanceId !== routineInstanceId);
+    const filtered = completions.filter(c => c.routineInstanceId !== routineInstanceId);
     return await this.saveRoutineCompletions(filtered);
   }
 
   // Todonna integration methods
-  
+
   // Convert local task format to todonna format
-  private taskToTodonna(task: any) {
+  private taskToTodonna(task: StandaloneTask): TodonnaItem {
     // Map status values
     let todonnaStatus = 'todo'; // default
     if (task.status === 'completed') {
@@ -1292,9 +1576,9 @@ export class RemoteStorageClient {
   }
 
   // Convert todonna format to local task format
-  private todonnaToTask(todonnaItem: any) {
+  private todonnaToTask(todonnaItem: TodonnaItem): StandaloneTask {
     // Map status values back
-    let localStatus = 'due'; // default
+    let localStatus: 'due' | 'completed' | 'pending' = 'due'; // default
     if (todonnaItem.todo_item_status === 'done') {
       localStatus = 'completed';
     } else if (todonnaItem.todo_item_status === 'todo') {
@@ -1322,7 +1606,7 @@ export class RemoteStorageClient {
   }
 
   // Get all todonna items (lazily initialize todonna client for read-only import)
-  public async getTodonnaItems() {
+  public async getTodonnaItems(): Promise<TodonnaItem[]> {
     // Lazily create todonna client only when importing, to avoid fetching todonna scope on normal app load
     if (!this.todonnaClient) {
       if (!this.remoteStorage) {
@@ -1335,7 +1619,7 @@ export class RemoteStorageClient {
     }
     try {
       const items = (await this.todonnaClient.getAll('')) || {};
-      return Object.values(items).filter(item => item);
+      return Object.values(items).filter((item): item is TodonnaItem => !!item) as TodonnaItem[];
     } catch (error) {
       console.error('Failed to get todonna items:', error);
       return [];
@@ -1343,7 +1627,7 @@ export class RemoteStorageClient {
   }
 
   // Save a task to todonna format
-  public async saveToTodonna(task: any) {
+  public async saveToTodonna(task: StandaloneTask) {
     if (!this.todonnaClient) {
       this.initialize();
     }
@@ -1380,17 +1664,17 @@ export class RemoteStorageClient {
   }
 
   // Import tasks from todonna and merge with home tasks. Returns { importedCount, tasks } so caller can set state without refetch.
-  public async importFromTodonna(): Promise<{ importedCount: number; tasks: any[] }> {
+  public async importFromTodonna(): Promise<{ importedCount: number; tasks: StandaloneTask[] }> {
     try {
       const [todonnaItems, localTasks] = await Promise.all([
         this.getTodonnaItems(),
         this.getHomeTasks()
       ]);
       // Only import items that are not marked as done in Todonna
-      const activeItems = todonnaItems.filter((item: any) => item.todo_item_status !== 'done');
-      const importedTasks = activeItems.map((item: any) => this.todonnaToTask(item));
-      const existingIds = new Set(localTasks.map((task: any) => task.id));
-      const newTasks = importedTasks.filter((task: any) => !existingIds.has(task.id));
+      const activeItems = todonnaItems.filter(item => item.todo_item_status !== 'done');
+      const importedTasks = activeItems.map(item => this.todonnaToTask(item));
+      const existingIds = new Set(localTasks.map(task => task.id));
+      const newTasks = importedTasks.filter(task => !existingIds.has(task.id));
       if (newTasks.length > 0) {
         const allTasks = [...localTasks, ...newTasks];
         await this.saveHomeTasks(allTasks);
@@ -1420,21 +1704,22 @@ export class RemoteStorageClient {
   }
 
   // Weekly Goal operations
-  public async getWeeklyGoal(weekStart: string) {
+  public async getWeeklyGoal(weekStart: string): Promise<WeeklyGoal | null> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return null;
 
     try {
-      return await this.client.getObject(`weekly-goals/${weekStart}`);
+      const result = await this.client.getObject(`weekly-goals/${weekStart}`);
+      return result ? (result as unknown as WeeklyGoal) : null;
     } catch (error) {
       console.error('Failed to get weekly goal:', error);
       return null;
     }
   }
 
-  public async saveWeeklyGoal(weeklyGoal: any) {
+  public async saveWeeklyGoal(weeklyGoal: WeeklyGoal) {
     if (!this.client) {
       this.initialize();
     }
@@ -1447,7 +1732,7 @@ export class RemoteStorageClient {
     }
   }
 
-  public async getAllWeeklyGoals() {
+  public async getAllWeeklyGoals(): Promise<WeeklyGoal[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1455,7 +1740,7 @@ export class RemoteStorageClient {
 
     try {
       const weeklyGoals = await this.client.getAll('weekly-goals/') || {};
-      return Object.values(weeklyGoals).filter(goal => goal);
+      return Object.values(weeklyGoals).filter((goal): goal is WeeklyGoal => !!goal) as WeeklyGoal[];
     } catch (error) {
       console.error('Failed to get all weekly goals:', error);
       return [];
@@ -1463,7 +1748,7 @@ export class RemoteStorageClient {
   }
 
   // ActivityWatch operations
-  public async getActivityWatchData() {
+  public async getActivityWatchData(): Promise<import('../activity-watch.d').ActivityWatchData | null> {
     if (!this.client) {
       this.initialize();
     }
@@ -1471,14 +1756,14 @@ export class RemoteStorageClient {
 
     try {
       const data = await this.client.getObject('activity-watch-data');
-      return data || null;
+      return data ? (data as unknown as import('../activity-watch.d').ActivityWatchData) : null;
     } catch (error) {
       console.error('Failed to get ActivityWatch data:', error);
       return null;
     }
   }
 
-  public async saveActivityWatchData(data: any) {
+  public async saveActivityWatchData(data: import('../activity-watch.d').ActivityWatchData) {
     if (!this.client) {
       this.initialize();
     }
@@ -1514,7 +1799,7 @@ export class RemoteStorageClient {
       const data = await this.getActivityWatchData();
       if (!data || !data.events) return [];
 
-      return data.events.filter((event: any) =>
+      return data.events.filter(event =>
         event.timestamp >= start && event.timestamp <= end
       );
     } catch (error) {
@@ -1524,7 +1809,7 @@ export class RemoteStorageClient {
   }
 
   // Insights operations
-  public async getInsights() {
+  public async getInsights(): Promise<Insight[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1532,14 +1817,14 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('insights') || { insights: [] };
-      return result.insights || [];
+      return (result['insights'] as Insight[]) || [];
     } catch (error) {
       console.error('Failed to get insights:', error);
       return [];
     }
   }
 
-  public async saveInsights(insights: any[]) {
+  public async saveInsights(insights: Insight[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -1553,7 +1838,7 @@ export class RemoteStorageClient {
   }
 
   // Pattern Notes operations
-  public async getPatternNotes() {
+  public async getPatternNotes(): Promise<PatternNote[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1561,14 +1846,14 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('pattern-notes') || { notes: [] };
-      return result.notes || [];
+      return (result['notes'] as PatternNote[]) || [];
     } catch (error) {
       console.error('Failed to get pattern notes:', error);
       return [];
     }
   }
 
-  public async savePatternNotes(notes: any[]) {
+  public async savePatternNotes(notes: PatternNote[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -1582,7 +1867,7 @@ export class RemoteStorageClient {
   }
 
   // Entity operations
-  public async getEntities() {
+  public async getEntities(): Promise<Entity[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1590,14 +1875,14 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('entities') || { entities: [] };
-      return result.entities || [];
+      return (result['entities'] as Entity[]) || [];
     } catch (error) {
       console.error('Failed to get entities:', error);
       return [];
     }
   }
 
-  public async saveEntities(entities: any[]) {
+  public async saveEntities(entities: Entity[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -1611,7 +1896,7 @@ export class RemoteStorageClient {
   }
 
   // Mention operations
-  public async getMentions() {
+  public async getMentions(): Promise<Mention[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1619,14 +1904,14 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('mentions') || { mentions: [] };
-      return result.mentions || [];
+      return (result['mentions'] as Mention[]) || [];
     } catch (error) {
       console.error('Failed to get mentions:', error);
       return [];
     }
   }
 
-  public async saveMentions(mentions: any[]) {
+  public async saveMentions(mentions: Mention[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -1640,7 +1925,7 @@ export class RemoteStorageClient {
   }
 
   // Photo operations
-  public async getPhotos() {
+  public async getPhotos(): Promise<PhotoAttachment[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1648,11 +1933,11 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('photos') || { photos: [] };
-      const photos = result.photos || [];
-      return photos;
-    } catch (error: any) {
+      return (result['photos'] as PhotoAttachment[]) || [];
+    } catch (error: unknown) {
+      const err = error as { status?: number; missing?: boolean };
       // 404 errors are expected when the photos collection doesn't exist yet
-      if (error?.status === 404 || error?.toString?.().includes('404') || error?.missing) {
+      if (err?.status === 404 || String(error).includes('404') || err?.missing) {
         console.warn('RemoteStorageClient.getPhotos() - 404 (collection does not exist yet)');
         return [];
       }
@@ -1661,54 +1946,60 @@ export class RemoteStorageClient {
     }
   }
 
-  public async savePhotos(photos: any[], retries: number = 3): Promise<void> {
+  public async savePhotos(photos: PhotoAttachment[], retries: number = 3): Promise<void> {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return;
 
     // Clean up photos: convert undefined to null for optional fields to match schema
-    const cleanedPhotos = photos.map(photo => ({
+    // Use a mutable array of cleaned objects for the storage layer
+    type StoragePhoto = Omit<PhotoAttachment, 'fullImagePath' | 'width' | 'height' | 'caption'> & {
+      fullImagePath: string | null;
+      width: number | null;
+      height: number | null;
+      caption: string | null;
+    };
+
+    const cleanPhoto = (photo: PhotoAttachment): StoragePhoto => ({
       ...photo,
       fullImagePath: photo.fullImagePath ?? null,
       width: photo.width ?? null,
       height: photo.height ?? null,
       caption: photo.caption ?? null,
-    }));
+    });
+
+    const cleanedPhotos: StoragePhoto[] = photos.map(cleanPhoto);
 
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
-        return await this.client.storeObject('PhotosCollection', 'photos', { photos: cleanedPhotos });
-      } catch (error: any) {
+        await this.client.storeObject('PhotosCollection', 'photos', { photos: cleanedPhotos });
+        return;
+      } catch (error: unknown) {
+        const err = error as { status?: number; missing?: boolean; message?: string };
         // Handle 404 errors - these are expected when creating a new collection
-        if (error?.status === 404 || error?.toString?.().includes('404') || error?.missing) {
+        if (err?.status === 404 || String(error).includes('404') || err?.missing) {
           // On first attempt with 404, try again (collection will be created)
           if (attempt < retries - 1) {
             await new Promise(resolve => setTimeout(resolve, 100));
             continue;
           }
         }
-        
+
         // Handle 412 Precondition Failed (ETag conflict) by retrying with fresh data
-        if (error.status === 412 && attempt < retries - 1) {
+        if (err.status === 412 && attempt < retries - 1) {
           console.warn(`Photos conflict (attempt ${attempt + 1}/${retries}), refreshing and retrying...`);
           const freshPhotos = await this.getPhotos();
           // Merge: keep existing photos, add new ones that don't exist
-          const photoIds = new Set(freshPhotos.map((p: any) => p.id));
+          const photoIds = new Set(freshPhotos.map(p => p.id));
           const mergedPhotos = [...freshPhotos];
-          cleanedPhotos.forEach((photo: any) => {
+          photos.forEach(photo => {
             if (!photoIds.has(photo.id)) {
               mergedPhotos.push(photo);
             }
           });
           // Re-clean merged photos and update cleanedPhotos for next iteration
-          const reCleanedPhotos = mergedPhotos.map(photo => ({
-            ...photo,
-            fullImagePath: photo.fullImagePath ?? null,
-            width: photo.width ?? null,
-            height: photo.height ?? null,
-            caption: photo.caption ?? null,
-          }));
+          const reCleanedPhotos = mergedPhotos.map(cleanPhoto);
           // Update cleanedPhotos array for next iteration
           cleanedPhotos.length = 0;
           cleanedPhotos.push(...reCleanedPhotos);
@@ -1717,14 +2008,14 @@ export class RemoteStorageClient {
         }
         
         // Handle "maximum debt" errors - wait longer and retry
-        if (error.message && error.message.includes('debt') && attempt < retries - 1) {
+        if (err.message && err.message.includes('debt') && attempt < retries - 1) {
           console.warn(`RemoteStorage debt limit reached (attempt ${attempt + 1}/${retries}), waiting longer before retry...`);
           await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
           continue;
         }
-        
+
         // Log other errors
-        if (!(error?.status === 404 || error?.toString?.().includes('404') || error?.missing)) {
+        if (!(err?.status === 404 || String(error).includes('404') || err?.missing)) {
           console.error('Failed to save photos:', error);
         }
         throw error;
@@ -1732,7 +2023,7 @@ export class RemoteStorageClient {
     }
   }
 
-  public async addPhoto(photo: any) {
+  public async addPhoto(photo: PhotoAttachment) {
     const photos = await this.getPhotos();
     photos.push(photo);
     const result = await this.savePhotos(photos);
@@ -1741,16 +2032,16 @@ export class RemoteStorageClient {
 
   public async getPhotosForImpact(impactId: string) {
     const photos = await this.getPhotos();
-    return photos.filter((photo: any) => photo.impactId === impactId);
+    return photos.filter(photo => photo.impactId === impactId);
   }
 
   public async deletePhoto(photoId: string) {
     const photos = await this.getPhotos();
-    const filteredPhotos = photos.filter((photo: any) => photo.id !== photoId);
+    const filteredPhotos = photos.filter(photo => photo.id !== photoId);
 
     // Also delete the full image file if it exists
-    const photoToDelete = photos.find((photo: any) => photo.id === photoId);
-    if (photoToDelete?.fullImagePath) {
+    const photoToDelete = photos.find(photo => photo.id === photoId);
+    if (photoToDelete?.fullImagePath && this.client) {
       try {
         await this.client.remove(photoToDelete.fullImagePath);
       } catch (error) {
@@ -1763,11 +2054,11 @@ export class RemoteStorageClient {
 
   public async deletePhotosForImpact(impactId: string) {
     const photos = await this.getPhotos();
-    const photosToDelete = photos.filter((photo: any) => photo.impactId === impactId);
+    const photosToDelete = photos.filter(photo => photo.impactId === impactId);
 
     // Delete all full image files
     for (const photo of photosToDelete) {
-      if (photo.fullImagePath) {
+      if (photo.fullImagePath && this.client) {
         try {
           await this.client.remove(photo.fullImagePath);
         } catch (error) {
@@ -1776,12 +2067,12 @@ export class RemoteStorageClient {
       }
     }
 
-    const filteredPhotos = photos.filter((photo: any) => photo.impactId !== impactId);
+    const filteredPhotos = photos.filter(photo => photo.impactId !== impactId);
     return await this.savePhotos(filteredPhotos);
   }
 
   // Quick Note operations
-  public async getQuickNotes() {
+  public async getQuickNotes(): Promise<QuickNote[]> {
     if (!this.client) {
       this.initialize();
     }
@@ -1789,9 +2080,10 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('quick-notes') || { notes: [] };
-      return result.notes || [];
-    } catch (error: any) {
-      if (error?.status === 404 || error?.toString?.().includes('404') || error?.missing) {
+      return (result['notes'] as QuickNote[]) || [];
+    } catch (error: unknown) {
+      const err = error as { status?: number; missing?: boolean };
+      if (err?.status === 404 || String(error).includes('404') || err?.missing) {
         return [];
       }
       console.error('Failed to get quick notes:', error);
@@ -1799,7 +2091,7 @@ export class RemoteStorageClient {
     }
   }
 
-  public async saveQuickNotes(notes: any[]) {
+  public async saveQuickNotes(notes: QuickNote[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -1817,23 +2109,21 @@ export class RemoteStorageClient {
       }));
       
       return await this.client.storeObject('QuickNotesCollection', 'quick-notes', { notes: cleanedNotes });
-      
-      return await this.client.storeObject('QuickNotesCollection', 'quick-notes', { notes: cleanedNotes });
     } catch (error) {
       console.error('Failed to save quick notes:', error);
       throw error;
     }
   }
 
-  public async addQuickNote(note: any) {
+  public async addQuickNote(note: QuickNote) {
     const notes = await this.getQuickNotes();
     notes.push(note);
     return await this.saveQuickNotes(notes);
   }
 
-  public async updateQuickNote(noteId: string, updates: any) {
+  public async updateQuickNote(noteId: string, updates: Partial<QuickNote>) {
     const notes = await this.getQuickNotes();
-    const index = notes.findIndex((note: any) => note.id === noteId);
+    const index = notes.findIndex(note => note.id === noteId);
     if (index !== -1) {
       notes[index] = { ...notes[index], ...updates, updatedAt: Date.now() };
       return await this.saveQuickNotes(notes);
@@ -1842,11 +2132,11 @@ export class RemoteStorageClient {
 
   public async deleteQuickNote(noteId: string) {
     const notes = await this.getQuickNotes();
-    const filteredNotes = notes.filter((note: any) => note.id !== noteId);
-    
+    const filteredNotes = notes.filter(note => note.id !== noteId);
+
     // Also delete associated audio file if it exists
-    const noteToDelete = notes.find((note: any) => note.id === noteId);
-    if (noteToDelete?.audioPath) {
+    const noteToDelete = notes.find(note => note.id === noteId);
+    if (noteToDelete?.audioPath && this.client) {
       try {
         await this.client.remove(noteToDelete.audioPath);
       } catch (error) {
@@ -1909,14 +2199,14 @@ export class RemoteStorageClient {
 
     try {
       const result = await this.client.getObject('velocity') || { entries: [] };
-      return result.entries || [];
+      return (result['entries'] as VelocityEntry[]) || [];
     } catch (error) {
       console.error('Failed to get velocity entries:', error);
       return [];
     }
   }
 
-  public async saveVelocityEntries(entries: any[]) {
+  public async saveVelocityEntries(entries: VelocityEntry[]) {
     if (!this.client) {
       this.initialize();
     }
@@ -1935,17 +2225,18 @@ export class RemoteStorageClient {
     return await this.saveVelocityEntries(entries);
   }
 
-  public async recordTaskCompletionForVelocity(task: any) {
+  public async recordTaskCompletionForVelocity(task: StandaloneTask) {
     if (!task.effort && !task.numericEstimate) return;
 
-    const entry = {
+    const completedAt = task.completedAt ?? Date.now();
+    const entry: VelocityEntry = {
       id: `velocity-${task.id}-${Date.now()}`,
       taskId: task.id,
       taskName: task.name,
       effort: task.effort,
       numericEstimate: task.numericEstimate,
-      completedAt: task.completedAt,
-      period: this.getPeriodFromDate(task.completedAt)
+      completedAt,
+      period: this.getPeriodFromDate(completedAt)
     };
 
     await this.addVelocityEntry(entry);
@@ -2032,7 +2323,7 @@ export class RemoteStorageClient {
   }
 
   // Event listening
-  public onChange(callback: (event: any) => void) {
+  public onChange(callback: (event: RemoteStorageChangeEvent) => void) {
     if (!this.client) {
       this.initialize();
     }
@@ -2046,8 +2337,8 @@ export class RemoteStorageClient {
       this.initialize();
     }
     if (!this.remoteStorage) return;
-    
-    this.remoteStorage.on('connected', callback);
+
+    this.remoteStorage.on('connected', callback as () => void);
   }
 
   public onDisconnect(callback: () => void) {
@@ -2056,7 +2347,7 @@ export class RemoteStorageClient {
     }
     if (!this.remoteStorage) return;
 
-    this.remoteStorage.on('disconnected', callback);
+    this.remoteStorage.on('disconnected', callback as () => void);
   }
 
   public onError(callback: (error: Error) => void) {
@@ -2065,16 +2356,16 @@ export class RemoteStorageClient {
     }
     if (!this.remoteStorage) return;
 
-    this.remoteStorage.on('error', callback);
+    this.remoteStorage.on('error', callback as (...args: unknown[]) => void);
   }
 
   public offError(callback: (error: Error) => void) {
     if (!this.remoteStorage) return;
 
     // RemoteStorage uses '_handlers' internally; we need to remove the listener
-    const handlers = this.remoteStorage._handlers?.error;
+    const handlers = this.remoteStorage._handlers?.['error'];
     if (handlers) {
-      const index = handlers.indexOf(callback);
+      const index = handlers.indexOf(callback as (...args: unknown[]) => void);
       if (index > -1) {
         handlers.splice(index, 1);
       }
@@ -2089,7 +2380,7 @@ export class RemoteStorageClient {
     return this.remoteStorage?.connected || false;
   }
 
-  public getRemoteStorage() {
+  public getRemoteStorage(): RemoteStorageInstance | null {
     if (!this.remoteStorage) {
       this.initialize();
     }

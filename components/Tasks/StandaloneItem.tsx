@@ -55,14 +55,6 @@ export default function StandaloneTaskItem({
   const [editNumericEstimate, setEditNumericEstimate] = useState(task.numericEstimate?.toString() || '');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
-  const handleToggleComplete = () => {
-    if (task.status === 'completed') {
-      onUncomplete(task.id);
-    } else {
-      onComplete(task.id);
-    }
-  };
-
   const handleSaveEdit = () => {
     const updates: Partial<StandaloneTask> = {
       name: editName,

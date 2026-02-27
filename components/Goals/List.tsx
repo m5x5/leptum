@@ -25,7 +25,6 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
     deleteGoal,
     addGoal,
     updateGoal,
-    completeGoal,
     addMilestone,
     updateMilestone,
     deleteMilestone,
@@ -96,7 +95,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
     }
   };
 
-  const handleEditGoal = (goalId: string, goal: Goal): void => {
+  const handleEditGoal = (_goalId: string, goal: Goal): void => {
     setEditingGoal(goal);
     setShowEditModal(true);
   };
@@ -158,7 +157,6 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
               goal={goal}
               onDelete={deleteGoal}
               onEdit={handleEditGoal}
-              onComplete={completeGoal}
               onAddMilestone={handleAddMilestone}
               onUpdateMilestone={handleUpdateMilestone}
               onDeleteMilestone={handleDeleteMilestone}

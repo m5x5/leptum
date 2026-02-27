@@ -40,8 +40,8 @@ const RichTextEditor = React.forwardRef<HTMLDivElement, RichTextEditorProps>(
           "link",
           "|",
           "preview",
-        ] as any,
-        previewClass: ["editor-preview", "prose", "prose-sm"] as any,
+        ] as unknown as ReadonlyArray<'|'>,
+        previewClass: ["editor-preview", "prose", "prose-sm"],
       };
     }, [placeholder, minHeight]);
 
@@ -49,7 +49,7 @@ const RichTextEditor = React.forwardRef<HTMLDivElement, RichTextEditorProps>(
       // Show a simple textarea while loading
       return (
         <textarea
-          ref={ref as any}
+          ref={ref as React.RefObject<HTMLTextAreaElement>}
           value={value}
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}

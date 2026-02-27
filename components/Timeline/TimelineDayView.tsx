@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { ProcessedAWEvent } from '../../activity-watch.d';
-import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry, GapBlock } from './TimelineEntry';
-import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES } from '../../utils/timeBlocks';
+import { TimeBlockEntry, GapBlock } from './TimelineEntry';
+import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES, TimeBlock } from '../../utils/timeBlocks';
 import DraftTimelineEntry from './DraftTimelineEntry';
 import { LiveActivityDuration } from './LiveActivityDuration';
 
@@ -9,7 +9,8 @@ interface Impact {
   activity: string;
   date: number;
   goalId?: string;
-  [key: string]: any;
+  endTime?: number;
+  notes?: string;
 }
 
 interface TimelineDayViewProps {
@@ -30,7 +31,7 @@ interface TimelineDayViewProps {
 export function TimelineDayView({
   dateKey,
   impacts,
-  goals,
+  goals: _goals,
   awEvents: allAWEvents,
   filterSettings,
   onOpenEditModal,
@@ -121,7 +122,7 @@ export function TimelineDayView({
   };
 
   // Create time blocks
-  let timeBlocks: any[] = [];
+  let timeBlocks: TimeBlock[] = [];
   if (awEvents.length > 0) {
     const chunks = chunkEventsIntoTimeBlocks(awEvents, DEFAULT_BLOCK_SIZE_MINUTES, dayStart, dayEnd);
     timeBlocks = mergeConsecutiveBlocks(chunks);

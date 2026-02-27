@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { remoteStorageClient } from '../lib/remoteStorage';
+import { remoteStorageClient, StandaloneTask } from '../lib/remoteStorage';
 import { Routine } from '../components/Job/api';
 import cronParser from 'cron-parser';
 
@@ -7,7 +7,7 @@ const ROUTINE_CHECK_KEY = 'routine-last-check';
 const CHECK_INTERVAL = 60000; // Check every minute
 
 export interface UseRoutineSchedulerOptions {
-  currentTasks?: any[];
+  currentTasks?: StandaloneTask[];
   tasksLoading?: boolean;
 }
 
@@ -64,7 +64,7 @@ export function useRoutineScheduler(
     }
   };
 
-  const triggerRoutine = async (routine: Routine, existingTasks: any[]) => {
+  const triggerRoutine = async (routine: Routine, existingTasks: StandaloneTask[]) => {
     try {
       const routineInstanceId = `${routine.id}-${Date.now()}`;
       const today = new Date();
@@ -73,10 +73,10 @@ export function useRoutineScheduler(
 
       for (const task of routine.tasks || []) {
         const existingTaskByInstance = existingTasks.find(
-          (t: any) => t.routineInstanceId === routineInstanceId && t.name === task.name
+          t => t.routineInstanceId === routineInstanceId && t.name === task.name
         );
         const existingTaskToday = existingTasks.find(
-          (t: any) =>
+          t =>
             t.routineId === routine.id &&
             t.name === task.name &&
             t.status === 'due' &&
@@ -114,7 +114,7 @@ export function useRoutineScheduler(
       const lastCheck = parseInt(localStorage.getItem(ROUTINE_CHECK_KEY) || '0', 10);
 
       let routines: Routine[];
-      let existingTasks: any[];
+      let existingTasks: StandaloneTask[];
 
       if (opts?.currentTasks !== undefined && !opts?.tasksLoading) {
         existingTasks = opts.currentTasks;
@@ -136,7 +136,7 @@ export function useRoutineScheduler(
         }
 
         const hasTasksToday = routine.tasks.some(task =>
-          existingTasks.some((t: any) =>
+          existingTasks.some(t =>
             t.routineId === routine.id &&
             t.name === task.name &&
             t.status === 'due' &&

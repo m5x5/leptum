@@ -96,5 +96,5 @@ export interface TimelineEntry {
     type: TimelineEntryType;
     timestamp: number;
     duration: number;
-    data: any;
+    data: ProcessedAWEvent | EventGroup | Record<string, unknown>;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+
 import { useRef, useEffect, useState, useMemo } from "react";
 import { useWavesurfer } from "@wavesurfer/react";
 import { PlayIcon, PauseIcon } from "@heroicons/react/solid";

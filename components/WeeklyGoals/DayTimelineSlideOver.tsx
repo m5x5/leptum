@@ -1,5 +1,4 @@
-import { Fragment, useState } from 'react';
-import { Dialog, Transition } from '@headlessui/react';
+import { useState } from 'react';
 import { XIcon } from '@heroicons/react/solid';
 import { Impact } from '../../utils/timeCalculations';
 import { TimelineDayView } from '../Timeline/TimelineDayView';
@@ -7,6 +6,9 @@ import { ProcessedAWEvent } from '../../activity-watch.d';
 import Modal from '../Modal';
 import ActivityForm from '../Timeline/ActivityForm';
 import AWEventDetailModal from '../Modal/AWEventDetailModal';
+import { Sheet, SheetPortal, SheetOverlay } from '../ui/sheet';
+import * as SheetPrimitive from '@radix-ui/react-dialog';
+import { cn } from '../../lib/utils';
 
 interface DayTimelineSlideOverProps {
   isOpen: boolean;
@@ -68,13 +70,13 @@ export function DayTimelineSlideOver({
 
   const getLocalDateTimeStrings = (timestamp: number) => {
     const date = new Date(timestamp);
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, '0');
-    const day = String(date.getDate()).padStart(2, '0');
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const d = String(date.getDate()).padStart(2, '0');
     const hours = String(date.getHours()).padStart(2, '0');
     const minutes = String(date.getMinutes()).padStart(2, '0');
     return {
-      dateStr: `${year}-${month}-${day}`,
+      dateStr: `${y}-${m}-${d}`,
       timeStr: `${hours}:${minutes}`
     };
   };
@@ -87,7 +89,7 @@ export function DayTimelineSlideOver({
     return 'bg-gray-400';
   };
 
-  const handleOpenEditModal = (impact: Impact, index: number) => {
+  const handleOpenEditModal = (impact: Impact, _index: number) => {
     setEditingImpact(impact);
     const { dateStr, timeStr } = getLocalDateTimeStrings(impact.date);
     setEditFormData({
@@ -184,89 +186,66 @@ export function DayTimelineSlideOver({
 
   return (
     <>
-      <Transition.Root show={isOpen} as={Fragment}>
-        <Dialog as="div" className="relative z-50" onClose={onClose}>
-          <Transition.Child
-            as={Fragment}
-            enter="ease-in-out duration-300"
-            enterFrom="opacity-0"
-            enterTo="opacity-100"
-            leave="ease-in-out duration-300"
-            leaveFrom="opacity-100"
-            leaveTo="opacity-0"
+      <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+        <SheetPortal>
+          <SheetOverlay />
+          <SheetPrimitive.Content
+            className={cn(
+              "fixed z-50 inset-y-0 right-0 h-full w-screen max-w-7xl",
+              "bg-background shadow-xl flex flex-col overflow-y-scroll",
+              "transition ease-in-out data-[state=open]:animate-in data-[state=closed]:animate-out",
+              "data-[state=closed]:slide-out-to-right data-[state=open]:slide-in-from-right",
+              "data-[state=closed]:duration-300 data-[state=open]:duration-300"
+            )}
           >
-            <div className="fixed inset-0 bg-black/50 transition-opacity" />
-          </Transition.Child>
-
-          <div className="fixed inset-0 overflow-hidden">
-            <div className="absolute inset-0 overflow-hidden">
-              <div className="pointer-events-none fixed inset-y-0 right-0 flex max-w-full pl-10">
-                <Transition.Child
-                  as={Fragment}
-                  enter="transform transition ease-in-out duration-300"
-                  enterFrom="translate-x-full"
-                  enterTo="translate-x-0"
-                  leave="transform transition ease-in-out duration-300"
-                  leaveFrom="translate-x-0"
-                  leaveTo="translate-x-full"
+            {/* Header */}
+            <div className="sticky top-0 z-20 bg-background border-b border-border px-6 py-4">
+              <div className="flex items-center justify-between">
+                <SheetPrimitive.Title className="text-xl font-semibold text-foreground">
+                  {dayLabel} Timeline
+                </SheetPrimitive.Title>
+                <SheetPrimitive.Close
+                  className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
+                  onClick={onClose}
                 >
-                  <Dialog.Panel className="pointer-events-auto w-screen max-w-7xl">
-                    <div className="flex h-full flex-col overflow-y-scroll bg-background shadow-xl">
-                      {/* Header */}
-                      <div className="sticky top-0 z-20 bg-background border-b border-border px-6 py-4">
-                        <div className="flex items-center justify-between">
-                          <Dialog.Title className="text-xl font-semibold text-foreground">
-                            {dayLabel} Timeline
-                          </Dialog.Title>
-                          <button
-                            type="button"
-                            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-md text-muted-foreground hover:text-foreground"
-                            onClick={onClose}
-                          >
-                            <XIcon className="h-6 w-6" />
-                          </button>
-                        </div>
-                        <p className="text-sm text-muted-foreground mt-1">
-                          {formatDate(dayStart)}
-                          {awEvents.length > 0 && (
-                            <span className="ml-2 text-xs">
-                              • {awEvents.length} ActivityWatch events
-                            </span>
-                          )}
-                        </p>
-                      </div>
-
-                      {/* Timeline Content */}
-                      <div className="flex-1 px-8 py-4">
-                        <TimelineDayView
-                          dateKey={dateKey}
-                          impacts={impacts}
-                          goals={goals}
-                          awEvents={awEvents}
-                          filterSettings={filterSettings}
-                          onOpenEditModal={handleOpenEditModal}
-                          onOpenAddModal={handleOpenAddModal}
-                          onAWEventClick={handleAWEventClick}
-                          getActivityColor={getActivityColor}
-                        />
-                      </div>
-                    </div>
-                  </Dialog.Panel>
-                </Transition.Child>
+                  <XIcon className="h-6 w-6" />
+                </SheetPrimitive.Close>
               </div>
+              <p className="text-sm text-muted-foreground mt-1">
+                {formatDate(dayStart)}
+                {awEvents.length > 0 && (
+                  <span className="ml-2 text-xs">
+                    • {awEvents.length} ActivityWatch events
+                  </span>
+                )}
+              </p>
             </div>
-          </div>
-        </Dialog>
-      </Transition.Root>
 
-      {/* Add Activity Modal - Higher z-index to appear above slide-over */}
+            {/* Timeline Content */}
+            <div className="flex-1 px-8 py-4">
+              <TimelineDayView
+                dateKey={dateKey}
+                impacts={impacts}
+                goals={goals}
+                awEvents={awEvents}
+                filterSettings={filterSettings}
+                onOpenEditModal={handleOpenEditModal}
+                onOpenAddModal={handleOpenAddModal}
+                onAWEventClick={handleAWEventClick}
+                getActivityColor={getActivityColor}
+              />
+            </div>
+          </SheetPrimitive.Content>
+        </SheetPortal>
+      </Sheet>
+
+      {/* Add Activity Modal */}
       <Modal
         isOpen={showAddModal}
         closeModal={() => {
           setShowAddModal(false);
           setAddFormInitialData(null);
         }}
-        className="z-[60]"
       >
         <Modal.Title>Add Activity</Modal.Title>
         <Modal.Body>
@@ -284,14 +263,13 @@ export function DayTimelineSlideOver({
         </Modal.Body>
       </Modal>
 
-      {/* Edit Activity Modal - Higher z-index to appear above slide-over */}
+      {/* Edit Activity Modal */}
       <Modal
         isOpen={showEditModal}
         closeModal={() => {
           setShowEditModal(false);
           setEditFormData(null);
         }}
-        className="z-[60]"
       >
         <Modal.Title>Edit Activity</Modal.Title>
         <Modal.Body>
@@ -315,7 +293,6 @@ export function DayTimelineSlideOver({
       <Modal
         isOpen={showDeleteConfirm}
         closeModal={() => setShowDeleteConfirm(false)}
-        className="z-[70]"
       >
         <Modal.Title>Delete Activity</Modal.Title>
         <Modal.Body>
@@ -339,7 +316,7 @@ export function DayTimelineSlideOver({
         </Modal.Footer>
       </Modal>
 
-      {/* ActivityWatch Event Detail Modal - Higher z-index to appear above slide-over */}
+      {/* ActivityWatch Event Detail Modal */}
       <AWEventDetailModal
         isOpen={showAWDetailModal}
         closeModal={() => setShowAWDetailModal(false)}

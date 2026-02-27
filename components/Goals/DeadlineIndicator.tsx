@@ -1,5 +1,5 @@
 import { ClockIcon, ExclamationCircleIcon } from '@heroicons/react/solid';
-import { getDeadlineStatus, getGoalDeadlineStatusColor, formatDeadlineDate, DeadlineStatus } from '../../utils/deadlineUtils';
+import { getDeadlineStatus, getGoalDeadlineStatusColor, formatDeadlineDate } from '../../utils/deadlineUtils';
 
 interface DeadlineIndicatorProps {
   targetDate?: number;

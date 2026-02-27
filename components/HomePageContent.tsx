@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, useRef } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon, FireIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "./StandaloneTasksContext";
 import type { StandaloneTask } from "../utils/useStandaloneTasks";
@@ -34,7 +34,7 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "../components/ui/drawer";
-import { HighlightedMentions } from "../components/ui/mention-input";
+
 import OnboardingModal from "../components/Modal/OnboardingModal";
 import QuickCapture, { type PendingSharePayload } from "../components/QuickCapture/QuickCapture";
 import { useCurrentActivity } from "../components/CurrentActivityContext";
@@ -95,7 +95,6 @@ export default function Home() {
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
-  const [activeTaskStartTime, setActiveTaskStartTime] = useState<number | null>(null);
   const [showPastActivity, setShowPastActivity] = useState(false);
   const [showArchiveSheet, setShowArchiveSheet] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
@@ -215,14 +214,15 @@ export default function Home() {
       }
       const todayStart = new Date();
       todayStart.setHours(0, 0, 0, 0);
-      const completedToday = (completions as { routineId: string; completedAt: number }[]).some(
-        (c) => c.routineId === (showUp as any).id && c.completedAt >= todayStart.getTime()
+      const showUpRoutine = showUp as Routine;
+      const completedToday = completions.some(
+        (c) => c.routineId === showUpRoutine.id && c.completedAt >= todayStart.getTime()
       );
       if (!completedToday) {
         await remoteStorageClient.addRoutineCompletion({
-          routineId: (showUp as any).id,
-          routineInstanceId: `${(showUp as any).id}-${Date.now()}`,
-          routineName: (showUp as any).name,
+          routineId: showUpRoutine.id,
+          routineInstanceId: `${showUpRoutine.id}-${Date.now()}`,
+          routineName: showUpRoutine.name,
           completedAt: Date.now(),
           taskCount: 0,
         });
@@ -465,18 +465,15 @@ export default function Home() {
     const now = timestamp ?? getCurrentTime();
 
     setActiveTask(taskName);
-    setActiveTaskStartTime(now);
 
     // Log to impacts
     try {
       const impacts = await remoteStorageClient.getImpacts();
-      const newImpact: any = {
+      const newImpact = {
         activity: taskName,
-        date: now
+        date: now,
+        ...(goalId ? { goalId } : {})
       };
-      if (goalId) {
-        newImpact.goalId = goalId;
-      }
       impacts.push(newImpact);
       await remoteStorageClient.saveImpacts(impacts);
       if (typeof window !== "undefined") {
@@ -508,7 +505,6 @@ export default function Home() {
       const wasTracked = currentActivity?.name === task.name || activeTask === task.name;
       if (wasTracked) {
         setActiveTask(null);
-        setActiveTaskStartTime(null);
         try {
           const impacts = await remoteStorageClient.getImpacts();
           const todayStart = new Date();
@@ -638,7 +634,6 @@ export default function Home() {
     if (!activeTask) return;
 
     setActiveTask(null);
-    setActiveTaskStartTime(null);
   };
 
   const handleCreateTask = async (e?: React.FormEvent) => {
@@ -860,8 +855,8 @@ export default function Home() {
     task.status !== 'completed' && task.createdAt > twoWeeksAgo
   );
 
-  const groupTasksByDay = (tasks: any[]) => {
-    const groups: Record<string, any[]> = {};
+  const groupTasksByDay = (tasks: StandaloneTask[]) => {
+    const groups: Record<string, StandaloneTask[]> = {};
     
     // Sort tasks by date first (newest first)
     const sortedTasks = [...tasks].sort((a, b) => {
@@ -890,8 +885,6 @@ export default function Home() {
     return `${monthStr} ${day}`;
   };
 
-  const now = new Date();
-
   // Past = home tasks that are completed or old, plus latest archived bucket (loaded when archive sheet opens)
   const pastTasks = [...standaloneTasks.filter(task => task.status === 'completed' || task.createdAt <= twoWeeksAgo), ...archivedTasks]
     .sort((a, b) => {
@@ -901,7 +894,6 @@ export default function Home() {
     });
 
   // Today's time + goal progress. Only load when Today's Progress section is in view (desktop; hidden on mobile).
-  const [baseTotalTime, setBaseTotalTime] = useState(0);
   const [baseGoalProgress, setBaseGoalProgress] = useState<Record<string, number>>({});
 
   useEffect(() => {
@@ -922,7 +914,6 @@ export default function Home() {
           const goalId = (todayImpacts[i] as { goalId?: string }).goalId;
           if (goalId) goalTimeMap[goalId] = (goalTimeMap[goalId] || 0) + timeDiff;
         }
-        setBaseTotalTime(totalMs);
         setBaseGoalProgress(goalTimeMap);
       } catch (error) {
         console.error("Failed to calculate today's time:", error);

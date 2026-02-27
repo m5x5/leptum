@@ -1,9 +1,5 @@
-export interface Impact {
-  activity: string;
-  date: number;
-  goalId?: string;
-  [key: string]: any;
-}
+export type { Impact } from '../lib/remoteStorage';
+import type { Impact } from '../lib/remoteStorage';
 
 export type DayOfWeek = 'monday' | 'tuesday' | 'wednesday' | 'thursday' | 'friday' | 'saturday' | 'sunday';
 

@@ -1,23 +1,9 @@
 import { useState, useEffect, useCallback } from 'react';
-import { remoteStorageClient } from '../lib/remoteStorage';
+import { remoteStorageClient, StandaloneTask } from '../lib/remoteStorage';
 import { v4 as uuidv4 } from 'uuid';
 import { Emotion } from '../components/ui/emotion-selector';
 
-export interface StandaloneTask {
-   id: string;
-   name: string;
-   description?: string;
-   status: 'due' | 'completed' | 'pending';
-   createdAt: number;
-   completedAt?: number;
-   archivedAt?: number; // Timestamp when the task was archived
-   routineId?: string;
-   routineInstanceId?: string; // Unique ID for a specific routine trigger instance
-   goalId?: string; // Optional - associated goal for this task
-   effort?: 'XS' | 'S' | 'M' | 'L' | 'XL'; // Effort estimation
-   numericEstimate?: number; // Numeric points effort estimation
-   emotions?: Emotion[]; // Emotions felt after completing the task
- }
+export type { StandaloneTask };
 
 export function useStandaloneTasks() {
   const [tasks, setTasks] = useState<StandaloneTask[]>([]);
@@ -124,7 +110,7 @@ export function useStandaloneTasks() {
       if (allCompleted && routineId) {
         // Get routine name
         const routines = await remoteStorageClient.getRoutines();
-        const routine = routines.find((r: any) => r.id === routineId);
+        const routine = routines.find(r => r.id === routineId);
 
         if (routine) {
           // Use the creation date of the routine tasks (when they were scheduled)
@@ -135,7 +121,7 @@ export function useStandaloneTasks() {
           const completion = {
             routineId,
             routineInstanceId,
-            routineName: (routine as any).name as string,
+            routineName: routine.name,
             completedAt: routineCreatedAt,
             taskCount: routineTasks.length
           };

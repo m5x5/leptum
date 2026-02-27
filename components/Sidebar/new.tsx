@@ -8,7 +8,7 @@ import {
 } from "@heroicons/react/solid";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Sidebar,
   SidebarContent,
@@ -62,7 +62,7 @@ export default function AppSidebar() {
   return (
     <>
       {/* Desktop Sidebar - shadcn */}
-      <Sidebar collapsible="icon" variant="sidebar" className="hidden md:flex" style={{ viewTransitionName: 'sidebar' } as any}>
+      <Sidebar collapsible="icon" variant="sidebar" className="hidden md:flex" style={{ viewTransitionName: 'sidebar' } as React.CSSProperties & { viewTransitionName?: string }}>
       <SidebarHeader>
         <SidebarMenu className="group-data-[collapsible=icon]:items-center">
           <SidebarMenuItem>
@@ -151,7 +151,7 @@ export default function AppSidebar() {
       {/* Mobile Bottom Navigation - Material You Style */}
       <nav
         className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-50 shadow-lg"
-        style={{ viewTransitionName: 'bottom-bar' } as any}
+        style={{ viewTransitionName: 'bottom-bar' } as React.CSSProperties & { viewTransitionName?: string }}
         aria-label="Main navigation"
       >
         <div className="flex flex-row items-center justify-around px-1 py-1.5">

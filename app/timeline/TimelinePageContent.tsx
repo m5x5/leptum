@@ -2,7 +2,7 @@
 import Image from "next/image";
 import { useEffect, useState, useMemo, useCallback } from "react";
 import { remoteStorageClient } from "../../lib/remoteStorage";
-import { PlusIcon, TrashIcon, UploadIcon, FilterIcon } from "@heroicons/react/solid";
+import { PlusIcon, UploadIcon, FilterIcon } from "@heroicons/react/solid";
 import Modal from "../../components/Modal";
 import {
   Drawer,
@@ -10,19 +10,19 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "../../components/ui/drawer";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../../components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
 import { useActivityWatch } from "../../utils/useActivityWatch";
 import { useMentions } from "../../utils/useMentions";
-import { usePhotoAttachments, PhotoAttachment } from "../../utils/usePhotoAttachments";
+import { usePhotoAttachments } from "../../utils/usePhotoAttachments";
 import { extractMentionedEntityIds, HighlightedMentions } from "../../components/ui/mention-input";
 import FilterControls from "../../components/Timeline/FilterControls";
-import { ActivityWatchEntry, EventGroupEntry, TimeBlockEntry, GapBlock } from "../../components/Timeline/TimelineEntry";
+import { TimeBlockEntry, GapBlock } from "../../components/Timeline/TimelineEntry";
 
-import { ProcessedAWEvent, EventGroup } from "../../activity-watch.d";
-import { groupAdjacentEvents, DEFAULT_GROUP_GAP_MINUTES } from "../../utils/activityWatch";
-import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES } from "../../utils/timeBlocks";
+import { ProcessedAWEvent } from "../../activity-watch.d";
+
+import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES, TimeBlock } from "../../utils/timeBlocks";
 
 import ActivityForm from "../../components/Timeline/ActivityForm";
 import ImportActivityWatchForm from "../../components/Timeline/ImportActivityWatchForm";
@@ -46,15 +46,7 @@ interface Impact {
   isVirtualContinuation?: boolean;
   originalStartTime?: number;
   photoIds?: string[];
-  [key: string]: any;
-}
-
-interface ActivitySummary {
-  activity: string;
-  totalDuration: number;
-  percentage: number;
-  color: string;
-  startTime?: number;
+  notes?: string;
 }
 
 export default function TimelinePageContent() {
@@ -184,29 +176,10 @@ export default function TimelinePageContent() {
   // Active date for navigation highlighting
   const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
 
-  // Scroll to a specific date
-  const scrollToDate = (dateKey: string) => {
-    const element = document.getElementById(`day-${dateKey}`);
-    if (element) {
-      // Get the offset position accounting for sticky header
-      const elementPosition = element.getBoundingClientRect().top;
-      const offsetPosition = elementPosition + window.pageYOffset - 120; // 120px for sticky nav + padding
-      
-      window.scrollTo({
-        top: offsetPosition,
-        behavior: 'smooth'
-      });
-      
-      setActiveDateKey(dateKey);
-    }
-  };
-
-
   const { goals } = useGoals();
-  const { goalTypes } = useGoalTypes();
+  useGoalTypes();
   const { updateMentionsForSource, deleteMentionsForSource } = useMentions();
   const {
-    photos,
     addPhoto,
     deletePhoto,
     deletePhotosForImpact,
@@ -214,11 +187,9 @@ export default function TimelinePageContent() {
   } = usePhotoAttachments();
   const {
     awData,
-    isLoading: awIsLoading,
     error: awError,
     filterSettings,
     importData,
-    clearData: clearAWData,
     toggleBucket,
     updateFilterSettings,
   } = useActivityWatch();
@@ -554,58 +525,6 @@ export default function TimelinePageContent() {
       date.getMonth() === today.getMonth() &&
       date.getFullYear() === today.getFullYear()
     );
-  };
-
-  // Static calculation for past days only (not today)
-  const calculateDaySummary = (dayImpacts: Impact[]): ActivitySummary[] => {
-    const activityDurations: { [key: string]: number } = {};
-
-    // dayImpacts are sorted in descending order (most recent first)
-    for (let i = dayImpacts.length - 1; i >= 0; i--) {
-      const current = dayImpacts[i];
-      let endTime: number;
-
-      if (current.endTime != null) {
-        endTime = current.endTime;
-      } else if (i === 0) {
-        // For past days, duration goes until end of day
-        const dayEnd = new Date(current.date);
-        dayEnd.setHours(24, 0, 0, 0);
-        endTime = dayEnd.getTime();
-      } else {
-        // Duration goes until the next activity
-        endTime = dayImpacts[i - 1].date;
-      }
-
-      const duration = getDurationInMs(current.date, endTime);
-
-      if (!activityDurations[current.activity]) {
-        activityDurations[current.activity] = 0;
-      }
-      activityDurations[current.activity] += duration;
-    }
-
-    // Always use 24 hours for percentage calculation
-    const fullDayInMs = 24 * 60 * 60 * 1000;
-
-    // Convert to summary array with percentages
-    const summaries: ActivitySummary[] = Object.entries(activityDurations).map(
-      ([activity, duration]) => {
-        const impact = dayImpacts.find(i => i.activity === activity);
-        return {
-          activity,
-          totalDuration: duration,
-          percentage: (duration / fullDayInMs) * 100,
-          color: impact ? getActivityColor(impact) : "bg-gray-400",
-          startTime: impact?.date || 0,
-        };
-      }
-    );
-
-    // Sort by start time (earliest first)
-    summaries.sort((a, b) => (a.startTime || 0) - (b.startTime || 0));
-
-    return summaries;
   };
 
   const groupedImpacts = useMemo(() => groupByDate(impacts), [impacts, groupByDate]);
@@ -1479,7 +1398,7 @@ export default function TimelinePageContent() {
                     };
 
                     // Create 15-minute time blocks, then merge consecutive blocks with same activity
-                    let timeBlocks: any[] = [];
+                    let timeBlocks: TimeBlock[] = [];
                     if (awEvents.length > 0) {
                       // First chunk into 15-minute blocks (loginwindow is handled in dominant activity selection)
                       // We include ALL events here, including loginwindow

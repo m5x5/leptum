@@ -1,4 +1,5 @@
 // Analyze impact data to discover which activities affect metrics
+import { Impact } from '../lib/remoteStorage';
 
 export interface ActivityEffect {
   activity: string;
@@ -42,7 +43,7 @@ const INVERTED_METRICS = ['stress', 'shame', 'guilt'];
  * Analyze impact logs to discover which activities affect which metrics
  * Compares metric values before and after an activity
  */
-export function analyzeActivityPatterns(impacts: any[]): ActivityPattern[] {
+export function analyzeActivityPatterns(impacts: Impact[]): ActivityPattern[] {
   if (impacts.length < 2) return [];
 
   // Sort by date to ensure correct order
@@ -73,8 +74,10 @@ export function analyzeActivityPatterns(impacts: any[]): ActivityPattern[] {
 
     // Compare each metric
     METRICS.forEach(metric => {
-      const currentValue = parseFloat(current[metric]);
-      const previousValue = parseFloat(previous[metric]);
+      const currentRaw = (current as unknown as Record<string, string | number | undefined>)[metric];
+      const previousRaw = (previous as unknown as Record<string, string | number | undefined>)[metric];
+      const currentValue = parseFloat(String(currentRaw ?? ''));
+      const previousValue = parseFloat(String(previousRaw ?? ''));
 
       // Only track if both values exist and are valid numbers
       if (!isNaN(currentValue) && !isNaN(previousValue)) {
