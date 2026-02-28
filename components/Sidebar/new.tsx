@@ -43,7 +43,16 @@ export default function AppSidebar() {
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      queueMicrotask(() => setShowKeyboardHints(likelyWithKeyboard(window)));
+      queueMicrotask(() => {
+        const stored = localStorage.getItem('showKeyboardShortcuts');
+        setShowKeyboardHints(stored !== null ? stored === 'true' : likelyWithKeyboard(window));
+      });
+      const handleChange = () => {
+        const stored = localStorage.getItem('showKeyboardShortcuts');
+        setShowKeyboardHints(stored !== null ? stored === 'true' : likelyWithKeyboard(window));
+      };
+      window.addEventListener('keyboardShortcutsChanged', handleChange);
+      return () => window.removeEventListener('keyboardShortcutsChanged', handleChange);
     }
   }, []);
 

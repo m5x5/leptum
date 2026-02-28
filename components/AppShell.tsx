@@ -170,13 +170,20 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     queueMicrotask(() => {
       if (typeof window !== "undefined") {
-        setShowKeyboardHints(likelyWithKeyboard(window));
+        const stored = localStorage.getItem('showKeyboardShortcuts');
+        setShowKeyboardHints(stored !== null ? stored === 'true' : likelyWithKeyboard(window));
       }
     });
+    const handleChange = () => {
+      const stored = localStorage.getItem('showKeyboardShortcuts');
+      setShowKeyboardHints(stored !== null ? stored === 'true' : likelyWithKeyboard(window));
+    };
+    window.addEventListener('keyboardShortcutsChanged', handleChange);
     if (typeof window !== "undefined") {
       const stopKeyUX = startKeyUX(window, [hotkeyKeyUX(), pressKeyUX("is-pressed")]);
       return () => {
         stopKeyUX();
+        window.removeEventListener('keyboardShortcutsChanged', handleChange);
       };
     }
   }, []);

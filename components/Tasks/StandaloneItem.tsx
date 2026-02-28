@@ -49,6 +49,7 @@ export default function StandaloneTaskItem({
   onEdit
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [editName, setEditName] = useState(task.name);
   const [editDescription, setEditDescription] = useState(task.description || '');
   const [editEffort, setEditEffort] = useState(task.effort || '');
@@ -110,7 +111,7 @@ export default function StandaloneTaskItem({
 
   return (
     <div className={`
-      flex items-center justify-between p-3 rounded-lg
+      flex items-center justify-between p-1.5 rounded-lg
       hover:bg-muted/50 transition-colors
       ${isActive ? 'bg-primary/5 border-l-2 border-primary' : ''}
     `}>
@@ -262,9 +263,11 @@ export default function StandaloneTaskItem({
         <span className="text-xs text-muted-foreground whitespace-nowrap">
           {formatTime(task.createdAt)}
         </span>
-        <DropdownMenu>
+        <DropdownMenu open={dropdownOpen} onOpenChange={setDropdownOpen}>
           <DropdownMenuTrigger asChild>
             <button
+              onPointerDown={(e) => e.preventDefault()}
+              onClick={() => setDropdownOpen((o) => !o)}
               className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded-md hover:bg-muted/50"
               title="Task actions"
             >
@@ -299,7 +302,7 @@ export default function StandaloneTaskItem({
               Edit
             </DropdownMenuItem>
             <DropdownMenuItem
-              onClick={() => setShowDeleteConfirm(true)}
+              onClick={() => setTimeout(() => setShowDeleteConfirm(true), 0)}
               className="cursor-pointer text-red-600 focus:text-red-600"
             >
               <TrashIcon className="h-4 w-4 mr-2" />

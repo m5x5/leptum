@@ -611,7 +611,7 @@ export default function QuickCapture({
             <button
               key={dateKey}
               onClick={() => setSelectedDay(dateKey)}
-              className={`shrink-0 flex flex-col items-center justify-center px-3 py-2 rounded-lg transition-colors min-h-[44px] min-w-[44px] ${
+              className={`shrink-0 flex flex-col items-center justify-center rounded-lg transition-colors h-[52px] w-[52px] ${
                 isSelected
                   ? 'bg-primary text-primary-foreground'
                   : 'bg-muted/50 hover:bg-muted text-foreground'

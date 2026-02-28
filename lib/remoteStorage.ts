@@ -552,6 +552,17 @@ const QuickNotesCollectionSchema = {
   required: ['notes']
 };
 
+const WeekReflectionSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    text: { type: ['string', 'null'] },
+    createdAt: { type: 'number' },
+    updatedAt: { type: ['number', 'null'] },
+  },
+  required: ['id', 'createdAt'],
+};
+
 // Entity schemas
 const EntitySchema = {
   type: 'object',
@@ -826,6 +837,13 @@ export interface QuickNote {
   updatedAt?: number;
 }
 
+export interface WeekReflection {
+  id: string; // Monday date "YYYY-MM-DD"
+  text?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 export interface Entity {
   id: string;
   name: string;
@@ -966,6 +984,7 @@ export class RemoteStorageClient {
     this.client.declareType('VelocityCollection', VelocityCollectionSchema);
     this.client.declareType('PhotoAttachment', PhotoAttachmentSchema);
     this.client.declareType('PhotosCollection', PhotosCollectionSchema);
+    this.client.declareType('WeekReflection', WeekReflectionSchema);
   }
 
   // Initialize and attach widget
@@ -1202,7 +1221,6 @@ export class RemoteStorageClient {
 
     try {
       const routines = await this.client.getAll('routines/') || {};
-      console.log({routines});
       return Object.values(routines).filter((routine): routine is Routine => !!routine) as Routine[];
     } catch (error) {
       console.error('Failed to get routines:', error);
@@ -2378,6 +2396,54 @@ export class RemoteStorageClient {
       this.initialize();
     }
     return this.remoteStorage?.connected || false;
+  }
+
+  // Week reflection operations
+  public async getWeekReflections(): Promise<Record<string, WeekReflection>> {
+    if (!this.client) this.initialize();
+    if (!this.client) return {};
+
+    try {
+      const listing = await this.client.getAll('week-reflections/');
+      if (!listing) return {};
+      const result: Record<string, WeekReflection> = {};
+      for (const [, value] of Object.entries(listing)) {
+        const r = value as WeekReflection;
+        if (r && r.id) result[r.id] = r;
+      }
+      return result;
+    } catch (error) {
+      console.error('Failed to get week reflections:', error);
+      return {};
+    }
+  }
+
+  public async saveWeekReflection(reflection: WeekReflection): Promise<void> {
+    if (!this.client) this.initialize();
+    if (!this.client) return;
+
+    try {
+      const cleaned: WeekReflection = {
+        id: reflection.id,
+        createdAt: reflection.createdAt,
+        ...(reflection.text !== undefined && { text: reflection.text }),
+        ...(reflection.updatedAt !== undefined && { updatedAt: reflection.updatedAt }),
+      };
+      await this.client.storeObject('WeekReflection', `week-reflections/${reflection.id}`, cleaned);
+    } catch (error) {
+      console.error('Failed to save week reflection:', error);
+    }
+  }
+
+  public async deleteWeekReflection(id: string): Promise<void> {
+    if (!this.client) this.initialize();
+    if (!this.client) return;
+
+    try {
+      await this.client.remove(`week-reflections/${id}`);
+    } catch (error) {
+      console.error('Failed to delete week reflection:', error);
+    }
   }
 
   public getRemoteStorage(): RemoteStorageInstance | null {

@@ -31,6 +31,7 @@ import { LiveActivityDuration } from "../../components/Timeline/LiveActivityDura
 import { LiveSummaryBar } from "../../components/Timeline/LiveSummaryBar";
 import { TimelineScheduleView } from "../../components/Timeline/TimelineScheduleView";
 import { TimelineWeekView } from "../../components/Timeline/TimelineWeekView";
+import { LifeView } from "../../components/Timeline/LifeView";
 
 interface Impact {
   id?: string;
@@ -166,7 +167,7 @@ export default function TimelinePageContent() {
   const [daysToShow, setDaysToShow] = useState(3);
 
   // View mode state - default to schedule on mobile, day on desktop
-  const [viewMode, setViewMode] = useState<"day" | "schedule" | "week">(() => {
+  const [viewMode, setViewMode] = useState<"day" | "schedule" | "week" | "life">(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth < 768 ? "schedule" : "day";
     }
@@ -824,11 +825,12 @@ export default function TimelinePageContent() {
           </div>
 
           {/* View Tabs */}
-          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "day" | "schedule" | "week")} className="w-full">
-            <TabsList className="grid w-full max-w-md grid-cols-3">
+          <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "day" | "schedule" | "week" | "life")} className="w-full">
+            <TabsList className="grid w-full max-w-xl grid-cols-4">
               <TabsTrigger value="day">Day View</TabsTrigger>
               <TabsTrigger value="schedule">Schedule View</TabsTrigger>
               <TabsTrigger value="week">Week View</TabsTrigger>
+              <TabsTrigger value="life">Life</TabsTrigger>
             </TabsList>
           </Tabs>
         </div>
@@ -870,7 +872,7 @@ export default function TimelinePageContent() {
         )}
 
         {/* Desktop Filter Toggle Button */}
-        {awData && awData.buckets.length > 0 && (
+        {viewMode === "day" && awData && awData.buckets.length > 0 && (
           <div className="hidden md:block mb-6">
             <button
               onClick={() => setShowDesktopFilters(!showDesktopFilters)}
@@ -893,7 +895,7 @@ export default function TimelinePageContent() {
         )}
 
         {/* Filter Controls - Desktop Only */}
-        {awData && awData.buckets.length > 0 && showDesktopFilters && (
+        {viewMode === "day" && awData && awData.buckets.length > 0 && showDesktopFilters && (
           <div className="hidden md:block">
             <FilterControls
               filterSettings={filterSettings}
@@ -2034,6 +2036,11 @@ export default function TimelinePageContent() {
                 isToday={isToday}
                 getDurationInMs={getDurationInMs}
               />
+            )}
+
+            {/* Life View */}
+            {viewMode === "life" && (
+              <LifeView impacts={impacts} />
             )}
           </>
         )}

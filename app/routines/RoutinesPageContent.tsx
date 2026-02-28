@@ -1,7 +1,7 @@
 "use client";
 
 import { PlusIcon, TrashIcon, CheckCircleIcon, PencilIcon } from "@heroicons/react/solid";
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState } from "react";
 import { remoteStorageClient } from "../../lib/remoteStorage";
 import { Routine } from "../../components/Job/api";
 import Modal from "../../components/Modal";
@@ -41,16 +41,9 @@ export default function RoutinesPageContent() {
     return () => window.removeEventListener('goalUpdated', handleGoalUpdate);
   }, [reloadGoals]);
 
-  const loadRoutinesRef = useRef<() => Promise<void>>(() => Promise.resolve());
   useEffect(() => {
-    loadRoutinesRef.current();
-
-    const handleChange = (event: { relativePath: string }) => {
-      if (event.relativePath.startsWith('routines/')) {
-        loadRoutinesRef.current();
-      }
-    };
-    remoteStorageClient.onChange(handleChange);
+    loadRoutines();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Listen for openCreateRoutine event from header button
@@ -66,74 +59,11 @@ export default function RoutinesPageContent() {
 
   const loadRoutines = async () => {
     try {
-      // Load routines from the new unified storage
       const loadedRoutines = await remoteStorageClient.getRoutines();
-
-      // If no routines exist, migrate from old jobs and stacks
-      if (loadedRoutines.length === 0) {
-      } else {
-        setRoutines((loadedRoutines as Routine[]).sort((a, b) => a.index - b.index));
-        await migrateFromOldData();
-      }
+      const valid = (loadedRoutines as Routine[]).filter(r => r?.id && r?.name);
+      setRoutines(valid.sort((a, b) => (a.index ?? 0) - (b.index ?? 0)));
     } catch (error) {
       console.error("Failed to load routines:", error);
-    }
-  };
-  loadRoutinesRef.current = loadRoutines;
-
-  const migrateFromOldData = async () => {
-    try {
-      // Migrate from Jobs (scheduled routines with tasks)
-      const oldJobs = await remoteStorageClient.getJobs();
-      const oldStacks = await remoteStorageClient.getStacks();
-      console.log({oldJobs, oldStacks});
-
-      const migratedRoutines: Routine[] = [];
-      let index = 0;
-
-      // Convert jobs to routines
-      for (const job of oldJobs) {
-        const routine: Routine = {
-          id: job.id || `routine-${Date.now()}-${index}`,
-          name: job.name || getDescription(job.cron) || "Untitled Routine",
-          cron: job.cron,
-          status: job.status || "pending",
-          lastEndTime: job.lastEndTime,
-          index: index++,
-          tasks: (job.habits || []).map((habit, taskIndex) => ({
-            id: habit.id || `task-${Date.now()}-${taskIndex}`,
-            name: habit.name,
-            routineId: job.id,
-            index: taskIndex,
-            status: habit.status || "pending",
-            description: habit.description
-          }))
-        };
-        migratedRoutines.push(routine);
-        await remoteStorageClient.saveRoutine(routine);
-      }
-
-      // Convert stacks to routines (without CRON)
-      for (const stack of oldStacks) {
-        const routine: Routine = {
-          id: `routine-${Date.now()}-${index}`,
-          name: stack.name,
-          index: index++,
-          tasks: (stack.habits || []).map((habit, taskIndex) => ({
-            id: habit.id || `task-${Date.now()}-${taskIndex}`,
-            name: habit.name,
-            routineId: `routine-${Date.now()}-${index}`,
-            index: taskIndex,
-            status: "pending"
-          }))
-        };
-        migratedRoutines.push(routine);
-        await remoteStorageClient.saveRoutine(routine);
-      }
-
-      setRoutines(migratedRoutines);
-    } catch (error) {
-      console.error("Failed to migrate old data:", error);
     }
   };
 
@@ -247,7 +177,7 @@ export default function RoutinesPageContent() {
       cron: routine.cron || "",
       description: routine.description || "",
       goalIds: goalIds,
-      tasks: routine.tasks.map(t => t.name),
+      tasks: (routine.tasks ?? []).map(t => t.name),
       newTask: ""
     });
     setShowEditModal(true);
@@ -356,7 +286,7 @@ export default function RoutinesPageContent() {
                   )}
                   <StreakBadge streakInfo={getStreaksForRoutine(routine.id)} className="mb-4" />
 
-                  {routine.tasks.length > 0 && (
+                  {(routine.tasks?.length ?? 0) > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <CheckCircleIcon className="h-4 w-4" />
                       {routine.tasks.length} task{routine.tasks.length !== 1 ? 's' : ''}
@@ -433,7 +363,7 @@ export default function RoutinesPageContent() {
                   )}
                   <StreakBadge streakInfo={getStreaksForRoutine(routine.id)} className="mb-4" />
 
-                  {routine.tasks.length > 0 && (
+                  {(routine.tasks?.length ?? 0) > 0 && (
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <CheckCircleIcon className="h-4 w-4" />
                       {routine.tasks.length} task{routine.tasks.length !== 1 ? 's' : ''}

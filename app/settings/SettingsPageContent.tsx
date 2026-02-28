@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useActivityWatch } from '../../utils/useActivityWatch';
 import { remoteStorageClient } from '../../lib/remoteStorage';
 import { serviceWorkerManager, isOfflineModeEnabled, setOfflineModeEnabled, ServiceWorkerState } from '../../utils/serviceWorker';
+import { likelyWithKeyboard } from 'keyux';
 import { useEntities, Entity } from '../../utils/useEntities';
 import { useMentions } from '../../utils/useMentions';
 import { extractMentionedEntityIds } from '../../components/ui/mention-input';
@@ -26,6 +27,8 @@ export default function SettingsPageContent() {
   const [mounted, setMounted] = useState(false);
   const [isServiceWorkerSupported, setIsServiceWorkerSupported] = useState(false);
   const [offlineModeEnabled, setOfflineModeEnabledState] = useState(false);
+  const [showKeyboardShortcuts, setShowKeyboardShortcutsState] = useState(false);
+  const [dob, setDob] = useState('');
   const [authError, setAuthError] = useState<string | null>(null);
 
   // Entity management state
@@ -44,6 +47,9 @@ export default function SettingsPageContent() {
       setMounted(true);
       setIsServiceWorkerSupported('serviceWorker' in navigator);
       setOfflineModeEnabledState(isOfflineModeEnabled());
+      const storedKb = localStorage.getItem('showKeyboardShortcuts');
+      setShowKeyboardShortcutsState(storedKb !== null ? storedKb === 'true' : likelyWithKeyboard(window));
+      setDob(localStorage.getItem('leptum_dob') ?? '');
     });
 
     // Attach RemoteStorage widget when settings page mounts
@@ -117,6 +123,12 @@ export default function SettingsPageContent() {
       // Reload page to ensure service worker is fully removed
       window.location.reload();
     }
+  };
+
+  const handleToggleKeyboardShortcuts = (enabled: boolean) => {
+    localStorage.setItem('showKeyboardShortcuts', enabled.toString());
+    setShowKeyboardShortcutsState(enabled);
+    window.dispatchEvent(new Event('keyboardShortcutsChanged'));
   };
 
   const handleMigrateMentions = async () => {
@@ -377,6 +389,35 @@ export default function SettingsPageContent() {
               <div className="py-2 h-10 animate-pulse bg-muted/20 rounded-lg" />
             ) : (
               <div className="space-y-4">
+                <div
+                  onClick={() => handleToggleKeyboardShortcuts(!showKeyboardShortcuts)}
+                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <span className="text-sm text-foreground">Show keyboard shortcut hints</span>
+                  <span className="pointer-events-none shrink-0">
+                    <Switch
+                      checked={showKeyboardShortcuts}
+                      onCheckedChange={handleToggleKeyboardShortcuts}
+                    />
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-foreground">Date of birth</span>
+                    <span className="text-xs text-muted-foreground">Used to calculate your Life in Weeks view</span>
+                  </div>
+                  <input
+                    type="date"
+                    value={dob}
+                    onChange={e => {
+                      setDob(e.target.value);
+                      localStorage.setItem('leptum_dob', e.target.value);
+                    }}
+                    className="px-2 py-1.5 border border-input rounded bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  />
+                </div>
+
                 {isServiceWorkerSupported ? (
                   <>
                     <div
