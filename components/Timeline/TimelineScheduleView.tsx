@@ -1,6 +1,8 @@
 import { useMemo, useCallback } from 'react';
 import { PlusIcon } from '@heroicons/react/solid';
 import { HighlightedMentions } from '../ui/mention-input';
+import { GCalBadge } from '../ui/gcal-badge';
+import { ImportSourceButton } from '../ui/import-source-button';
 
 interface Impact {
   id?: string;
@@ -15,6 +17,8 @@ interface Impact {
   isVirtualContinuation?: boolean;
   originalStartTime?: number;
   photoIds?: string[];
+  sourceUrl?: string;
+  allDay?: boolean;
 }
 
 interface TimelineScheduleViewProps {
@@ -22,6 +26,8 @@ interface TimelineScheduleViewProps {
   goals: Array<{ id: string; name: string; color?: string }> | null;
   onEditActivity: (impact: Impact, index: number) => void;
   onAddActivity: (dateKey: string) => void;
+  onImportAW?: (dateKey: string) => void;
+  onImportGCal?: (dateKey: string) => void;
   daysToShow: number;
 }
 
@@ -30,6 +36,8 @@ export function TimelineScheduleView({
   goals,
   onEditActivity,
   onAddActivity,
+  onImportAW,
+  onImportGCal,
   daysToShow,
 }: TimelineScheduleViewProps) {
   const formatTime = (timestamp: number) => {
@@ -93,9 +101,18 @@ export function TimelineScheduleView({
     const now = Date.now();
     const todayKey = toDateKey(now);
 
-    const sortedImpacts = [...impactsToGroup].sort((a, b) => b.date - a.date);
+    const allDayImpacts = impactsToGroup.filter(i => i.allDay);
+    const timedImpacts  = impactsToGroup.filter(i => !i.allDay);
+
+    const sortedImpacts = [...timedImpacts].sort((a, b) => b.date - a.date);
 
     const grouped: { [key: string]: Impact[] } = {};
+
+    allDayImpacts.forEach(impact => {
+      const dateKey = toDateKey(impact.date);
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(impact);
+    });
 
     sortedImpacts.forEach((impact, index) => {
       let endTime: number;
@@ -163,14 +180,16 @@ export function TimelineScheduleView({
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
       {dates.map((dateKey) => {
-        const dayImpacts = groupedImpacts[dateKey] || [];
+        const allDayImpacts = (groupedImpacts[dateKey] || []).filter(i => i.allDay);
+        const dayImpacts    = (groupedImpacts[dateKey] || []).filter(i => !i.allDay);
 
         let displayDate: string;
         let isTodayFlag: boolean;
 
-        if (dayImpacts.length > 0) {
-          displayDate = formatDate(dayImpacts[0].date);
-          isTodayFlag = isToday(dayImpacts[0].date);
+        const firstImpact = dayImpacts[0] ?? allDayImpacts[0];
+        if (firstImpact) {
+          displayDate = formatDate(firstImpact.date);
+          isTodayFlag = isToday(firstImpact.date);
         } else {
           const [year, month, day] = dateKey.split('-').map(Number);
           const dateTimestamp = new Date(year, month - 1, day).getTime();
@@ -181,7 +200,8 @@ export function TimelineScheduleView({
         return (
           <div key={dateKey} className="space-y-4">
             <div className="sticky top-0 bg-background z-20 pb-3 border-b border-border">
-              <div className="flex items-center justify-between mb-3">
+              {/* Title row */}
+              <div className="flex items-center justify-between mb-2">
                 <h2 className="text-xl font-semibold text-foreground">
                   {displayDate}
                   {isTodayFlag && (
@@ -190,14 +210,37 @@ export function TimelineScheduleView({
                     </span>
                   )}
                 </h2>
-                <button
-                  onClick={() => onAddActivity(dateKey)}
-                  className="flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
-                >
-                  <PlusIcon className="w-4 h-4" />
-                  <span>Add</span>
-                </button>
+                <div className="flex items-center gap-2">
+                  {(onImportAW || onImportGCal) && (
+                    <ImportSourceButton
+                      size="sm"
+                      onActivityWatch={() => onImportAW?.(dateKey)}
+                      onGoogleCalendar={() => onImportGCal?.(dateKey)}
+                    />
+                  )}
+                  <button
+                    onClick={() => onAddActivity(dateKey)}
+                    className="flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
+                  >
+                    <PlusIcon className="w-4 h-4" />
+                    <span>Add</span>
+                  </button>
+                </div>
               </div>
+              {/* All-day event chips */}
+              {allDayImpacts.length > 0 && (
+                <div className="flex flex-wrap gap-1.5">
+                  {allDayImpacts.map(imp => (
+                    <div
+                      key={imp.id ?? imp.activity}
+                      className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-xs text-foreground"
+                    >
+                      {imp.id?.startsWith('gcal-') && <GCalBadge href={imp.sourceUrl} />}
+                      <span className="truncate max-w-[18rem]">{imp.activity}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Schedule List View */}
@@ -271,7 +314,8 @@ export function TimelineScheduleView({
                           )}
                           {isLive && <span className="text-xs text-primary whitespace-nowrap">(Live)</span>}
                         </div>
-                        <h3 className={`text-base font-semibold truncate ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                        <h3 className={`text-base font-semibold truncate flex items-center gap-1.5 ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                          {impact.id?.startsWith('gcal-') && <GCalBadge href={impact.sourceUrl} />}
                           <HighlightedMentions text={impact.activity} />
                         </h3>
                       </div>

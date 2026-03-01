@@ -11,6 +11,7 @@ import { startKeyUX, hotkeyKeyUX, pressKeyUX, getHotKeyHint, likelyWithKeyboard 
 import { CurrentActivityContext } from "./CurrentActivityContext";
 import { StandaloneTasksProvider } from "./StandaloneTasksContext";
 import { HighlightedMentions } from "./ui/mention-input";
+import { ImportSourceButton } from "./ui/import-source-button";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { useRoutineCompletions } from "../utils/useRoutineCompletions";
 import { serviceWorkerManager, isOfflineModeEnabled } from "../utils/serviceWorker";
@@ -302,23 +303,29 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 </>
               )}
               {activePath === "/timeline" && (
-                <button
-                  aria-keyshortcuts="n"
-                  onClick={() => {
-                    if (typeof window !== "undefined") {
-                      window.dispatchEvent(new CustomEvent("openAddActivity"));
-                    }
-                  }}
-                  className="flex items-center gap-2 min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
-                >
-                  <PlusIcon className="w-5 h-5" />
-                  <span>Add Activity</span>
-                  {showKeyboardHints && typeof window !== "undefined" && (
-                    <kbd className="px-1.5 py-0.5 text-xs font-semibold text-primary-foreground/70 bg-primary-foreground/20 border border-primary-foreground/30 rounded">
-                      {getHotKeyHint(window, "n")}
-                    </kbd>
-                  )}
-                </button>
+                <>
+                  <ImportSourceButton
+                    onActivityWatch={() => window.dispatchEvent(new CustomEvent("openActivityWatchImport"))}
+                    onGoogleCalendar={() => window.dispatchEvent(new CustomEvent("openGCalImport"))}
+                  />
+                  <button
+                    aria-keyshortcuts="n"
+                    onClick={() => {
+                      if (typeof window !== "undefined") {
+                        window.dispatchEvent(new CustomEvent("openAddActivity"));
+                      }
+                    }}
+                    className="flex items-center gap-2 min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition cursor-pointer"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                    <span>Add Activity</span>
+                    {showKeyboardHints && typeof window !== "undefined" && (
+                      <kbd className="px-1.5 py-0.5 text-xs font-semibold text-primary-foreground/70 bg-primary-foreground/20 border border-primary-foreground/30 rounded">
+                        {getHotKeyHint(window, "n")}
+                      </kbd>
+                    )}
+                  </button>
+                </>
               )}
               {activePath === "/goals" && (
                 <button

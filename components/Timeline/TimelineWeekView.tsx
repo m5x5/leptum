@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { ChevronLeftIcon, ChevronRightIcon } from '@heroicons/react/solid';
+import { GCalBadge } from '../ui/gcal-badge';
 
 interface Impact {
   id?: string;
@@ -11,6 +12,7 @@ interface Impact {
   motivation?: string | number;
   cleanliness?: string | number;
   energy?: string | number;
+  sourceUrl?: string;
   isVirtualContinuation?: boolean;
   originalStartTime?: number;
   photoIds?: string[];
@@ -181,7 +183,10 @@ export function TimelineWeekView({
                         )} hover:opacity-80 truncate`}
                         title={`${impact.activity} (${formatTime(impact.date)} - ${durationMins}m)`}
                       >
-                        <div className="font-medium truncate">{impact.activity}</div>
+                        <div className="font-medium truncate flex items-center gap-1">
+                          {impact.id?.startsWith('gcal-') && <GCalBadge href={impact.sourceUrl} />}
+                          {impact.activity}
+                        </div>
                         <div className="text-white/70 text-xs">
                           {formatTime(impact.date)} ({durationMins}m)
                         </div>

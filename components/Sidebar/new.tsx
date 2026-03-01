@@ -5,7 +5,7 @@ import {
   CogIcon,
   ChartBarIcon,
   HeartIcon,
-} from "@heroicons/react/solid";
+} from "@heroicons/react/outline";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
@@ -78,12 +78,7 @@ export default function AppSidebar() {
             <SidebarMenuButton size="lg" asChild className="group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12">
               <Link href="/" className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
                 <div className="flex aspect-square h-8 w-8 items-center justify-center">
-                  <span
-                    className="text-foreground text-2xl"
-                    style={{ fontFamily: "Rye", fontWeight: "normal" }}
-                  >
-                    L
-                  </span>
+                  <img src="/icon.svg" alt="" className="h-8 w-8 rounded-full" aria-hidden="true" />
                 </div>
                 <div className="grid flex-1 text-left text-sm leading-tight group-data-[collapsible=icon]:hidden">
                   <span className="truncate font-semibold">Leptum</span>

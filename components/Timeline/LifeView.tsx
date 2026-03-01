@@ -4,18 +4,24 @@ import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useWeekReflections, WeekReflection } from '../../utils/useWeekReflections';
 import { useQuickNotes } from '../../utils/useQuickNotes';
 import { usePhotoAttachments } from '../../utils/usePhotoAttachments';
+import { useLifeEvents, LifeEvent } from '../../utils/useLifeEvents';
 import { AudioPlayer } from '../ui/audio-player';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
+import { ImportGoogleCalendarModal } from '../Modal/ImportGoogleCalendarModal';
+import { GCalBadge } from '../ui/gcal-badge';
+import { ImportSourceButton } from '../ui/import-source-button';
 
 interface Impact {
   id?: string;
   activity: string;
   date: number;
   endTime?: number;
+  sourceUrl?: string;
 }
 
 interface LifeViewProps {
   impacts: Impact[];
+  onImportAW?: () => void;
 }
 
 // ─── helpers ────────────────────────────────────────────────────────────────
@@ -41,6 +47,10 @@ function addDays(date: Date, n: number): Date {
   return d;
 }
 
+function addWeeks(weekKey: string, n: number): string {
+  return toWeekKey(addDays(new Date(weekKey), n * 7));
+}
+
 function formatDateShort(date: Date): string {
   return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 }
@@ -49,21 +59,41 @@ function formatYear(date: Date): string {
   return date.getFullYear().toString();
 }
 
+function generateId(): string {
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+}
+
 const TOTAL_YEARS = 90;
 const WEEKS_PER_YEAR = 52;
 
+// Preset colors for life events
+const EVENT_COLORS = [
+  { label: 'Red',    value: '#ef4444' },
+  { label: 'Orange', value: '#f97316' },
+  { label: 'Amber',  value: '#f59e0b' },
+  { label: 'Yellow', value: '#eab308' },
+  { label: 'Lime',   value: '#84cc16' },
+  { label: 'Green',  value: '#22c55e' },
+  { label: 'Teal',   value: '#14b8a6' },
+  { label: 'Cyan',   value: '#06b6d4' },
+  { label: 'Blue',   value: '#3b82f6' },
+  { label: 'Indigo', value: '#6366f1' },
+  { label: 'Purple', value: '#a855f7' },
+  { label: 'Pink',   value: '#ec4899' },
+  { label: 'Rose',   value: '#f43f5e' },
+];
+
 // ─── WeekRow ─────────────────────────────────────────────────────────────────
-// Memoized so only the 1-2 rows containing old/new selected week re-render
-// on click, and only the row containing a saved reflection re-renders on save.
 
 interface WeekRowProps {
   yearIdx: number;
   birthMonday: Date;
   todayKey: string;
-  /** The selected weekKey if it belongs to this row, otherwise null. */
   rowSelectedKey: string | null;
-  /** Set of weekKeys in this row that have a reflection saved. */
   rowReflectionKeys: ReadonlySet<string>;
+  rowEventColors: ReadonlyMap<string, string>;
+  showEvents: boolean;
+  showDiary: boolean;
   onSelect: (weekKey: string) => void;
 }
 
@@ -73,6 +103,9 @@ const WeekRow = memo(function WeekRow({
   todayKey,
   rowSelectedKey,
   rowReflectionKeys,
+  rowEventColors,
+  showEvents,
+  showDiary,
   onSelect,
 }: WeekRowProps) {
   return (
@@ -91,15 +124,30 @@ const WeekRow = memo(function WeekRow({
         const isCurrent = weekKey === todayKey;
         const hasReflection = rowReflectionKeys.has(weekKey);
         const isSelected = weekKey === rowSelectedKey;
+        const eventColor = showEvents ? rowEventColors.get(weekKey) : undefined;
 
         let cls = 'w-2.5 h-2.5 rounded-[1px] cursor-pointer transition-all hover:scale-125 hover:z-10 relative';
-        if (isCurrent) cls += ' ring-1 ring-primary bg-primary/40';
-        else if (isPast && hasReflection) cls += ' bg-primary/60';
-        else if (isPast) cls += ' bg-primary/25';
-        else cls += ' bg-muted/30';
         if (isSelected) cls += ' ring-2 ring-offset-1 ring-primary/80';
+        if (isCurrent) cls += ' ring-1 ring-primary';
 
         const tooltip = `${formatDateShort(cellMonday)} – ${formatDateShort(addDays(cellMonday, 6))}, ${formatYear(cellMonday)} · Age ${yearIdx}`;
+
+        // Resolve background: event color > diary highlight > baseline
+        let bgCls = '';
+        const bgStyle: React.CSSProperties = {};
+
+        if (eventColor) {
+          bgStyle.backgroundColor = eventColor;
+          bgStyle.opacity = isPast ? 0.75 : 0.35;
+        } else if (isCurrent) {
+          bgCls = ' bg-primary/40';
+        } else if (isPast && showDiary && hasReflection) {
+          bgCls = ' bg-primary/60';
+        } else if (isPast) {
+          bgCls = showDiary ? ' bg-primary/20' : ' bg-foreground/20';
+        } else {
+          bgCls = ' bg-muted/20';
+        }
 
         return (
           <button
@@ -107,7 +155,8 @@ const WeekRow = memo(function WeekRow({
             type="button"
             title={tooltip}
             aria-label={tooltip}
-            className={cls}
+            className={cls + bgCls}
+            style={bgStyle}
             onClick={() => onSelect(weekKey)}
           />
         );
@@ -116,9 +165,109 @@ const WeekRow = memo(function WeekRow({
   );
 });
 
+// ─── LifeEventForm ────────────────────────────────────────────────────────────
+
+interface LifeEventFormProps {
+  initial?: Partial<LifeEvent>;
+  currentWeekKey: string;
+  onSave: (e: LifeEvent) => void;
+  onCancel: () => void;
+}
+
+function LifeEventForm({ initial, currentWeekKey, onSave, onCancel }: LifeEventFormProps) {
+  const [label, setLabel] = useState(initial?.label ?? '');
+  const [startWeek, setStartWeek] = useState(initial?.startWeek ?? currentWeekKey);
+  const [endWeek, setEndWeek] = useState(initial?.endWeek ?? currentWeekKey);
+  const [color, setColor] = useState(initial?.color ?? EVENT_COLORS[0].value);
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!label.trim()) return;
+    const start = startWeek <= endWeek ? startWeek : endWeek;
+    const end   = startWeek <= endWeek ? endWeek   : startWeek;
+    onSave({
+      id: initial?.id ?? generateId(),
+      label: label.trim(),
+      startWeek: start,
+      endWeek: end,
+      color,
+      createdAt: initial?.createdAt ?? Date.now(),
+      updatedAt: Date.now(),
+    });
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-3 bg-muted/20 rounded-lg p-3 border border-border">
+      <div>
+        <label className="block text-xs font-medium text-muted-foreground mb-1">Label</label>
+        <input
+          type="text"
+          value={label}
+          onChange={e => setLabel(e.target.value)}
+          placeholder="e.g. University, First job, Travel year…"
+          className="w-full text-sm px-2.5 py-1.5 border border-input rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          autoFocus
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">Start week</label>
+          <input
+            type="date"
+            value={startWeek}
+            onChange={e => setStartWeek(e.target.value)}
+            className="w-full text-xs px-2 py-1.5 border border-input rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+        <div>
+          <label className="block text-xs font-medium text-muted-foreground mb-1">End week</label>
+          <input
+            type="date"
+            value={endWeek}
+            onChange={e => setEndWeek(e.target.value)}
+            className="w-full text-xs px-2 py-1.5 border border-input rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+          />
+        </div>
+      </div>
+      <div>
+        <label className="block text-xs font-medium text-muted-foreground mb-1.5">Color</label>
+        <div className="flex flex-wrap gap-1.5">
+          {EVENT_COLORS.map(c => (
+            <button
+              key={c.value}
+              type="button"
+              title={c.label}
+              onClick={() => setColor(c.value)}
+              className="w-5 h-5 rounded-full border-2 transition-transform hover:scale-110"
+              style={{
+                backgroundColor: c.value,
+                borderColor: color === c.value ? 'white' : 'transparent',
+                outline: color === c.value ? `2px solid ${c.value}` : 'none',
+              }}
+            />
+          ))}
+        </div>
+      </div>
+      <div className="flex gap-2 pt-1">
+        <button
+          type="submit"
+          className="flex-1 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors font-medium"
+        >
+          {initial?.id ? 'Save changes' : 'Add event'}
+        </button>
+        <button
+          type="button"
+          onClick={onCancel}
+          className="text-xs px-3 py-1.5 border border-border rounded hover:bg-muted transition-colors"
+        >
+          Cancel
+        </button>
+      </div>
+    </form>
+  );
+}
+
 // ─── WeekDetailPanel ─────────────────────────────────────────────────────────
-// Isolated component: owns notes/photos/audio state so their updates
-// never propagate up to the grid.
 
 interface WeekDetailPanelProps {
   weekKey: string;
@@ -129,6 +278,12 @@ interface WeekDetailPanelProps {
   initialText: string;
   saveReflection: (weekKey: string, text: string) => void;
   onClose: () => void;
+  onNavigate: (direction: 'prev' | 'next') => void;
+  events: LifeEvent[];
+  onSaveEvent: (e: LifeEvent) => void;
+  onDeleteEvent: (id: string) => void;
+  onImportAW: () => void;
+  onImportGCal: () => void;
   inDrawer?: boolean;
 }
 
@@ -141,23 +296,38 @@ function WeekDetailPanel({
   initialText,
   saveReflection,
   onClose,
+  onNavigate,
+  events,
+  onSaveEvent,
+  onDeleteEvent,
+  onImportAW,
+  onImportGCal,
   inDrawer,
 }: WeekDetailPanelProps) {
   const { notes, getAudio } = useQuickNotes();
   const { photos } = usePhotoAttachments();
 
-  // Audio blob URLs — updates stay inside this component
   const [audioBlobUrls, setAudioBlobUrls] = useState<Record<string, string>>({});
   const audioUrlRef = useRef<Record<string, string>>({});
 
-  // Stable refs so the textarea handler is always (() => void) with no deps
+  const [showEventForm, setShowEventForm] = useState(false);
+  const [editingEvent, setEditingEvent] = useState<LifeEvent | null>(null);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const weekKeyRef = useRef(weekKey);
   const saveRef = useRef(saveReflection);
   saveRef.current = saveReflection;
 
-  // Load audio for notes in this week
+  // Keep weekKeyRef up to date when weekKey changes (navigation)
+  useEffect(() => {
+    weekKeyRef.current = weekKey;
+    // Reset textarea value when navigating
+    if (textareaRef.current) {
+      textareaRef.current.value = initialText;
+    }
+  }, [weekKey, initialText]);
+
   useEffect(() => {
     const ws = weekStart.getTime();
     const we = weekEnd.getTime();
@@ -174,7 +344,6 @@ function WeekDetailPanel({
     });
   }, [notes, getAudio, weekStart, weekEnd]);
 
-  // Revoke blob URLs when this panel unmounts (week changed or closed)
   useEffect(() => {
     const urls = audioUrlRef.current;
     return () => {
@@ -182,7 +351,6 @@ function WeekDetailPanel({
     };
   }, []);
 
-  // Stable onChange — zero dependencies, never re-created
   const handleChange = useCallback((text: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => {
@@ -195,23 +363,49 @@ function WeekDetailPanel({
   const weekNotes = notes.filter(n => n.createdAt >= ws && n.createdAt < we);
   const weekImpacts = impacts.filter(imp => imp.date >= ws && imp.date < we);
 
+  // Events that overlap this week
+  const weekEvents = events.filter(e => e.startWeek <= weekKey && e.endWeek >= weekKey);
+
   return (
     <div className={inDrawer ? 'space-y-4' : 'lg:w-80 xl:w-96 shrink-0 border border-border rounded-lg p-4 space-y-4 overflow-y-auto max-h-[70vh] lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)]'}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
-        <div>
-          <h3 className="font-semibold text-sm">
-            {formatDateShort(weekStart)} – {formatDateShort(addDays(weekStart, 6))}, {formatYear(weekStart)}
-          </h3>
-          {age >= 0 && (
-            <p className="text-xs text-muted-foreground">Age {age}</p>
-          )}
+        <div className="flex items-center gap-1 min-w-0">
+          {/* Prev/Next navigation */}
+          <button
+            type="button"
+            onClick={() => onNavigate('prev')}
+            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Previous week"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+          <div className="min-w-0">
+            <h3 className="font-semibold text-sm leading-tight">
+              {formatDateShort(weekStart)} – {formatDateShort(addDays(weekStart, 6))}, {formatYear(weekStart)}
+            </h3>
+            {age >= 0 && (
+              <p className="text-xs text-muted-foreground">Age {age}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            onClick={() => onNavigate('next')}
+            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            aria-label="Next week"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
         {!inDrawer && (
           <button
             type="button"
             onClick={onClose}
-            className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none mt-0.5"
+            className="text-muted-foreground hover:text-foreground transition-colors text-lg leading-none mt-0.5 shrink-0"
             aria-label="Close panel"
           >
             ×
@@ -219,7 +413,91 @@ function WeekDetailPanel({
         )}
       </div>
 
-      {/* Reflection — uncontrolled textarea, no state, no re-renders on keystrokes */}
+      {/* Life events for this week */}
+      <div>
+        <div className="flex items-center justify-between mb-1.5">
+          <h4 className="text-xs font-medium text-muted-foreground">Life events</h4>
+          {!showEventForm && !editingEvent && (
+            <button
+              type="button"
+              onClick={() => setShowEventForm(true)}
+              className="text-xs text-primary hover:underline"
+            >
+              + Add
+            </button>
+          )}
+        </div>
+
+        {showEventForm && (
+          <LifeEventForm
+            currentWeekKey={weekKey}
+            onSave={e => { onSaveEvent(e); setShowEventForm(false); }}
+            onCancel={() => setShowEventForm(false)}
+          />
+        )}
+
+        {weekEvents.length > 0 && (
+          <div className="space-y-1.5">
+            {weekEvents.map(event => (
+              editingEvent?.id === event.id ? (
+                <LifeEventForm
+                  key={event.id}
+                  initial={event}
+                  currentWeekKey={weekKey}
+                  onSave={e => { onSaveEvent(e); setEditingEvent(null); }}
+                  onCancel={() => setEditingEvent(null)}
+                />
+              ) : (
+                <div
+                  key={event.id}
+                  className="flex items-center gap-2 text-sm group"
+                >
+                  <span
+                    className="w-2.5 h-2.5 rounded-full shrink-0"
+                    style={{ backgroundColor: event.color }}
+                  />
+                  <span className="flex-1 truncate text-xs">
+                    <span className="font-medium">{event.label}</span>
+                    <span className="text-muted-foreground ml-1.5">
+                      {event.startWeek === event.endWeek
+                        ? formatDateShort(new Date(event.startWeek))
+                        : `${formatDateShort(new Date(event.startWeek))} – ${formatDateShort(new Date(event.endWeek))}`}
+                    </span>
+                  </span>
+                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setEditingEvent(event)}
+                      className="text-xs text-muted-foreground hover:text-foreground"
+                      aria-label="Edit event"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                      </svg>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => onDeleteEvent(event.id)}
+                      className="text-xs text-muted-foreground hover:text-destructive"
+                      aria-label="Delete event"
+                    >
+                      <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )
+            ))}
+          </div>
+        )}
+
+        {weekEvents.length === 0 && !showEventForm && (
+          <p className="text-xs text-muted-foreground italic">No events for this period.</p>
+        )}
+      </div>
+
+      {/* Reflection */}
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1.5">
           Weekly reflection
@@ -277,41 +555,53 @@ function WeekDetailPanel({
       )}
 
       {/* Timeline impacts */}
-      {weekImpacts.length > 0 && (
-        <div>
-          <h4 className="text-xs font-medium text-muted-foreground mb-2">
-            Activities ({weekImpacts.length})
-          </h4>
-          <div className="space-y-1">
-            {weekImpacts.map((imp, i) => (
-              <div key={imp.id ?? i} className="flex items-baseline gap-2 text-sm">
-                <span className="text-xs text-muted-foreground shrink-0">
-                  {new Date(imp.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                </span>
-                <span className="text-foreground truncate">{imp.activity}</span>
-              </div>
-            ))}
+      <div>
+          <div className="flex items-center justify-between mb-2">
+            <h4 className="text-xs font-medium text-muted-foreground">
+              Activities{weekImpacts.length > 0 ? ` (${weekImpacts.length})` : ''}
+            </h4>
+            <ImportSourceButton
+              size="sm"
+              onActivityWatch={onImportAW}
+              onGoogleCalendar={onImportGCal}
+            />
           </div>
+          {weekImpacts.length > 0 ? (
+            <div className="space-y-1">
+              {weekImpacts.map((imp, i) => (
+                <div key={imp.id ?? i} className="flex items-baseline gap-2 text-sm">
+                  <span className="text-xs text-muted-foreground shrink-0">
+                    {new Date(imp.date).toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
+                  </span>
+                  <span className="text-foreground truncate flex items-center gap-1">
+                    {imp.id?.startsWith('gcal-') && <GCalBadge href={imp.sourceUrl} />}
+                    {imp.activity}
+                  </span>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground italic">No activities recorded for this week.</p>
+          )}
         </div>
-      )}
-
-      {weekNotes.length === 0 && weekImpacts.length === 0 && (
-        <p className="text-xs text-muted-foreground italic">No notes or activities recorded for this week.</p>
-      )}
+      
     </div>
   );
 }
 
 // ─── LifeView ────────────────────────────────────────────────────────────────
-// Owns only: dob, selectedWeekKey, reflections (for grid cell colors).
-// All heavy data (notes/photos/audio) stays inside WeekDetailPanel.
 
-export function LifeView({ impacts }: LifeViewProps) {
+export function LifeView({ impacts, onImportAW }: LifeViewProps) {
   const [dob, setDob] = useState<Date | null>(null);
   const [dobMissing, setDobMissing] = useState(false);
   const [selectedWeekKey, setSelectedWeekKey] = useState<string | null>(null);
+  const [showEvents, setShowEvents] = useState(true);
+  const [showDiary, setShowDiary] = useState(true);
 
   const { reflections, saveReflection } = useWeekReflections();
+  const { events, saveEvent, deleteEvent } = useLifeEvents();
+
+  const [gcalOpen, setGcalOpen] = useState(false);
 
   const [isMobile, setIsMobile] = useState(false);
   useEffect(() => {
@@ -330,16 +620,17 @@ export function LifeView({ impacts }: LifeViewProps) {
     setDobMissing(false);
   }, []);
 
-  // All hooks must be declared before any early return.
   const birthMonday = useMemo(() => dob ? getMondayOfWeek(dob) : null, [dob]);
   const todayKey = useMemo(() => toWeekKey(getMondayOfWeek(new Date())), []);
 
-  // Stable select handler — empty deps, never recreated
   const handleSelect = useCallback((weekKey: string) => {
     setSelectedWeekKey(prev => prev === weekKey ? null : weekKey);
   }, []);
 
-  // Which row contains the selected week — only that row gets rowSelectedKey != null
+  const handleNavigate = useCallback((direction: 'prev' | 'next') => {
+    setSelectedWeekKey(prev => prev ? addWeeks(prev, direction === 'next' ? 1 : -1) : prev);
+  }, []);
+
   const selectedYearIdx = useMemo(() => {
     if (!selectedWeekKey || !birthMonday) return -1;
     const diffMs = new Date(selectedWeekKey).getTime() - birthMonday.getTime();
@@ -347,7 +638,6 @@ export function LifeView({ impacts }: LifeViewProps) {
     return Math.floor(cellN / WEEKS_PER_YEAR);
   }, [selectedWeekKey, birthMonday]);
 
-  // Per-row sets of weekKeys that have reflections
   const reflectionKeysByRow = useMemo(() => {
     const rows: Set<string>[] = Array.from({ length: TOTAL_YEARS }, () => new Set<string>());
     if (!birthMonday) return rows;
@@ -361,7 +651,28 @@ export function LifeView({ impacts }: LifeViewProps) {
     return rows;
   }, [reflections, birthMonday]);
 
-  // Detail panel props
+  // Build per-row event color maps: rowEventColorsByRow[yearIdx] -> Map<weekKey, color>
+  const eventColorsByRow = useMemo(() => {
+    const rows: Map<string, string>[] = Array.from({ length: TOTAL_YEARS }, () => new Map<string, string>());
+    if (!birthMonday || events.length === 0) return rows;
+
+    for (const event of events) {
+      let cur = new Date(event.startWeek);
+      const end = new Date(event.endWeek);
+      while (cur <= end) {
+        const wk = toWeekKey(cur);
+        const diffMs = cur.getTime() - birthMonday.getTime();
+        const cellN = Math.round(diffMs / (7 * 24 * 60 * 60 * 1000));
+        const yi = Math.floor(cellN / WEEKS_PER_YEAR);
+        if (yi >= 0 && yi < TOTAL_YEARS) {
+          rows[yi].set(wk, event.color);
+        }
+        cur = addDays(cur, 7);
+      }
+    }
+    return rows;
+  }, [events, birthMonday]);
+
   const panelProps = useMemo(() => {
     if (!selectedWeekKey || !dob) return null;
     const weekStart = new Date(selectedWeekKey);
@@ -372,7 +683,6 @@ export function LifeView({ impacts }: LifeViewProps) {
     return { weekStart, weekEnd, age, initialText: reflections[selectedWeekKey]?.text ?? '' };
   }, [selectedWeekKey, dob, reflections]);
 
-  // ── Early returns after all hooks ──
   if (dobMissing) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
@@ -393,11 +703,59 @@ export function LifeView({ impacts }: LifeViewProps) {
 
   if (!birthMonday) return null;
 
+  const detailPanel = selectedWeekKey && panelProps ? (
+    <WeekDetailPanel
+      key={selectedWeekKey}
+      weekKey={selectedWeekKey}
+      weekStart={panelProps.weekStart}
+      weekEnd={panelProps.weekEnd}
+      age={panelProps.age}
+      impacts={impacts}
+      initialText={panelProps.initialText}
+      saveReflection={saveReflection}
+      onClose={() => setSelectedWeekKey(null)}
+      onNavigate={handleNavigate}
+      events={events}
+      onSaveEvent={saveEvent}
+      onDeleteEvent={deleteEvent}
+      onImportAW={() => onImportAW?.()}
+      onImportGCal={() => setGcalOpen(true)}
+    />
+  ) : null;
+
   return (
     <>
     <div className="flex flex-col lg:flex-row gap-4 min-h-0">
-      {/* Grid — each WeekRow is memoized; clicking re-renders only 2 rows */}
+      {/* Grid */}
       <div className="flex-1 min-w-0 overflow-auto">
+        {/* Filter chips */}
+        <div className="flex items-center gap-2 mb-3">
+          <button
+            type="button"
+            onClick={() => setShowEvents(v => !v)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+              showEvents
+                ? 'bg-primary/15 border-primary/40 text-primary'
+                : 'bg-transparent border-border text-muted-foreground hover:border-muted-foreground/60'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-current opacity-80" />
+            Life events
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowDiary(v => !v)}
+            className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+              showDiary
+                ? 'bg-primary/15 border-primary/40 text-primary'
+                : 'bg-transparent border-border text-muted-foreground hover:border-muted-foreground/60'
+            }`}
+          >
+            <span className="w-2 h-2 rounded-full bg-current opacity-80" />
+            Diary
+          </button>
+        </div>
+
         <div className="inline-block min-w-max">
           <div className="flex items-start gap-0.5">
             <div className="w-10 shrink-0" />
@@ -410,6 +768,9 @@ export function LifeView({ impacts }: LifeViewProps) {
                   todayKey={todayKey}
                   rowSelectedKey={yearIdx === selectedYearIdx ? selectedWeekKey : null}
                   rowReflectionKeys={reflectionKeysByRow[yearIdx]}
+                  rowEventColors={eventColorsByRow[yearIdx]}
+                  showEvents={showEvents}
+                  showDiary={showDiary}
                   onSelect={handleSelect}
                 />
               ))}
@@ -419,19 +780,7 @@ export function LifeView({ impacts }: LifeViewProps) {
       </div>
 
       {/* Desktop side panel */}
-      {!isMobile && selectedWeekKey && panelProps && (
-        <WeekDetailPanel
-          key={selectedWeekKey}
-          weekKey={selectedWeekKey}
-          weekStart={panelProps.weekStart}
-          weekEnd={panelProps.weekEnd}
-          age={panelProps.age}
-          impacts={impacts}
-          initialText={panelProps.initialText}
-          saveReflection={saveReflection}
-          onClose={() => setSelectedWeekKey(null)}
-        />
-      )}
+      {!isMobile && detailPanel}
     </div>
 
     {/* Mobile bottom drawer */}
@@ -455,12 +804,26 @@ export function LifeView({ impacts }: LifeViewProps) {
               initialText={panelProps.initialText}
               saveReflection={saveReflection}
               onClose={() => setSelectedWeekKey(null)}
+              onNavigate={handleNavigate}
+              events={events}
+              onSaveEvent={saveEvent}
+              onDeleteEvent={deleteEvent}
+              onImportAW={() => onImportAW?.()}
+              onImportGCal={() => setGcalOpen(true)}
               inDrawer
             />
           </div>
         )}
       </DrawerContent>
     </Drawer>
+
+    {/* Google Calendar import modal */}
+    <ImportGoogleCalendarModal
+      isOpen={gcalOpen}
+      closeModal={() => setGcalOpen(false)}
+      weekStart={panelProps?.weekStart}
+      weekEnd={panelProps?.weekEnd}
+    />
     </>
   );
 }

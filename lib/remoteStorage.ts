@@ -201,6 +201,9 @@ const ImpactSchema = {
     guilt: { type: ['string', 'number'] },
     goalId: { type: 'string' },
     notes: { type: 'string' },
+    endTime: { type: 'number' },
+    allDay: { type: 'boolean' },
+    sourceUrl: { type: 'string' },
     photoIds: { type: 'array', items: { type: 'string' } } // References to photo attachments
   },
   required: ['activity']
@@ -563,6 +566,20 @@ const WeekReflectionSchema = {
   required: ['id', 'createdAt'],
 };
 
+const LifeEventSchema = {
+  type: 'object',
+  properties: {
+    id: { type: 'string' },
+    label: { type: 'string' },
+    startWeek: { type: 'string' }, // "YYYY-MM-DD" Monday
+    endWeek: { type: 'string' },   // "YYYY-MM-DD" Monday (inclusive)
+    color: { type: 'string' },     // hex color e.g. "#ef4444"
+    createdAt: { type: 'number' },
+    updatedAt: { type: ['number', 'null'] },
+  },
+  required: ['id', 'label', 'startWeek', 'endWeek', 'color', 'createdAt'],
+};
+
 // Entity schemas
 const EntitySchema = {
   type: 'object',
@@ -714,6 +731,8 @@ export interface Impact {
   notes?: string;
   photoIds?: string[];
   endTime?: number;
+  allDay?: boolean;
+  sourceUrl?: string;
 }
 
 export interface StackHabit {
@@ -840,6 +859,16 @@ export interface QuickNote {
 export interface WeekReflection {
   id: string; // Monday date "YYYY-MM-DD"
   text?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
+export interface LifeEvent {
+  id: string;
+  label: string;
+  startWeek: string; // "YYYY-MM-DD" Monday
+  endWeek: string;   // "YYYY-MM-DD" Monday (inclusive)
+  color: string;     // hex color e.g. "#ef4444"
   createdAt: number;
   updatedAt?: number;
 }
@@ -985,6 +1014,7 @@ export class RemoteStorageClient {
     this.client.declareType('PhotoAttachment', PhotoAttachmentSchema);
     this.client.declareType('PhotosCollection', PhotosCollectionSchema);
     this.client.declareType('WeekReflection', WeekReflectionSchema);
+    this.client.declareType('LifeEvent', LifeEventSchema);
   }
 
   // Initialize and attach widget
@@ -1045,7 +1075,7 @@ export class RemoteStorageClient {
     if (!this.client) return;
     
     try {
-      return await this.client.storeObject('Job', `jobs/${job.id}`, job);
+      return await this.client.storeObject('Job', `jobs/${job.id}`, JSON.parse(JSON.stringify(job)));
     } catch (error) {
       console.error('Failed to save job:', error);
     }
@@ -1193,7 +1223,7 @@ export class RemoteStorageClient {
     if (!this.client) return;
     
     try {
-      return await this.client.storeObject('Stack', `stacks/${index}`, stack);
+      return await this.client.storeObject('Stack', `stacks/${index}`, JSON.parse(JSON.stringify(stack)));
     } catch (error) {
       console.error('Failed to save stack:', error);
     }
@@ -1251,7 +1281,9 @@ export class RemoteStorageClient {
     if (!this.client) return;
 
     try {
-      return await this.client.storeObject('Routine', `routines/${routine.id}`, routine);
+      // Strip undefined values — RemoteStorage schema validation rejects them
+      const clean = JSON.parse(JSON.stringify(routine));
+      return await this.client.storeObject('Routine', `routines/${routine.id}`, clean);
     } catch (error) {
       console.error('Failed to save routine:', error);
     }
@@ -2443,6 +2475,54 @@ export class RemoteStorageClient {
       await this.client.remove(`week-reflections/${id}`);
     } catch (error) {
       console.error('Failed to delete week reflection:', error);
+    }
+  }
+
+  // Life event operations
+  public async getLifeEvents(): Promise<LifeEvent[]> {
+    if (!this.client) this.initialize();
+    if (!this.client) return [];
+
+    try {
+      const listing = await this.client.getAll('life-events/');
+      if (!listing) return [];
+      return Object.values(listing)
+        .filter((v): v is LifeEvent => !!(v as LifeEvent)?.id)
+        .sort((a, b) => a.startWeek.localeCompare(b.startWeek));
+    } catch (error) {
+      console.error('Failed to get life events:', error);
+      return [];
+    }
+  }
+
+  public async saveLifeEvent(event: LifeEvent): Promise<void> {
+    if (!this.client) this.initialize();
+    if (!this.client) return;
+
+    try {
+      const cleaned: LifeEvent = {
+        id: event.id,
+        label: event.label,
+        startWeek: event.startWeek,
+        endWeek: event.endWeek,
+        color: event.color,
+        createdAt: event.createdAt,
+        ...(event.updatedAt !== undefined && { updatedAt: event.updatedAt }),
+      };
+      await this.client.storeObject('LifeEvent', `life-events/${event.id}`, cleaned);
+    } catch (error) {
+      console.error('Failed to save life event:', error);
+    }
+  }
+
+  public async deleteLifeEvent(id: string): Promise<void> {
+    if (!this.client) this.initialize();
+    if (!this.client) return;
+
+    try {
+      await this.client.remove(`life-events/${id}`);
+    } catch (error) {
+      console.error('Failed to delete life event:', error);
     }
   }
 

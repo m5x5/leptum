@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { ProcessedAWEvent } from '../../activity-watch.d';
 import { TimeBlockEntry, GapBlock } from './TimelineEntry';
 import { chunkEventsIntoTimeBlocks, mergeConsecutiveBlocks, isLoginWindowOnlyBlock, DEFAULT_BLOCK_SIZE_MINUTES, TimeBlock } from '../../utils/timeBlocks';
@@ -46,6 +47,7 @@ export function TimelineDayView({
   }, []);
   const [expandedBlockStart, setExpandedBlockStart] = useState<number | null>(null);
   const [editingGapStart, setEditingGapStart] = useState<number | null>(null);
+  const [slotTooltip, setSlotTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
   // Effect to close detail views when clicking outside
   useEffect(() => {
@@ -283,7 +285,9 @@ export function TimelineDayView({
                                           goalId: "",
                                       });
                                   }}
-                                  title={`Insert activity at ${formatTime(thisSlotTime)}`}
+                                  onMouseEnter={(e) => setSlotTooltip({ x: e.clientX, y: e.clientY + 18, text: `Insert activity at ${formatTime(thisSlotTime)}` })}
+                                  onMouseMove={(e) => setSlotTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY + 18 } : null)}
+                                  onMouseLeave={() => setSlotTooltip(null)}
                               >
                                   <span className="text-[10px] font-mono text-muted-foreground mr-1 bg-background px-1 rounded shadow-sm">
                                     {formatTime(thisSlotTime)}
@@ -549,6 +553,15 @@ export function TimelineDayView({
             return [...blockElements, ...bottomGaps];
             })()}
         </div>
+      )}
+      {slotTooltip && createPortal(
+        <div
+          className="fixed pointer-events-none px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-[9999] -translate-x-1/2"
+          style={{ left: slotTooltip.x, top: slotTooltip.y }}
+        >
+          {slotTooltip.text}
+        </div>,
+        document.body
       )}
     </div>
   );

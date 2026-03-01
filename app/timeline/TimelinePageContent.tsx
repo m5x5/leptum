@@ -1,6 +1,7 @@
 "use client";
 import Image from "next/image";
 import { useEffect, useState, useMemo, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { remoteStorageClient } from "../../lib/remoteStorage";
 import { PlusIcon, UploadIcon, FilterIcon } from "@heroicons/react/solid";
 import Modal from "../../components/Modal";
@@ -17,6 +18,7 @@ import { useActivityWatch } from "../../utils/useActivityWatch";
 import { useMentions } from "../../utils/useMentions";
 import { usePhotoAttachments } from "../../utils/usePhotoAttachments";
 import { extractMentionedEntityIds, HighlightedMentions } from "../../components/ui/mention-input";
+import { GCalBadge } from "../../components/ui/gcal-badge";
 import FilterControls from "../../components/Timeline/FilterControls";
 import { TimeBlockEntry, GapBlock } from "../../components/Timeline/TimelineEntry";
 
@@ -32,6 +34,7 @@ import { LiveSummaryBar } from "../../components/Timeline/LiveSummaryBar";
 import { TimelineScheduleView } from "../../components/Timeline/TimelineScheduleView";
 import { TimelineWeekView } from "../../components/Timeline/TimelineWeekView";
 import { LifeView } from "../../components/Timeline/LifeView";
+import { ImportGoogleCalendarModal } from "../../components/Modal/ImportGoogleCalendarModal";
 
 interface Impact {
   id?: string;
@@ -48,6 +51,8 @@ interface Impact {
   originalStartTime?: number;
   photoIds?: string[];
   notes?: string;
+  sourceUrl?: string;
+  allDay?: boolean;
 }
 
 export default function TimelinePageContent() {
@@ -77,6 +82,8 @@ export default function TimelinePageContent() {
   // ActivityWatch state
   const [showImportModal, setShowImportModal] = useState(false);
   const [showMobileImportDrawer, setShowMobileImportDrawer] = useState(false);
+  const [showGCalModal, setShowGCalModal] = useState(false);
+  const [gcalImportRange, setGcalImportRange] = useState<{ start: Date; end: Date } | null>(null);
   const [showAWDetailModal, setShowAWDetailModal] = useState(false);
   const [showMobileAWDetailDrawer, setShowMobileAWDetailDrawer] = useState(false);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
@@ -93,6 +100,8 @@ export default function TimelinePageContent() {
   const [summaryBarHover, setSummaryBarHover] = useState<{
     dateKey: string;
     percent: number;
+    x: number;
+    y: number;
     activity: string;
     time: string;
   } | null>(null);
@@ -101,9 +110,13 @@ export default function TimelinePageContent() {
   const [presenceBarHover, setPresenceBarHover] = useState<{
     dateKey: string;
     percent: number;
+    x: number;
+    y: number;
     status: string;
     time: string;
   } | null>(null);
+
+  const [slotTooltip, setSlotTooltip] = useState<{ x: number; y: number; text: string } | null>(null);
 
   // Helpers for add-activity (used in effect and handlers below)
   const getLocalDateTimeStrings = useCallback((timestamp: number) => {
@@ -162,6 +175,27 @@ export default function TimelinePageContent() {
       window.removeEventListener('openAddActivity', handleOpenAddActivity);
     };
   }, [getLocalDateTimeStrings, roundToNearest15Minutes]);
+
+  // Listen for import events fired from the header
+  useEffect(() => {
+    const handleOpenAW = () => {
+      if (window.innerWidth < 768) {
+        setShowMobileImportDrawer(true);
+      } else {
+        setShowImportModal(true);
+      }
+    };
+    const handleOpenGCal = () => {
+      setGcalImportRange(null);
+      setShowGCalModal(true);
+    };
+    window.addEventListener('openActivityWatchImport', handleOpenAW);
+    window.addEventListener('openGCalImport', handleOpenGCal);
+    return () => {
+      window.removeEventListener('openActivityWatchImport', handleOpenAW);
+      window.removeEventListener('openGCalImport', handleOpenGCal);
+    };
+  }, []);
 
   // Pagination state
   const [daysToShow, setDaysToShow] = useState(3);
@@ -457,8 +491,19 @@ export default function TimelinePageContent() {
     const now = Date.now();
     const todayKey = toDateKey(now);
 
-    const sortedImpacts = [...impactsToGroup].sort((a, b) => b.date - a.date);
+    // All-day events are kept separate so they don't affect duration calculations
+    const allDayImpacts = impactsToGroup.filter(i => i.allDay);
+    const timedImpacts  = impactsToGroup.filter(i => !i.allDay);
+
+    const sortedImpacts = [...timedImpacts].sort((a, b) => b.date - a.date);
     const grouped: { [key: string]: Impact[] } = {};
+
+    // Place all-day events into their date bucket first
+    allDayImpacts.forEach(impact => {
+      const dateKey = toDateKey(impact.date);
+      if (!grouped[dateKey]) grouped[dateKey] = [];
+      grouped[dateKey].push(impact);
+    });
 
     sortedImpacts.forEach((impact, index) => {
       let endTime: number;
@@ -806,24 +851,6 @@ export default function TimelinePageContent() {
   return (
     <>
         <div className="flex flex-col gap-4 mb-6">
-          <div className="flex items-center justify-between">
-            <div className="flex gap-2">
-            <button
-              onClick={() => {
-                if (window.innerWidth < 768) {
-                  setShowMobileImportDrawer(true);
-                } else {
-                  setShowImportModal(true);
-                }
-              }}
-              className="hidden md:flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold"
-            >
-              <UploadIcon className="w-5 h-5" />
-              Import ActivityWatch
-            </button>
-          </div>
-          </div>
-
           {/* View Tabs */}
           <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "day" | "schedule" | "week" | "life")} className="w-full">
             <TabsList className="grid w-full max-w-xl grid-cols-4">
@@ -1016,6 +1043,20 @@ export default function TimelinePageContent() {
                 goals={goals}
                 onEditActivity={openEditModal}
                 onAddActivity={handleAddActivityForDate}
+                onImportAW={(dateKey) => {
+                  if (window.innerWidth < 768) {
+                    setShowMobileImportDrawer(true);
+                  } else {
+                    setShowImportModal(true);
+                  }
+                }}
+                onImportGCal={(dateKey) => {
+                  const [y, m, d] = dateKey.split('-').map(Number);
+                  const start = new Date(y, m - 1, d);
+                  const end   = new Date(y, m - 1, d, 23, 59, 59, 999);
+                  setGcalImportRange({ start, end });
+                  setShowGCalModal(true);
+                }}
                 daysToShow={daysToShow}
               />
             )}
@@ -1025,15 +1066,17 @@ export default function TimelinePageContent() {
               <>
         <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
           {dates.map((dateKey) => {
-            const dayImpacts = groupedImpacts[dateKey] || [];
+            const allDayImpacts = (groupedImpacts[dateKey] || []).filter(i => i.allDay);
+            const dayImpacts    = (groupedImpacts[dateKey] || []).filter(i => !i.allDay);
 
-            // Get display date from first impact or from dateKey
+            // Get display date from first timed impact, or all-day, or dateKey
             let displayDate: string;
             let isTodayFlag: boolean;
 
-            if (dayImpacts.length > 0) {
-              displayDate = formatDate(dayImpacts[0].date);
-              isTodayFlag = isToday(dayImpacts[0].date);
+            const firstImpact = dayImpacts[0] ?? allDayImpacts[0];
+            if (firstImpact) {
+              displayDate = formatDate(firstImpact.date);
+              isTodayFlag = isToday(firstImpact.date);
             } else {
               // No manual impacts, derive from dateKey
               const [year, month, day] = dateKey.split('-').map(Number);
@@ -1053,6 +1096,21 @@ export default function TimelinePageContent() {
                       </span>
                     )}
                   </h2>
+
+                  {/* All-day events */}
+                  {allDayImpacts.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      {allDayImpacts.map(imp => (
+                        <div
+                          key={imp.id ?? imp.activity}
+                          className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-muted border border-border text-xs text-foreground"
+                        >
+                          {imp.id?.startsWith('gcal-') && <GCalBadge href={imp.sourceUrl} />}
+                          <span className="truncate max-w-[18rem]">{imp.activity}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {/* Daily Summary Bar */}
                   {isTodayFlag && dayImpacts.length > 0 ? (
@@ -1145,6 +1203,8 @@ export default function TimelinePageContent() {
                         setSummaryBarHover({
                           dateKey,
                           percent,
+                          x: e.clientX,
+                          y: rect.bottom + 6,
                           activity: activityAtPosition,
                           time: formatTime(timeAtPosition),
                         });
@@ -1199,15 +1259,16 @@ export default function TimelinePageContent() {
                               />
                             )}
                           </div>
-                          {/* Hover tooltip */}
-                          {isHovering && summaryBarHover && (
+                          {/* Hover tooltip — portalled to body to escape transforms/overflow */}
+                          {isHovering && summaryBarHover && createPortal(
                             <div
-                              className="absolute top-full mt-1 -translate-x-1/2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-30 pointer-events-none"
-                              style={{ left: `${summaryBarHover.percent}%` }}
+                              className="fixed -translate-x-1/2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-[9999] pointer-events-none"
+                              style={{ left: summaryBarHover.x, top: summaryBarHover.y }}
                             >
                               <div className="font-semibold">{summaryBarHover.activity}</div>
                               <div className="text-muted-foreground">{summaryBarHover.time}</div>
-                            </div>
+                            </div>,
+                            document.body
                           )}
                         </div>
                       );
@@ -1280,6 +1341,8 @@ export default function TimelinePageContent() {
                       setPresenceBarHover({
                         dateKey,
                         percent,
+                        x: e.clientX,
+                        y: rect.bottom + 6,
                         status: isActive ? 'Active' : 'Away',
                         time: formatTime(timeAtPosition),
                       });
@@ -1336,15 +1399,16 @@ export default function TimelinePageContent() {
                               />
                             )}
                           </div>
-                          {/* Hover tooltip */}
-                          {isPresenceHovering && presenceBarHover && (
+                          {/* Hover tooltip — portalled to body to escape transforms/overflow */}
+                          {isPresenceHovering && presenceBarHover && createPortal(
                             <div
-                              className="absolute top-full mt-1 -translate-x-1/2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-30 pointer-events-none"
-                              style={{ left: `${presenceBarHover.percent}%` }}
+                              className="fixed -translate-x-1/2 px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-[9999] pointer-events-none"
+                              style={{ left: presenceBarHover.x, top: presenceBarHover.y }}
                             >
                               <div className="font-semibold">{presenceBarHover.status}</div>
                               <div className="text-muted-foreground">{presenceBarHover.time}</div>
-                            </div>
+                            </div>,
+                            document.body
                           )}
                         </div>
                       </div>
@@ -1514,7 +1578,9 @@ export default function TimelinePageContent() {
                                                         });
                                                         setShowAddModal(true);
                                                     }}
-                                                    title={`Insert activity at ${formatTime(thisSlotTime)}`}
+                                                    onMouseEnter={(e) => setSlotTooltip({ x: e.clientX, y: e.clientY + 18, text: `Insert activity at ${formatTime(thisSlotTime)}` })}
+                                                    onMouseMove={(e) => setSlotTooltip(prev => prev ? { ...prev, x: e.clientX, y: e.clientY + 18 } : null)}
+                                                    onMouseLeave={() => setSlotTooltip(null)}
                                                 >
                                                     <span className="text-[10px] font-mono text-muted-foreground mr-1 bg-background px-1 rounded shadow-sm">
                                                       {formatTime(thisSlotTime)}
@@ -1549,7 +1615,8 @@ export default function TimelinePageContent() {
                                             ↗ Continued
                                           </span>
                                         )}
-                                        <h3 className={`text-base font-semibold truncate ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                                        <h3 className={`text-base font-semibold truncate flex items-center gap-1.5 ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                                          {impact.id?.startsWith('gcal-') && <GCalBadge href={impact.sourceUrl} />}
                                           <HighlightedMentions text={impact.activity} />
                                         </h3>
                                         {isLive && <span className="text-xs text-primary whitespace-nowrap shrink-0">(Live)</span>}
@@ -2040,7 +2107,16 @@ export default function TimelinePageContent() {
 
             {/* Life View */}
             {viewMode === "life" && (
-              <LifeView impacts={impacts} />
+              <LifeView
+                impacts={impacts}
+                onImportAW={() => {
+                  if (window.innerWidth < 768) {
+                    setShowMobileImportDrawer(true);
+                  } else {
+                    setShowImportModal(true);
+                  }
+                }}
+              />
             )}
           </>
         )}
@@ -2078,6 +2154,14 @@ export default function TimelinePageContent() {
             </div>
           </DrawerContent>
         </Drawer>
+
+        {/* Google Calendar Import Modal */}
+        <ImportGoogleCalendarModal
+          isOpen={showGCalModal}
+          closeModal={() => setShowGCalModal(false)}
+          weekStart={gcalImportRange?.start}
+          weekEnd={gcalImportRange?.end}
+        />
 
         {/* ActivityWatch Event Detail Modal */}
         <Modal
@@ -2178,6 +2262,15 @@ export default function TimelinePageContent() {
             </div>
           </DrawerContent>
         </Drawer>
+      {slotTooltip && createPortal(
+        <div
+          className="fixed pointer-events-none px-2 py-1 bg-popover text-popover-foreground text-xs rounded shadow-lg border border-border whitespace-nowrap z-[9999] -translate-x-1/2"
+          style={{ left: slotTooltip.x, top: slotTooltip.y }}
+        >
+          {slotTooltip.text}
+        </div>,
+        document.body
+      )}
     </>
   );
 }
