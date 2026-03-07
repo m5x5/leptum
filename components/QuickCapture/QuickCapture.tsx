@@ -153,14 +153,19 @@ export default function QuickCapture({
   );
   const [localOrderedIds, setLocalOrderedIds] = useState<string[] | null>(null);
   const [isDraggingTask, setIsDraggingTask] = useState(false);
+  // Keep a ref so the tasks-change effect can check drag state without
+  // including isDraggingTask in its deps (which would fire the effect on
+  // drag end and immediately wipe out the newly-set localOrderedIds).
+  const isDraggingTaskRef = useRef(false);
+  isDraggingTaskRef.current = isDraggingTask;
 
-  // Reset local ordering when underlying tasks change from storage,
-  // but never during an active drag (would break pointer capture).
+  // Reset local ordering only when the underlying tasks change from storage,
+  // never during an active drag (would break pointer capture / snap item back).
   useEffect(() => {
-    if (!isDraggingTask) {
+    if (!isDraggingTaskRef.current) {
       setLocalOrderedIds(null);
     }
-  }, [tasks, isDraggingTask]);
+  }, [tasks]);
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, getFullImage, photos: allPhotos } = usePhotoAttachments();
 
