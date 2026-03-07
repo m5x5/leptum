@@ -18,6 +18,7 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -151,17 +152,23 @@ export default function QuickCapture({
     }),
   );
   const [localOrderedIds, setLocalOrderedIds] = useState<string[] | null>(null);
+  const [isDraggingTask, setIsDraggingTask] = useState(false);
 
-  // Reset local ordering when underlying tasks change from storage
+  // Reset local ordering when underlying tasks change from storage,
+  // but never during an active drag (would break pointer capture).
   useEffect(() => {
-    setLocalOrderedIds(null);
-  }, [tasks]);
+    if (!isDraggingTask) {
+      setLocalOrderedIds(null);
+    }
+  }, [tasks, isDraggingTask]);
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, getFullImage, photos: allPhotos } = usePhotoAttachments();
 
   const [showModal, setShowModal] = useState(false);
   const [showMobileDrawer, setShowMobileDrawer] = useState(false);
   const [mode, setMode] = useState<'text' | 'camera' | 'voice' | null>(null);
+  const [voiceFullscreen, setVoiceFullscreen] = useState(false);
+  const [voiceAnimated, setVoiceAnimated] = useState(false);
   const [lightboxPhoto, setLightboxPhoto] = useState<PhotoAttachment | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
@@ -284,19 +291,33 @@ export default function QuickCapture({
   }, [audioUrl]);
 
   const openCapture = (captureMode: 'text' | 'camera' | 'voice') => {
+    if (captureMode === 'voice') {
+      setMode('voice');
+      setVoiceFullscreen(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setVoiceAnimated(true)));
+      return;
+    }
     setMode(captureMode);
     if (window.innerWidth < 768) {
       setShowMobileDrawer(true);
     } else {
       setShowModal(true);
     }
-    
+
     if (captureMode === 'camera') {
       // Auto-open file picker for gallery selection
       setTimeout(() => {
         fileInputRef.current?.click();
       }, 100);
     }
+  };
+
+  const closeVoiceFullscreen = () => {
+    setVoiceAnimated(false);
+    setTimeout(() => {
+      setVoiceFullscreen(false);
+      closeCapture();
+    }, 250);
   };
 
   const closeCapture = () => {
@@ -714,7 +735,10 @@ export default function QuickCapture({
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
+              onDragStart={(_event: DragStartEvent) => setIsDraggingTask(true)}
+              onDragCancel={() => setIsDraggingTask(false)}
               onDragEnd={(event: DragEndEvent) => {
+                setIsDraggingTask(false);
                 const { active, over } = event;
                 if (!over || active.id === over.id) return;
                 const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
@@ -925,6 +949,91 @@ export default function QuickCapture({
           </div>
         </DrawerContent>
       </Drawer>
+
+      {/* Voice fullscreen overlay */}
+      {voiceFullscreen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col items-center justify-center"
+          style={{
+            backgroundColor: voiceAnimated ? 'rgba(0,0,0,0.92)' : 'rgba(0,0,0,0)',
+            transition: 'background-color 0.3s ease',
+          }}
+        >
+          {/* Close button */}
+          <button
+            onClick={closeVoiceFullscreen}
+            className="absolute top-6 right-6 min-h-[44px] min-w-[44px] flex items-center justify-center text-white/60 hover:text-white transition-colors"
+            style={{
+              opacity: voiceAnimated ? 1 : 0,
+              transition: 'opacity 0.2s ease 0.3s',
+            }}
+          >
+            <XIcon className="w-6 h-6" />
+          </button>
+
+          {/* Mic icon — grows into view */}
+          <div
+            style={{
+              transform: voiceAnimated ? 'scale(1)' : 'scale(0.15)',
+              opacity: voiceAnimated ? 1 : 0,
+              transition: 'transform 0.45s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.25s ease',
+            }}
+          >
+            <MicrophoneIcon
+              className={`w-28 h-28 ${isRecording ? 'text-red-400' : 'text-primary'}`}
+              style={isRecording ? { filter: 'drop-shadow(0 0 24px rgba(248,113,113,0.6))' } : {}}
+            />
+          </div>
+
+          {/* Recording controls — fade in after mic grows */}
+          <div
+            className="mt-10 flex flex-col items-center gap-6 w-full max-w-xs px-6"
+            style={{
+              opacity: voiceAnimated ? 1 : 0,
+              transform: voiceAnimated ? 'translateY(0)' : 'translateY(16px)',
+              transition: 'opacity 0.3s ease 0.35s, transform 0.3s ease 0.35s',
+            }}
+          >
+            {!audioBlob ? (
+              !isRecording ? (
+                <Button onClick={startRecording} size="lg" className="w-full">
+                  <MicrophoneIcon className="w-5 h-5 mr-2" />
+                  Start Recording
+                </Button>
+              ) : (
+                <div className="flex flex-col items-center gap-4 w-full">
+                  <div className="text-4xl font-bold text-white tabular-nums">
+                    {formatTime(recordingTime)}
+                  </div>
+                  <Button onClick={stopRecording} variant="destructive" size="lg" className="w-full">
+                    <StopIcon className="w-5 h-5 mr-2" />
+                    Stop Recording
+                  </Button>
+                </div>
+              )
+            ) : (
+              <div className="flex flex-col gap-4 w-full">
+                {audioUrl && <AudioPlayer src={audioUrl} title="Preview" />}
+                <div className="flex gap-3">
+                  <Button
+                    onClick={() => { setAudioBlob(null); setAudioUrl(null); setRecordingTime(0); }}
+                    variant="outline"
+                    className="flex-1"
+                  >
+                    Record Again
+                  </Button>
+                  <Button
+                    onClick={async () => { await handleSave(); closeVoiceFullscreen(); }}
+                    className="flex-1"
+                  >
+                    Save
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </>
   );
 }
