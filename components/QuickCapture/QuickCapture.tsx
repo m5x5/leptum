@@ -18,6 +18,7 @@ import {
   useSensor,
   useSensors,
   DragEndEvent,
+  DragStartEvent,
 } from '@dnd-kit/core';
 import {
   SortableContext,
@@ -151,11 +152,15 @@ export default function QuickCapture({
     }),
   );
   const [localOrderedIds, setLocalOrderedIds] = useState<string[] | null>(null);
+  const [isDraggingTask, setIsDraggingTask] = useState(false);
 
-  // Reset local ordering when underlying tasks change from storage
+  // Reset local ordering when underlying tasks change from storage,
+  // but never during an active drag (would break pointer capture).
   useEffect(() => {
-    setLocalOrderedIds(null);
-  }, [tasks]);
+    if (!isDraggingTask) {
+      setLocalOrderedIds(null);
+    }
+  }, [tasks, isDraggingTask]);
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, getFullImage, photos: allPhotos } = usePhotoAttachments();
 
@@ -730,7 +735,10 @@ export default function QuickCapture({
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
+              onDragStart={(_event: DragStartEvent) => setIsDraggingTask(true)}
+              onDragCancel={() => setIsDraggingTask(false)}
               onDragEnd={(event: DragEndEvent) => {
+                setIsDraggingTask(false);
                 const { active, over } = event;
                 if (!over || active.id === over.id) return;
                 const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
