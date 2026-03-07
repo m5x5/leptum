@@ -2555,6 +2555,27 @@ export class RemoteStorageClient {
     }
     return this.remoteStorage;
   }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private widget: any = null;
+
+  public attachWidget(elementId: string): void {
+    if (typeof window === 'undefined') return;
+    if (!this.remoteStorage) this.initialize();
+    if (!this.remoteStorage) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-var-requires
+      const Widget = require('remotestorage-widget');
+      this.widget = new Widget(this.remoteStorage);
+      this.widget.attach(elementId);
+    } catch (e) {
+      console.error('Failed to attach RemoteStorage widget', e);
+    }
+  }
+
+  public detachWidget(): void {
+    this.widget = null;
+  }
 }
 
 // Create singleton instance
