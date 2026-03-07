@@ -39,6 +39,10 @@ export function useGoalTypes(options?: { loadOnMount?: boolean }) {
     };
 
     remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      remoteStorageClient.offChange(handleChange);
+    };
   }, [loadOnMount]);
 
   const addGoalType = async (name: string, description: string = "") => {

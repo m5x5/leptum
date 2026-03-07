@@ -47,6 +47,10 @@ export function useImpacts() {
     };
 
     remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      remoteStorageClient.offChange(handleChange);
+    };
   }, []);
 
   return { impacts, loading };

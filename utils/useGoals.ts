@@ -47,17 +47,20 @@ export interface Goal {
   };
 }
 
+let cachedGoals: Goal[] | null = null;
+
 export function useGoals(options?: { loadOnMount?: boolean }) {
   const loadOnMount = options?.loadOnMount !== false;
-  const [goals, setGoals] = useState<Goal[]>([]);
-  const [isLoading, setIsLoading] = useState(loadOnMount);
+  const [goals, setGoals] = useState<Goal[]>(() => cachedGoals ?? []);
+  const [isLoading, setIsLoading] = useState(loadOnMount && cachedGoals === null);
   const [isError, setIsError] = useState(false);
 
   const loadGoals = async () => {
     try {
       setIsLoading(true);
       const loadedGoals = await remoteStorageClient.getGoals();
-      setGoals(loadedGoals as Goal[]);
+      cachedGoals = loadedGoals as Goal[];
+      setGoals(cachedGoals);
       setIsError(false);
     } catch (error) {
       console.error("Failed to load goals:", error);
@@ -84,8 +87,9 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
       loadGoals();
     };
     window.addEventListener('goalUpdated', handleGoalUpdate);
-    
+
     return () => {
+      remoteStorageClient.offChange(handleChange);
       window.removeEventListener('goalUpdated', handleGoalUpdate);
     };
   }, [loadOnMount]);
@@ -121,7 +125,7 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
       };
 
       await remoteStorageClient.saveGoal(newGoal);
-      setGoals(prev => [...prev, newGoal]);
+      setGoals(prev => { const next = [...prev, newGoal]; cachedGoals = next; return next; });
       return newGoal;
     } catch (error) {
       console.error("Failed to add goal:", error);
@@ -157,7 +161,7 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
           ...(options?.status === 'completed' && !existingGoal.completedAt && { completedAt: Date.now() })
         };
         await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => prev.map(g => g.id === id ? updatedGoal : g));
+        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
       }
     } catch (error) {
       console.error("Failed to update goal:", error);
@@ -175,7 +179,7 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
           completedAt: Date.now()
         };
         await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => prev.map(g => g.id === id ? updatedGoal : g));
+        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
       }
     } catch (error) {
       console.error("Failed to complete goal:", error);
@@ -199,7 +203,7 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
           milestones: [...currentMilestones, newMilestone]
         };
         await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => prev.map(g => g.id === goalId ? updatedGoal : g));
+        setGoals(prev => { const next = prev.map(g => g.id === goalId ? updatedGoal : g); cachedGoals = next; return next; });
         return newMilestone;
       }
     } catch (error) {
@@ -226,7 +230,7 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
           milestones: updatedMilestones
         };
         await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => prev.map(g => g.id === goalId ? updatedGoal : g));
+        setGoals(prev => { const next = prev.map(g => g.id === goalId ? updatedGoal : g); cachedGoals = next; return next; });
       }
     } catch (error) {
       console.error("Failed to update milestone:", error);
@@ -246,7 +250,7 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
           milestones: filteredMilestones
         };
         await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => prev.map(g => g.id === goalId ? updatedGoal : g));
+        setGoals(prev => { const next = prev.map(g => g.id === goalId ? updatedGoal : g); cachedGoals = next; return next; });
       }
     } catch (error) {
       console.error("Failed to delete milestone:", error);
@@ -258,10 +262,38 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
     await updateMilestone(goalId, milestoneId, { completed: true, completedAt: Date.now() });
   };
 
+  const archiveGoal = async (id: string) => {
+    try {
+      const existingGoal = goals.find(g => g.id === id);
+      if (existingGoal) {
+        const updatedGoal: Goal = { ...existingGoal, status: 'archived' };
+        await remoteStorageClient.saveGoal(updatedGoal);
+        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
+      }
+    } catch (error) {
+      console.error("Failed to archive goal:", error);
+      setIsError(true);
+    }
+  };
+
+  const unarchiveGoal = async (id: string) => {
+    try {
+      const existingGoal = goals.find(g => g.id === id);
+      if (existingGoal) {
+        const updatedGoal: Goal = { ...existingGoal, status: 'active' };
+        await remoteStorageClient.saveGoal(updatedGoal);
+        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
+      }
+    } catch (error) {
+      console.error("Failed to unarchive goal:", error);
+      setIsError(true);
+    }
+  };
+
   const deleteGoal = async (id: string) => {
     try {
       await remoteStorageClient.deleteGoal(id);
-      setGoals(prev => prev.filter(g => g.id !== id));
+      setGoals(prev => { const next = prev.filter(g => g.id !== id); cachedGoals = next; return next; });
     } catch (error) {
       console.error("Failed to delete goal:", error);
       setIsError(true);
@@ -275,6 +307,8 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
     addGoal,
     updateGoal,
     deleteGoal,
+    archiveGoal,
+    unarchiveGoal,
     completeGoal,
     addMilestone,
     updateMilestone,

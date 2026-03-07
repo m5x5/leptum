@@ -246,18 +246,22 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
       {titleSection}
       
       <div className={embedded ? "mb-0" : "mb-4"}>
-        <div className="flex items-baseline gap-2 mb-2">
-          <span className={embedded ? "text-lg font-bold text-foreground" : "text-2xl font-bold text-foreground"}>Today: {todayValue}</span>
-          <span className={embedded ? "text-xs text-muted-foreground" : "text-muted-foreground"}>/ {target} {config.unit}</span>
-        </div>
-        
-        {/* Progress bar */}
-        <div className={`w-full bg-muted rounded-full h-3 ${embedded ? 'mb-3' : 'mb-4'}`}>
-          <div
-            className="bg-primary rounded-full h-3 transition-all"
-            style={{ width: `${Math.min((todayValue / target) * 100, 100)}%` }}
-          />
-        </div>
+        {!embedded && (
+          <>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-2xl font-bold text-foreground">Today: {todayValue}</span>
+              <span className="text-muted-foreground">/ {target} {config.unit}</span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full bg-muted rounded-full h-3 mb-4">
+              <div
+                className="bg-primary rounded-full h-3 transition-all"
+                style={{ width: `${Math.min((todayValue / target) * 100, 100)}%` }}
+              />
+            </div>
+          </>
+        )}
         
         {/* Glass icons */}
         <div className={`flex flex-wrap gap-2 ${embedded ? 'mb-0' : 'mb-4'}`}>

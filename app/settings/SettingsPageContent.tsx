@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useActivityWatch } from '../../utils/useActivityWatch';
 import { remoteStorageClient } from '../../lib/remoteStorage';
+import { LoginButtons } from '../../lib/remotestorage-widget';
 import { serviceWorkerManager, isOfflineModeEnabled, setOfflineModeEnabled, ServiceWorkerState } from '../../utils/serviceWorker';
 import { likelyWithKeyboard } from 'keyux';
 import { useEntities, Entity } from '../../utils/useEntities';
@@ -10,6 +11,18 @@ import { useMentions } from '../../utils/useMentions';
 import { extractMentionedEntityIds } from '../../components/ui/mention-input';
 import { Separator } from '../../components/ui/separator';
 import { Switch } from '../../components/ui/switch';
+import { isHapticsEnabled, setHapticsEnabled } from '../../utils/haptics';
+import {
+  DownloadIcon,
+  UploadIcon,
+  RefreshIcon,
+  ExclamationIcon,
+  DotsVerticalIcon,
+  PencilIcon,
+  TrashIcon,
+  XIcon,
+  PlusIcon,
+} from '@heroicons/react/solid';
 
 export default function SettingsPageContent() {
   const { duplicateCount } = useActivityWatch();
@@ -28,8 +41,8 @@ export default function SettingsPageContent() {
   const [isServiceWorkerSupported, setIsServiceWorkerSupported] = useState(false);
   const [offlineModeEnabled, setOfflineModeEnabledState] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcutsState] = useState(false);
+  const [hapticsEnabled, setHapticsEnabledState] = useState(false);
   const [dob, setDob] = useState('');
-  const [authError, setAuthError] = useState<string | null>(null);
   const [googleClientId, setGoogleClientId] = useState('');
 
   // Entity management state
@@ -43,6 +56,10 @@ export default function SettingsPageContent() {
     tags: '',
   });
 
+  // 3-dot context menu state
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     queueMicrotask(() => {
       setMounted(true);
@@ -52,54 +69,38 @@ export default function SettingsPageContent() {
       setShowKeyboardShortcutsState(storedKb !== null ? storedKb === 'true' : likelyWithKeyboard(window));
       setDob(localStorage.getItem('leptum_dob') ?? '');
       setGoogleClientId(localStorage.getItem('leptum_google_client_id') ?? '');
+      setHapticsEnabledState(isHapticsEnabled());
     });
 
-    // Attach RemoteStorage widget when settings page mounts
-    remoteStorageClient.attachWidget('remotestorage-widget');
-
-    // Subscribe to service worker state changes
     const unsubscribe = serviceWorkerManager.subscribe((state) => {
       setSwState(state);
     });
 
-    // Listen for RemoteStorage errors (including authorization failures)
-    const handleError = (error: Error) => {
-      console.error('RemoteStorage error:', error);
-      if (error.message?.includes('access denied') || error.message?.includes('Authorization failed')) {
-        setAuthError('Authorization failed. Please try connecting again.');
-      } else {
-        setAuthError(error.message || 'An error occurred with RemoteStorage.');
-      }
-    };
-
-    remoteStorageClient.onError(handleError);
-
-    // Clear error when connected successfully
-    const handleConnect = () => {
-      setAuthError(null);
-    };
-    remoteStorageClient.onConnect(handleConnect);
-
-    // Cleanup on unmount
     return () => {
-      remoteStorageClient.detachWidget();
-      remoteStorageClient.offError(handleError);
       unsubscribe();
     };
   }, []);
+
+  // Close context menu on outside click
+  useEffect(() => {
+    if (!openMenuId) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setOpenMenuId(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [openMenuId]);
 
   const handleCheckForUpdates = async () => {
     setIsChecking(true);
     try {
       await serviceWorkerManager.checkForUpdates();
-
-      // Clear all caches
       if ('caches' in window) {
         const cacheNames = await caches.keys();
         await Promise.all(cacheNames.map(cacheName => caches.delete(cacheName)));
       }
-
-      // Reload the page to get fresh content
       window.location.reload();
     } catch (error) {
       console.error('Error checking for updates:', error);
@@ -113,16 +114,13 @@ export default function SettingsPageContent() {
 
   const handleToggleOfflineMode = async (enabled: boolean) => {
     if (enabled) {
-      // Enable offline mode - register service worker
       await serviceWorkerManager.register();
-      setOfflineModeEnabled(true); // Save to localStorage
-      setOfflineModeEnabledState(true); // Update React state
+      setOfflineModeEnabled(true);
+      setOfflineModeEnabledState(true);
     } else {
-      // Disable offline mode - unregister service worker
       await serviceWorkerManager.unregister();
-      setOfflineModeEnabled(false); // Save to localStorage
-      setOfflineModeEnabledState(false); // Update React state
-      // Reload page to ensure service worker is fully removed
+      setOfflineModeEnabled(false);
+      setOfflineModeEnabledState(false);
       window.location.reload();
     }
   };
@@ -134,14 +132,10 @@ export default function SettingsPageContent() {
   };
 
   const handleMigrateMentions = async () => {
-    if (!confirm('This will scan all insights and extract mentions. Continue?')) {
-      return;
-    }
-
+    if (!confirm('This will scan all insights and extract mentions. Continue?')) return;
     try {
       const insights = await remoteStorageClient.getInsights();
       let migratedCount = 0;
-
       for (const insight of insights) {
         if (insight.notes) {
           const entityIds = extractMentionedEntityIds(insight.notes);
@@ -151,7 +145,6 @@ export default function SettingsPageContent() {
           }
         }
       }
-
       alert(`Migration complete! Extracted mentions from ${migratedCount} insights.`);
     } catch (error) {
       console.error('Failed to migrate mentions:', error);
@@ -161,18 +154,9 @@ export default function SettingsPageContent() {
 
   const handleExportData = async () => {
     try {
-      // Collect all data from RemoteStorage
       const [
-        jobs,
-        goals,
-        goalTypes,
-        impacts,
-        stacks,
-        routines,
-        standaloneTasks,
-        routineCompletions,
-        weeklyGoals,
-        activityWatchData
+        jobs, goals, goalTypes, impacts, stacks, routines,
+        standaloneTasks, routineCompletions, weeklyGoals, activityWatchData
       ] = await Promise.all([
         remoteStorageClient.getJobs(),
         remoteStorageClient.getGoals(),
@@ -183,32 +167,16 @@ export default function SettingsPageContent() {
         remoteStorageClient.getStandaloneTasks(),
         remoteStorageClient.getRoutineCompletions(),
         remoteStorageClient.getAllWeeklyGoals(),
-        remoteStorageClient.getActivityWatchData()
+        remoteStorageClient.getActivityWatchData(),
       ]);
 
-      // Create export object
       const exportData = {
         version: '1.0',
         exportedAt: new Date().toISOString(),
-        data: {
-          jobs,
-          goals,
-          goalTypes,
-          impacts,
-          stacks,
-          routines,
-          standaloneTasks,
-          routineCompletions,
-          weeklyGoals,
-          activityWatchData
-        }
+        data: { jobs, goals, goalTypes, impacts, stacks, routines, standaloneTasks, routineCompletions, weeklyGoals, activityWatchData },
       };
 
-      // Convert to JSON
-      const jsonString = JSON.stringify(exportData, null, 2);
-
-      // Create blob and download
-      const blob = new Blob([jsonString], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -252,12 +220,7 @@ export default function SettingsPageContent() {
       });
     } else {
       setEditingEntity(null);
-      setEntityFormData({
-        name: '',
-        type: null,
-        description: '',
-        tags: '',
-      });
+      setEntityFormData({ name: '', type: null, description: '', tags: '' });
     }
     setEntityModalOpen(true);
   };
@@ -279,7 +242,6 @@ export default function SettingsPageContent() {
       .filter(tag => tag.length > 0);
 
     if (editingEntity) {
-      // Update existing entity
       await updateEntity(editingEntity.id, {
         name: entityFormData.name,
         type: entityFormData.type,
@@ -287,7 +249,6 @@ export default function SettingsPageContent() {
         tags: tagsArray,
       });
     } else {
-      // Add new entity
       await addEntity({
         name: entityFormData.name,
         type: entityFormData.type,
@@ -300,18 +261,12 @@ export default function SettingsPageContent() {
   };
 
   const handleDeleteEntity = async (entityId: string) => {
+    setOpenMenuId(null);
     const mentionCount = getMentionCountForEntity(entityId);
-
-    if (mentionCount > 0) {
-      if (!confirm(`This entity is mentioned ${mentionCount} time(s). Are you sure you want to delete it?`)) {
-        return;
-      }
-    } else {
-      if (!confirm('Are you sure you want to delete this entity?')) {
-        return;
-      }
-    }
-
+    const message = mentionCount > 0
+      ? `This entity is mentioned ${mentionCount} time(s). Are you sure you want to delete it?`
+      : 'Are you sure you want to delete this entity?';
+    if (!confirm(message)) return;
     await deleteMentionsForEntity(entityId);
     await deleteEntity(entityId);
   };
@@ -324,32 +279,15 @@ export default function SettingsPageContent() {
 
   return (
     <>
-    <div className="space-y-6">
+      <div className="space-y-6">
         {/* Storage Section */}
         <div>
           <h2 className="text-lg font-semibold mb-4">Storage</h2>
           <div className="space-y-4">
             <div>
               <p className="text-sm text-muted-foreground mb-4">Connect your RemoteStorage account to sync your data across devices.</p>
-              <div id="remotestorage-widget"></div>
-              {authError && (
-                <div className="mt-4 border border-red-500/30 bg-red-500/10 rounded-lg p-3">
-                  <div className="flex items-start gap-2">
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-red-500 shrink-0 mt-0.5" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7 4a1 1 0 11-2 0 1 1 0 012 0zm-1-9a1 1 0 00-1 1v4a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                    </svg>
-                    <div className="flex-1">
-                      <p className="text-sm text-red-700 dark:text-red-400 font-medium">Connection Error</p>
-                      <p className="text-sm text-red-600 dark:text-red-400/80 mt-1">{authError}</p>
-                      <button
-                        onClick={() => setAuthError(null)}
-                        className="mt-2 text-xs text-red-600 dark:text-red-400 hover:underline"
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  </div>
-                </div>
+              {mounted && remoteStorageClient.getRS() && (
+                <LoginButtons rs={remoteStorageClient.getRS()!} />
               )}
             </div>
 
@@ -361,9 +299,7 @@ export default function SettingsPageContent() {
                 <span className="text-sm text-foreground group-hover:text-primary transition-colors">Export Data</span>
                 <span className="text-xs text-muted-foreground">Download all your data as a JSON file</span>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clipRule="evenodd" />
-              </svg>
+              <DownloadIcon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
             </button>
 
             <button
@@ -374,9 +310,7 @@ export default function SettingsPageContent() {
                 <span className="text-sm text-foreground group-hover:text-primary transition-colors">Import from Todonna</span>
                 <span className="text-xs text-muted-foreground">One-time import of tasks from your Todonna storage</span>
               </div>
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" viewBox="0 0 20 20" fill="currentColor">
-                <path fillRule="evenodd" d="M17 3a1 1 0 00-1 1v9.586l-2.293-2.293a1 1 0 00-1.414 1.414l4 4a1 1 0 001.414 0l4-4a1 1 0 00-1.414-1.414L18 13.586V4a1 1 0 00-1-1zM4 3a1 1 0 000 2h8a1 1 0 100-2H4z" clipRule="evenodd" />
-              </svg>
+              <UploadIcon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
             </button>
           </div>
         </div>
@@ -400,6 +334,19 @@ export default function SettingsPageContent() {
                     <Switch
                       checked={showKeyboardShortcuts}
                       onCheckedChange={handleToggleKeyboardShortcuts}
+                    />
+                  </span>
+                </div>
+
+                <div
+                  onClick={() => { setHapticsEnabled(!hapticsEnabled); setHapticsEnabledState(!hapticsEnabled); }}
+                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
+                >
+                  <span className="text-sm text-foreground">Haptic feedback on task completion</span>
+                  <span className="pointer-events-none shrink-0">
+                    <Switch
+                      checked={hapticsEnabled}
+                      onCheckedChange={(v) => { setHapticsEnabled(v); setHapticsEnabledState(v); }}
                     />
                   </span>
                 </div>
@@ -443,7 +390,7 @@ export default function SettingsPageContent() {
                         />
                       </span>
                     </div>
-                    
+
                     {swState.updateAvailable && (
                       <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3">
                         <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
@@ -451,13 +398,13 @@ export default function SettingsPageContent() {
                         </p>
                         <button
                           onClick={handleUpdateApp}
-                          className="min-h-[44px] px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors text-sm"
+                          className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm"
                         >
                           Update Now
                         </button>
                       </div>
                     )}
-                    
+
                     <button
                       type="button"
                       onClick={handleCheckForUpdates}
@@ -521,9 +468,7 @@ export default function SettingsPageContent() {
                 />
                 <button
                   type="button"
-                  onClick={() => {
-                    localStorage.setItem('leptum_google_client_id', googleClientId.trim());
-                  }}
+                  onClick={() => { localStorage.setItem('leptum_google_client_id', googleClientId.trim()); }}
                   className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors whitespace-nowrap"
                 >
                   Save
@@ -540,7 +485,7 @@ export default function SettingsPageContent() {
                     className="px-3 py-2 text-sm border border-border rounded hover:bg-muted transition-colors text-muted-foreground"
                     aria-label="Clear"
                   >
-                    ✕
+                    <XIcon className="h-4 w-4" />
                   </button>
                 )}
               </div>
@@ -557,15 +502,17 @@ export default function SettingsPageContent() {
             <div className="flex gap-2">
               <button
                 onClick={handleMigrateMentions}
-                className="px-3 py-2 bg-blue-600 text-white text-sm rounded hover:bg-blue-700 transition-colors"
+                className="flex items-center gap-1.5 px-3 py-2 border border-border text-foreground text-sm rounded hover:bg-accent transition-colors"
                 title="Extract mentions from existing insights"
               >
+                <RefreshIcon className="h-4 w-4" />
                 Migrate Mentions
               </button>
               <button
                 onClick={() => handleOpenEntityModal()}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm"
+                className="flex items-center gap-1.5 px-4 py-2 border border-border text-foreground rounded hover:bg-accent transition-colors text-sm"
               >
+                <PlusIcon className="h-4 w-4" />
                 Add Entity
               </button>
             </div>
@@ -577,10 +524,10 @@ export default function SettingsPageContent() {
               <button
                 key={type}
                 onClick={() => setEntityTypeFilter(type)}
-                className={`px-3 py-1 rounded text-sm transition-colors ${
+                className={`px-3 py-1 rounded text-sm transition-colors border ${
                   entityTypeFilter === type
-                    ? 'bg-primary text-primary-foreground'
-                    : 'bg-secondary text-secondary-foreground hover:bg-secondary/80'
+                    ? 'bg-primary text-primary-foreground border-primary'
+                    : 'border-border text-foreground hover:bg-accent'
                 }`}
               >
                 {type.charAt(0).toUpperCase() + type.slice(1)}
@@ -633,19 +580,34 @@ export default function SettingsPageContent() {
                         </div>
                       )}
                     </div>
-                    <div className="flex gap-2 shrink-0">
+
+                    {/* 3-dot context menu */}
+                    <div className="relative shrink-0" ref={openMenuId === entity.id ? menuRef : null}>
                       <button
-                        onClick={() => handleOpenEntityModal(entity)}
-                        className="px-2 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors"
+                        onClick={() => setOpenMenuId(openMenuId === entity.id ? null : entity.id)}
+                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
+                        aria-label="More options"
                       >
-                        Edit
+                        <DotsVerticalIcon className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => handleDeleteEntity(entity.id)}
-                        className="px-2 py-1 text-xs bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
-                      >
-                        Delete
-                      </button>
+                      {openMenuId === entity.id && (
+                        <div className="absolute right-0 top-8 z-10 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[120px]">
+                          <button
+                            onClick={() => { setOpenMenuId(null); handleOpenEntityModal(entity); }}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors text-left"
+                          >
+                            <PencilIcon className="h-4 w-4 text-muted-foreground" />
+                            Edit
+                          </button>
+                          <button
+                            onClick={() => handleDeleteEntity(entity.id)}
+                            className="w-full flex items-center gap-2 px-3 py-2 text-sm text-destructive hover:bg-accent transition-colors text-left"
+                          >
+                            <TrashIcon className="h-4 w-4" />
+                            Delete
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -667,7 +629,7 @@ export default function SettingsPageContent() {
               href="https://github.com/m5x5/leptum"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-gray-900 dark:bg-gray-100 text-white dark:text-gray-900 rounded hover:bg-gray-800 dark:hover:bg-gray-200 transition-colors text-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 border border-border rounded hover:bg-accent transition-colors text-sm"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
@@ -682,9 +644,7 @@ export default function SettingsPageContent() {
             <Separator />
             <div>
               <h2 className="text-lg font-semibold text-yellow-600 dark:text-yellow-500 mb-4 flex items-center gap-2">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
+                <ExclamationIcon className="h-5 w-5" />
                 Data Quality
               </h2>
               <div className="space-y-2">
@@ -729,7 +689,7 @@ export default function SettingsPageContent() {
                   value={entityFormData.type || ''}
                   onChange={(e) => setEntityFormData({
                     ...entityFormData,
-                    type: e.target.value === '' ? null : e.target.value as 'person' | 'project' | 'context'
+                    type: e.target.value === '' ? null : e.target.value as 'person' | 'project' | 'context',
                   })}
                   className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
                 >
@@ -760,9 +720,7 @@ export default function SettingsPageContent() {
                   className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
                   placeholder="comma, separated, tags"
                 />
-                <p className="text-xs text-muted-foreground mt-1">
-                  Enter tags separated by commas
-                </p>
+                <p className="text-xs text-muted-foreground mt-1">Enter tags separated by commas</p>
               </div>
             </div>
 
@@ -775,7 +733,7 @@ export default function SettingsPageContent() {
               </button>
               <button
                 onClick={handleCloseEntityModal}
-                className="flex-1 px-4 py-2 bg-secondary text-secondary-foreground rounded hover:bg-secondary/80 transition-colors"
+                className="flex-1 px-4 py-2 border border-border text-foreground rounded hover:bg-accent transition-colors"
               >
                 Cancel
               </button>

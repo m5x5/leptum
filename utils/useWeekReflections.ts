@@ -28,6 +28,10 @@ export function useWeekReflections() {
     };
 
     remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      remoteStorageClient.offChange(handleChange);
+    };
   }, [loadReflections]);
 
   const saveReflection = useCallback(async (weekKey: string, text: string) => {

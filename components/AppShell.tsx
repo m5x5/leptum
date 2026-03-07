@@ -215,29 +215,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         attributeFilter: ["class"],
       });
 
-      const updateWidgetVisibility = () => {
-        const widget = document.querySelector("remotestorage-widget");
-        if (widget) {
-          const isSettingsPage = activePath === "/settings";
-          if (isSettingsPage) {
-            (widget as HTMLElement).style.setProperty("display", "block", "important");
-            (widget as HTMLElement).style.setProperty("visibility", "visible", "important");
-            (widget as HTMLElement).style.setProperty("opacity", "1", "important");
-            (widget as HTMLElement).style.setProperty("pointer-events", "auto", "important");
-          } else {
-            (widget as HTMLElement).style.setProperty("display", "none", "important");
-            (widget as HTMLElement).style.setProperty("visibility", "hidden", "important");
-            (widget as HTMLElement).style.setProperty("opacity", "0", "important");
-            (widget as HTMLElement).style.setProperty("pointer-events", "none", "important");
-          }
-        }
-      };
-
-      const widgetInterval = setInterval(updateWidgetVisibility, 100);
-
       return () => {
         observer.disconnect();
-        clearInterval(widgetInterval);
       };
     }
   }, [activePath]);

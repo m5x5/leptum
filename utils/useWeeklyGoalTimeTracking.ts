@@ -65,6 +65,10 @@ export function useWeeklyGoalTimeTracking(weekStart: string, goals: Goal[] | nul
     };
 
     remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      remoteStorageClient.offChange(handleChange);
+    };
   }, [weekStart]);
 
   const loadImpacts = async () => {
