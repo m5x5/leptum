@@ -107,7 +107,6 @@ function SortableTaskItem({ task, ...props }: SortableTaskItemProps) {
     attributes,
     listeners,
     setNodeRef,
-    setActivatorNodeRef,
     transform,
     transition,
     isDragging,
@@ -122,12 +121,10 @@ function SortableTaskItem({ task, ...props }: SortableTaskItemProps) {
   };
 
   return (
-    <div ref={setNodeRef} style={style}>
+    <div ref={setNodeRef} style={style} {...attributes} {...listeners}>
       <StandaloneTaskItem
         task={task}
         {...props}
-        dragHandleRef={setActivatorNodeRef}
-        dragHandleProps={{ ...attributes, ...listeners }}
       />
     </div>
   );
@@ -153,6 +150,12 @@ export default function QuickCapture({
       activationConstraint: { delay: 250, tolerance: 5 },
     }),
   );
+  const [localOrderedIds, setLocalOrderedIds] = useState<string[] | null>(null);
+
+  // Reset local ordering when underlying tasks change from storage
+  useEffect(() => {
+    setLocalOrderedIds(null);
+  }, [tasks]);
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, getFullImage, photos: allPhotos } = usePhotoAttachments();
 
@@ -512,19 +515,30 @@ export default function QuickCapture({
 
   // Filter tasks by selected day (active tasks only). Active task on top, then by sortIndex, then newest first.
   const filteredTasks = useMemo(() => {
-    return [...tasks]
-      .filter((task) => task.status !== 'completed' && getDateKey(task.createdAt) === selectedDay)
-      .sort((a, b) => {
-        const aActive = currentActivityName ? a.name === currentActivityName : false;
-        const bActive = currentActivityName ? b.name === currentActivityName : false;
-        if (aActive && !bActive) return -1;
-        if (!aActive && bActive) return 1;
-        if (a.sortIndex !== undefined && b.sortIndex !== undefined) return a.sortIndex - b.sortIndex;
-        if (a.sortIndex !== undefined) return -1;
-        if (b.sortIndex !== undefined) return 1;
-        return b.createdAt - a.createdAt;
+    const base = [...tasks].filter(
+      (task) => task.status !== 'completed' && getDateKey(task.createdAt) === selectedDay,
+    );
+
+    if (localOrderedIds) {
+      const idOrder = new Map(localOrderedIds.map((id, i) => [id, i]));
+      return base.sort((a, b) => {
+        const aIdx = idOrder.has(a.id) ? idOrder.get(a.id)! : Infinity;
+        const bIdx = idOrder.has(b.id) ? idOrder.get(b.id)! : Infinity;
+        return aIdx - bIdx;
       });
-  }, [tasks, selectedDay, currentActivityName]);
+    }
+
+    return base.sort((a, b) => {
+      const aActive = currentActivityName ? a.name === currentActivityName : false;
+      const bActive = currentActivityName ? b.name === currentActivityName : false;
+      if (aActive && !bActive) return -1;
+      if (!aActive && bActive) return 1;
+      if (a.sortIndex !== undefined && b.sortIndex !== undefined) return a.sortIndex - b.sortIndex;
+      if (a.sortIndex !== undefined) return -1;
+      if (b.sortIndex !== undefined) return 1;
+      return b.createdAt - a.createdAt;
+    });
+  }, [tasks, selectedDay, currentActivityName, localOrderedIds]);
 
   // Focus textarea when text mode is opened
   useEffect(() => {
@@ -706,7 +720,9 @@ export default function QuickCapture({
                 const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
                 const newIndex = filteredTasks.findIndex((t) => t.id === over.id);
                 const reordered = arrayMove(filteredTasks, oldIndex, newIndex);
-                onTaskReorder?.(reordered.map((t) => t.id));
+                const newIds = reordered.map((t) => t.id);
+                setLocalOrderedIds(newIds);
+                onTaskReorder?.(newIds);
               }}
             >
               <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
