@@ -148,11 +148,15 @@ export default function QuickCapture({
 }: QuickCaptureProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
-      activationConstraint: { delay: 250, tolerance: 5 },
+      // tolerance: 8px — more forgiving of slight hand movement during the hold
+      activationConstraint: { delay: 250, tolerance: 8 },
     }),
   );
   const [localOrderedIds, setLocalOrderedIds] = useState<string[] | null>(null);
   const [isDraggingTask, setIsDraggingTask] = useState(false);
+  // Snapshot of tasks frozen at drag-start so SortableContext items never
+  // change mid-drag (changing items mid-drag causes dnd-kit to drop the drag).
+  const frozenFilteredTasksRef = useRef<StandaloneTask[]>([]);
 
   // Reset local ordering when underlying tasks change from storage,
   // but never during an active drag (would break pointer capture).
@@ -735,22 +739,30 @@ export default function QuickCapture({
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
-              onDragStart={(_event: DragStartEvent) => setIsDraggingTask(true)}
+              onDragStart={(_event: DragStartEvent) => {
+                // Snapshot current order so items stay stable for the whole drag
+                frozenFilteredTasksRef.current = filteredTasks;
+                setIsDraggingTask(true);
+              }}
               onDragCancel={() => setIsDraggingTask(false)}
               onDragEnd={(event: DragEndEvent) => {
                 setIsDraggingTask(false);
+                const snapshot = frozenFilteredTasksRef.current;
                 const { active, over } = event;
                 if (!over || active.id === over.id) return;
-                const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
-                const newIndex = filteredTasks.findIndex((t) => t.id === over.id);
-                const reordered = arrayMove(filteredTasks, oldIndex, newIndex);
+                const oldIndex = snapshot.findIndex((t) => t.id === active.id);
+                const newIndex = snapshot.findIndex((t) => t.id === over.id);
+                const reordered = arrayMove(snapshot, oldIndex, newIndex);
                 const newIds = reordered.map((t) => t.id);
                 setLocalOrderedIds(newIds);
                 onTaskReorder?.(newIds);
               }}
             >
-              <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                {filteredTasks.map((task) => (
+              <SortableContext
+                items={(isDraggingTask ? frozenFilteredTasksRef.current : filteredTasks).map((t) => t.id)}
+                strategy={verticalListSortingStrategy}
+              >
+                {(isDraggingTask ? frozenFilteredTasksRef.current : filteredTasks).map((task) => (
                   <SortableTaskItem
                     key={task.id}
                     task={task}
