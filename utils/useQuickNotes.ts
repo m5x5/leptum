@@ -27,6 +27,10 @@ export function useQuickNotes() {
     };
 
     remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      remoteStorageClient.offChange(handleChange);
+    };
   }, []);
 
   const loadNotes = async () => {

@@ -113,7 +113,7 @@ export function usePhotoAttachments() {
     remoteStorageClient.onChange(handleChange);
 
     return () => {
-      // Note: RemoteStorage doesn't have a direct off method, but the handler will be cleaned up
+      remoteStorageClient.offChange(handleChange);
     };
   }, []);
 

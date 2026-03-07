@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { TrashIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/outline';
+import { ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/outline';
+import { DotsVerticalIcon, PencilIcon, TrashIcon, TemplateIcon, ArchiveIcon } from '@heroicons/react/solid';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
 import type { PluggableList } from 'unified';
@@ -13,6 +15,8 @@ interface GoalItemProps {
   goal: Goal;
   onDelete: (id: string) => void;
   onEdit: (id: string, goal: Goal) => void;
+  onArchive: (id: string) => void;
+  onUnarchive: (id: string) => void;
   onAddMilestone: (goalId: string, milestone: Omit<GoalMilestone, 'id' | 'order'>) => void;
   onUpdateMilestone: (goalId: string, milestoneId: string, updates: Partial<GoalMilestone>) => void;
   onDeleteMilestone: (goalId: string, milestoneId: string) => void;
@@ -24,6 +28,8 @@ export function GoalItem({
   goal,
   onDelete,
   onEdit,
+  onArchive,
+  onUnarchive,
   onAddMilestone,
   onUpdateMilestone,
   onDeleteMilestone,
@@ -127,26 +133,42 @@ export function GoalItem({
           </button>
         )}
 
-        {/* Action buttons */}
-        <div className="flex items-center gap-1">
-          {onSelectTemplate && !goal.templateId && (
-            <button
-              onClick={() => onSelectTemplate(goal)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 text-muted-foreground hover:text-primary transition rounded-lg hover:bg-muted"
-              title="Use template"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v7a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1H5a1 1 0 01-1-1v-3zM14 16a1 1 0 011-1h4a1 1 0 011 1v3a1 1 0 01-1 1h-4a1 1 0 01-1-1v-3z" />
-              </svg>
+        {/* Action menu */}
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition">
+              <DotsVerticalIcon className="w-5 h-5" />
             </button>
-          )}
-          <div className="bg-muted p-1 rounded-xl flex-shrink-0">
-            <TrashIcon
-              className="w-5 h-5 text-muted-foreground hover:text-red-500 transition cursor-pointer"
-              onClick={() => onDelete(goal.id)}
-            />
-          </div>
-        </div>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => onEdit(goal.id, goal)}>
+              <PencilIcon className="h-4 w-4 mr-2" />
+              Edit
+            </DropdownMenuItem>
+            {onSelectTemplate && !goal.templateId && (
+              <DropdownMenuItem onClick={() => onSelectTemplate(goal)}>
+                <TemplateIcon className="h-4 w-4 mr-2" />
+                Use template
+              </DropdownMenuItem>
+            )}
+            {goal.status === 'archived' ? (
+              <DropdownMenuItem onClick={() => onUnarchive(goal.id)}>
+                <ArchiveIcon className="h-4 w-4 mr-2" />
+                Unarchive
+              </DropdownMenuItem>
+            ) : (
+              <DropdownMenuItem onClick={() => onArchive(goal.id)}>
+                <ArchiveIcon className="h-4 w-4 mr-2" />
+                Archive
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={() => onDelete(goal.id)} className="text-destructive focus:text-destructive">
+              <TrashIcon className="h-4 w-4 mr-2" />
+              Delete
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {/* Expanded content */}

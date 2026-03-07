@@ -9,6 +9,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import React, { useEffect, useState } from "react";
+import { useProfile } from "../../utils/useProfile";
 import {
   Sidebar,
   SidebarContent,
@@ -55,6 +56,8 @@ export default function AppSidebar() {
       return () => window.removeEventListener('keyboardShortcutsChanged', handleChange);
     }
   }, []);
+
+  const profile = useProfile();
 
   const isActive = (path: string) => {
     return pathname === path;
@@ -129,16 +132,24 @@ export default function AppSidebar() {
         <SidebarMenu className="group-data-[collapsible=icon]:items-center">
           <SidebarMenuItem>
             <SidebarMenuButton asChild isActive={isActive("/settings")} tooltip="Settings" className="py-3 group-data-[collapsible=icon]:h-12 group-data-[collapsible=icon]:w-12">
-              <Link 
-                href="/settings" 
+              <Link
+                href="/settings"
                 aria-keyshortcuts="s"
                 className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center"
               >
-                <CogIcon className="h-6 w-6" aria-hidden={true} />
-                <span className="group-data-[collapsible=icon]:hidden flex items-center gap-2">
-                  Settings
+                {profile?.avatarDataUrl ? (
+                  <img
+                    src={profile.avatarDataUrl}
+                    alt={profile.displayName ?? ""}
+                    className="h-6 w-6 rounded-full object-cover shrink-0"
+                  />
+                ) : (
+                  <CogIcon className="h-6 w-6 shrink-0" aria-hidden={true} />
+                )}
+                <span className="group-data-[collapsible=icon]:hidden flex items-center gap-2 min-w-0">
+                  <span className="truncate">{profile?.displayName ?? "Settings"}</span>
                   {showKeyboardHints && typeof window !== 'undefined' && (
-                    <kbd className="px-1.5 py-0.5 text-xs font-semibold text-muted-foreground bg-muted border border-border rounded">
+                    <kbd className="px-1.5 py-0.5 text-xs font-semibold text-muted-foreground bg-muted border border-border rounded shrink-0">
                       {getHotKeyHint(window, 's')}
                     </kbd>
                   )}
@@ -154,7 +165,7 @@ export default function AppSidebar() {
 
       {/* Mobile Bottom Navigation - Material You Style */}
       <nav
-        className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-50 shadow-lg"
+        className="md:hidden fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-50 shadow-lg overscroll-none"
         style={{ viewTransitionName: 'bottom-bar' } as React.CSSProperties & { viewTransitionName?: string }}
         aria-label="Main navigation"
       >

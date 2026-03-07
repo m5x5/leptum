@@ -1,4 +1,4 @@
-import { PlusIcon } from "@heroicons/react/solid";
+import { PlusIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/solid";
 import { useState, useEffect } from "react";
 import { useGoals, Goal, GoalMilestone } from "../../utils/useGoals";
 import GoalItem from "./GoalItem";
@@ -23,6 +23,8 @@ interface IProps {
 export default function GoalList({ name = "", children, id, items }: IProps) {
   const {
     deleteGoal,
+    archiveGoal,
+    unarchiveGoal,
     addGoal,
     updateGoal,
     addMilestone,
@@ -31,6 +33,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
     completeMilestone,
     reload: reloadGoals
   } = useGoals();
+  const [showArchived, setShowArchived] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showTemplateGallery, setShowTemplateGallery] = useState(false);
@@ -137,8 +140,9 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
     await completeMilestone(goalId, milestoneId);
   };
 
-  // Use the filtered items passed via props instead of all goals
-  const goalsForThisType = items || [];
+  const allGoalsForType = items || [];
+  const goalsForThisType = allGoalsForType.filter(g => g.status !== 'archived');
+  const archivedGoals = allGoalsForType.filter(g => g.status === 'archived');
 
   return (
     <>
@@ -157,6 +161,8 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
               goal={goal}
               onDelete={deleteGoal}
               onEdit={handleEditGoal}
+              onArchive={archiveGoal}
+              onUnarchive={unarchiveGoal}
               onAddMilestone={handleAddMilestone}
               onUpdateMilestone={handleUpdateMilestone}
               onDeleteMilestone={handleDeleteMilestone}
@@ -164,7 +170,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
               onSelectTemplate={handleOpenTemplateSelector}
             />
           ))}
-          {goalsForThisType.length === 0 && (
+          {goalsForThisType.length === 0 && archivedGoals.length === 0 && (
             <div className="text-center py-4">
               <p className="text-muted-foreground mb-3">No goals yet in this category.</p>
               <button
@@ -173,6 +179,35 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
               >
                 Browse Goal Templates
               </button>
+            </div>
+          )}
+          {archivedGoals.length > 0 && (
+            <div className="mt-2">
+              <button
+                onClick={() => setShowArchived(v => !v)}
+                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
+              >
+                {showArchived ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
+                {archivedGoals.length} archived
+              </button>
+              {showArchived && (
+                <div className="flex flex-col gap-2 mt-2 opacity-60">
+                  {archivedGoals.map((goal) => (
+                    <GoalItem
+                      key={goal.id}
+                      goal={goal}
+                      onDelete={deleteGoal}
+                      onEdit={handleEditGoal}
+                      onArchive={archiveGoal}
+                      onUnarchive={unarchiveGoal}
+                      onAddMilestone={handleAddMilestone}
+                      onUpdateMilestone={handleUpdateMilestone}
+                      onDeleteMilestone={handleDeleteMilestone}
+                      onCompleteMilestone={handleCompleteMilestone}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </div>

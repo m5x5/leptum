@@ -294,22 +294,22 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
       {titleSection}
       
       <div className={embedded ? "mb-0" : "mb-4"}>
-        <div className="flex items-baseline gap-2 mb-2">
-          <span className={embedded ? "text-lg font-bold text-foreground" : "text-2xl font-bold text-foreground"}>
-            Today: {completedCount}
-          </span>
-          <span className={embedded ? "text-xs text-muted-foreground" : "text-muted-foreground"}>
-            / {target} {config.unit}
-          </span>
-        </div>
-        
-        {/* Progress bar */}
-        <div className={`w-full bg-muted rounded-full h-3 ${embedded ? 'mb-3' : 'mb-4'}`}>
-          <div
-            className="bg-primary rounded-full h-3 transition-all"
-            style={{ width: `${Math.min((completedCount / target) * 100, 100)}%` }}
-          />
-        </div>
+        {!embedded && (
+          <>
+            <div className="flex items-baseline gap-2 mb-2">
+              <span className="text-2xl font-bold text-foreground">Today: {completedCount}</span>
+              <span className="text-muted-foreground">/ {target} {config.unit}</span>
+            </div>
+
+            {/* Progress bar */}
+            <div className="w-full bg-muted rounded-full h-3 mb-4">
+              <div
+                className="bg-primary rounded-full h-3 transition-all"
+                style={{ width: `${Math.min((completedCount / target) * 100, 100)}%` }}
+              />
+            </div>
+          </>
+        )}
         
         {/* Checklist items */}
         <div className={`space-y-2 ${embedded ? 'mb-0' : 'mb-4'}`}>

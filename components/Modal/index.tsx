@@ -10,7 +10,7 @@ const Title = ({ children }: { children: React.ReactNode }) => {
 
 const Body = ({ children }: { children: React.ReactNode }) => {
   return (
-    <div className="mt-2 text-muted-foreground text-md">
+    <div className="mt-2 text-muted-foreground text-md overflow-y-auto flex-1 min-h-0">
       {children}
     </div>
   );

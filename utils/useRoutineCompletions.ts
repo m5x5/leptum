@@ -10,13 +10,16 @@ export interface RoutineCompletion {
   taskCount: number;
 }
 
+let cachedCompletions: RoutineCompletion[] | null = null;
+
 export function useRoutineCompletions() {
-  const [completions, setCompletions] = useState<RoutineCompletion[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [completions, setCompletions] = useState<RoutineCompletion[]>(() => cachedCompletions ?? []);
+  const [loading, setLoading] = useState(cachedCompletions === null);
 
   const loadCompletions = useCallback(async () => {
     try {
       const data = await remoteStorageClient.getRoutineCompletions();
+      cachedCompletions = data;
       setCompletions(data);
     } catch (error) {
       console.error('Failed to load routine completions:', error);
@@ -32,7 +35,11 @@ export function useRoutineCompletions() {
   const addCompletion = useCallback(async (completion: RoutineCompletion) => {
     try {
       await remoteStorageClient.addRoutineCompletion(completion);
-      setCompletions(prev => [...prev, completion]);
+      setCompletions(prev => {
+        const next = [...prev, completion];
+        cachedCompletions = next;
+        return next;
+      });
     } catch (error) {
       console.error('Failed to add routine completion:', error);
     }

@@ -56,6 +56,10 @@ export function useWeeklyGoals() {
     };
 
     remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      remoteStorageClient.offChange(handleChange);
+    };
   }, [currentWeekStart]);
 
   const loadWeeklyGoal = async (weekStart: string) => {

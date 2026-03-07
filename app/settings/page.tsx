@@ -1,7 +1,9 @@
+"use client";
+
 import dynamic from "next/dynamic";
 
 const SettingsPageContent = dynamic(() => import("./SettingsPageContent"), {
-  ssr: true,
+  ssr: false,
 });
 
 export default function SettingsPage() {

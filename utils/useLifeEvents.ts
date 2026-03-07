@@ -28,6 +28,10 @@ export function useLifeEvents() {
     };
 
     remoteStorageClient.onChange(handleChange);
+
+    return () => {
+      remoteStorageClient.offChange(handleChange);
+    };
   }, [loadEvents]);
 
   const saveEvent = useCallback(async (event: LifeEvent) => {
