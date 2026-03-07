@@ -119,6 +119,9 @@ function SortableTaskItem({ task, ...props }: SortableTaskItemProps) {
     opacity: isDragging ? 0.4 : 1,
     zIndex: isDragging ? 10 : undefined,
     position: 'relative',
+    // Prevent browser from taking over pointer events for scrolling,
+    // which fires pointercancel and drops the drag on touch devices.
+    touchAction: 'none',
   };
 
   return (
