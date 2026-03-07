@@ -55,7 +55,9 @@ export function DailyActivityBar({ dateKey, impacts, goals }: DailyActivityBarPr
         const nextImpact = index < sortedImpacts.length - 1 ? sortedImpacts[index + 1] : null;
         let endTime: number;
 
-        if (!nextImpact) {
+        if (impact.endTime != null) {
+          endTime = impact.endTime;
+        } else if (!nextImpact) {
           // Last activity - check if it's today and ongoing
           const impactDateKey = `${impactDate.getFullYear()}-${String(impactDate.getMonth() + 1).padStart(2, '0')}-${String(impactDate.getDate()).padStart(2, '0')}`;
           
@@ -109,7 +111,9 @@ export function DailyActivityBar({ dateKey, impacts, goals }: DailyActivityBarPr
         nextActivityTime = dayImpacts[i + 1].date;
       }
 
-      if (nextActivityTime) {
+      if (current.endTime != null) {
+        endTime = Math.min(current.endTime, dayEnd);
+      } else if (nextActivityTime) {
         // Duration goes until the next activity (capped at end of day)
         endTime = Math.min(nextActivityTime, dayEnd);
       } else {

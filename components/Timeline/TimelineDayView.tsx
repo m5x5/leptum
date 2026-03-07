@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { ProcessedAWEvent } from '../../activity-watch.d';
 import { TimeBlockEntry, GapBlock } from './TimelineEntry';
@@ -204,22 +204,134 @@ export function TimelineDayView({
     return `${minutes}m`;
   };
 
+  const hasAWColumn = filterSettings.showActivityWatch && timeBlocks.length > 0;
+
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <div className={`grid grid-cols-1 gap-6 ${hasAWColumn ? "lg:grid-cols-2" : ""}`}>
       {/* Manual Activities */}
       {filterSettings.showManual && (
         <div className="relative pl-8" style={{ minHeight: '200px' }}>
           <h3 className="text-sm font-semibold text-muted-foreground mb-4">Manual Activities</h3>
 
+          {/* Top gaps: empty space after newest activity (from its end to now/end-of-day) */}
+          {dayImpacts.length > 0 && (() => {
+            const newest = dayImpacts[0];
+            const newestEnd =
+              newest.endTime != null
+                ? newest.endTime
+                : isTodayFlag
+                  ? roundToNearest15Minutes(now)
+                  : dayEnd;
+            const dayTop = isTodayFlag ? Math.min(roundToNearest15Minutes(now), dayEnd) : dayEnd;
+            if (dayTop <= newestEnd) return null;
+            const gapCeiling = dayTop;
+            const blockSize = 15 * 60 * 1000;
+            const topGaps: JSX.Element[] = [];
+            let current = dayTop;
+            while (current > newestEnd) {
+              const chunkStart = Math.max(newestEnd, current - blockSize);
+              const chunkEnd = current;
+              if (chunkEnd > chunkStart) {
+                const isOccludedByDraft =
+                  editingGapStart !== null &&
+                  chunkStart > editingGapStart &&
+                  chunkStart < gapCeiling;
+                if (isOccludedByDraft) {
+                  // Skip
+                } else if (editingGapStart === chunkStart) {
+                  topGaps.push(
+                    <DraftTimelineEntry
+                      key={`draft-${chunkStart}`}
+                      startTime={chunkStart}
+                      endTime={gapCeiling}
+                      formatTime={formatTime}
+                      onCancel={() => setEditingGapStart(null)}
+                      onSubmit={handleInlineSubmit}
+                    />
+                  );
+                } else {
+                  topGaps.push(
+                    <GapBlock
+                      key={`gap-top-${chunkStart}`}
+                      startTime={chunkStart}
+                      endTime={chunkEnd}
+                      formatTime={formatTime}
+                      onClick={(e) => {
+                        e?.stopPropagation();
+                        setEditingGapStart(chunkStart);
+                      }}
+                    />
+                  );
+                }
+              }
+              current = chunkStart;
+            }
+            return topGaps;
+          })()}
+
           {dayImpacts.map((impact, index) => {
             const isFirstItem = index === 0;
-            const isLive = isTodayFlag && isFirstItem;
+            const isLive = isTodayFlag && isFirstItem && impact.endTime == null;
+
+            // Between gaps: space from this activity's end to the next (newer) activity's start
+            const betweenGaps =
+              index > 0 && impact.endTime != null && impact.endTime < dayImpacts[index - 1].date
+                ? (() => {
+                    const currentEnd = impact.endTime;
+                    const nextStart = dayImpacts[index - 1].date;
+                    const gapCeiling = nextStart;
+                    const blockSize = 15 * 60 * 1000;
+                    const gaps: JSX.Element[] = [];
+                    let current = nextStart;
+                    while (current > currentEnd) {
+                      const chunkStart = Math.max(currentEnd, current - blockSize);
+                      const chunkEnd = current;
+                      if (chunkEnd > chunkStart) {
+                        const isOccludedByDraft =
+                          editingGapStart !== null &&
+                          chunkStart > editingGapStart &&
+                          chunkStart < gapCeiling;
+                        if (!isOccludedByDraft && editingGapStart !== chunkStart) {
+                          gaps.push(
+                            <GapBlock
+                              key={`gap-between-${chunkStart}`}
+                              startTime={chunkStart}
+                              endTime={chunkEnd}
+                              formatTime={formatTime}
+                              onClick={(e) => {
+                                e?.stopPropagation();
+                                setEditingGapStart(chunkStart);
+                              }}
+                            />
+                          );
+                        } else if (editingGapStart === chunkStart) {
+                          gaps.push(
+                            <DraftTimelineEntry
+                              key={`draft-${chunkStart}`}
+                              startTime={chunkStart}
+                              endTime={gapCeiling}
+                              formatTime={formatTime}
+                              onCancel={() => setEditingGapStart(null)}
+                              onSubmit={handleInlineSubmit}
+                            />
+                          );
+                        }
+                      }
+                      current = chunkStart;
+                    }
+                    return gaps;
+                  })()
+                : null;
 
             let duration = null;
             let endTime: number;
             let durationMs: number;
 
-            if (isFirstItem && !isTodayFlag) {
+            if (impact.endTime != null) {
+              endTime = impact.endTime;
+              duration = getDuration(impact.date, endTime);
+              durationMs = getDurationInMs(impact.date, endTime);
+            } else if (isFirstItem && !isTodayFlag) {
               const dayEndDate = new Date(impact.date);
               dayEndDate.setHours(24, 0, 0, 0);
               endTime = dayEndDate.getTime();
@@ -245,8 +357,9 @@ export function TimelineDayView({
             );
 
             return (
+               <React.Fragment key={`manual-${impact.date}-${index}`}>
+                {betweenGaps}
                <div
-                 key={`manual-${impact.date}-${index}`}
                  className="relative flex items-start group/manual-entry"
                >
                 <div
@@ -335,6 +448,7 @@ export function TimelineDayView({
                   </div>
                 </div>
               </div>
+              </React.Fragment>
             );
           })}
 
@@ -403,9 +517,6 @@ export function TimelineDayView({
         <div className="relative pl-8" style={{ minHeight: '200px' }}>
           <h3 className="text-sm font-semibold text-muted-foreground mb-4">
             ActivityWatch Events
-            <span className="ml-2 text-xs font-normal">
-              {timeBlocks.length} blocks • {awEvents.length} events
-            </span>
           </h3>
 
           {(() => {

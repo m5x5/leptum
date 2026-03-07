@@ -21,13 +21,19 @@ interface ActivityFormProps {
     activity: string;
     date: string;
     time: string;
+    endDate?: string;
+    endTime?: string;
     goalId: string;
+    requiresOnlineTime?: boolean;
   };
   onSubmit: (data: {
     activity: string;
     date: string;
     time: string;
+    endDate?: string;
+    endTime?: string;
     goalId: string;
+    requiresOnlineTime?: boolean;
     pendingPhotos?: PendingPhoto[];
   }) => void;
   onCancel: () => void;
@@ -69,14 +75,25 @@ export default function ActivityForm({
   existingPhotos = [],
   onDeletePhoto,
 }: ActivityFormProps) {
-  const [formData, setFormData] = useState(
-    initialData || {
+  const [formData, setFormData] = useState(() => {
+    if (initialData) {
+      return {
+        ...initialData,
+        endDate: initialData.endDate ?? "",
+        endTime: initialData.endTime ?? "",
+        requiresOnlineTime: initialData.requiresOnlineTime ?? false,
+      };
+    }
+    return {
       activity: "",
       date: "",
       time: "",
+      endDate: "",
+      endTime: "",
       goalId: "",
-    }
-  );
+      requiresOnlineTime: false,
+    };
+  });
   const [pendingPhotos, setPendingPhotos] = useState<PendingPhoto[]>([]);
   const [isProcessingPhoto, setIsProcessingPhoto] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -88,19 +105,28 @@ export default function ActivityForm({
   // Update form when initial data changes (for edit mode)
   useEffect(() => {
     if (initialData) {
-      // Round the time to nearest 15 minutes
       const roundedTime = roundToNearest15Minutes(initialData.time);
-      setFormData({ ...initialData, time: roundedTime });
+      const base = { ...initialData, time: roundedTime };
+      setFormData({
+        ...base,
+        endDate: initialData.endDate ?? "",
+        endTime: initialData.endTime ?? "",
+        requiresOnlineTime: initialData.requiresOnlineTime ?? false,
+      });
     }
   }, [initialData]);
 
   const handleSubmit = () => {
     if (!formData.activity || !formData.date || !formData.time) {
-      alert("Please fill in all fields");
+      alert("Please fill in name, start date, and start time");
       return;
     }
+    const { endDate, endTime, ...rest } = formData;
     onSubmit({
-      ...formData,
+      ...rest,
+      endDate: endDate || undefined,
+      endTime: endTime || undefined,
+      requiresOnlineTime: formData.requiresOnlineTime || undefined,
       pendingPhotos: pendingPhotos.length > 0 ? pendingPhotos : undefined,
     });
   };
@@ -145,7 +171,7 @@ export default function ActivityForm({
     <div className="space-y-4 mt-4">
       <div>
         <label className="block text-sm font-medium text-foreground mb-2">
-          Activity Name
+          Name
         </label>
         <MentionInput
           placeholder="What were you doing? (use @ to mention)"
@@ -157,38 +183,75 @@ export default function ActivityForm({
           entities={entities}
         />
       </div>
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-2">
-          Start Date
-        </label>
-        <Input
-          type="date"
-          className="text-lg"
-          value={formData.date}
-          onChange={(e) =>
-            setFormData({ ...formData, date: e.target.value })
-          }
-        />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Start Date
+          </label>
+          <Input
+            type="date"
+            className="text-lg"
+            value={formData.date}
+            onChange={(e) =>
+              setFormData({ ...formData, date: e.target.value })
+            }
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            Start Time <span className="text-xs text-muted-foreground">(15 min)</span>
+          </label>
+          <Input
+            type="time"
+            step="900"
+            className="text-lg"
+            value={formData.time}
+            onChange={(e) => {
+              const roundedTime = roundToNearest15Minutes(e.target.value);
+              setFormData({ ...formData, time: roundedTime });
+            }}
+            onBlur={(e) => {
+              const roundedTime = roundToNearest15Minutes(e.target.value);
+              setFormData({ ...formData, time: roundedTime });
+            }}
+          />
+        </div>
       </div>
-      <div>
-        <label className="block text-sm font-medium text-foreground mb-2">
-          Start Time <span className="text-xs text-muted-foreground">(rounded to 15 min)</span>
-        </label>
-        <Input
-          type="time"
-          step="900"
-          className="text-lg"
-          value={formData.time}
-          onChange={(e) => {
-            const roundedTime = roundToNearest15Minutes(e.target.value);
-            setFormData({ ...formData, time: roundedTime });
-          }}
-          onBlur={(e) => {
-            // Also round on blur to ensure it's always rounded
-            const roundedTime = roundToNearest15Minutes(e.target.value);
-            setFormData({ ...formData, time: roundedTime });
-          }}
-        />
+      <div className="grid grid-cols-2 gap-2">
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            End Date <span className="text-xs text-muted-foreground">(optional)</span>
+          </label>
+          <Input
+            type="date"
+            className="text-lg"
+            value={formData.endDate ?? ""}
+            onChange={(e) =>
+              setFormData({ ...formData, endDate: e.target.value })
+            }
+          />
+        </div>
+        <div>
+          <label className="block text-sm font-medium text-foreground mb-1">
+            End Time <span className="text-xs text-muted-foreground">(optional)</span>
+          </label>
+          <Input
+            type="time"
+            step="900"
+            className="text-lg"
+            value={formData.endTime ?? ""}
+            onChange={(e) => {
+              const val = e.target.value;
+              setFormData({ ...formData, endTime: val ? roundToNearest15Minutes(val) : "" });
+            }}
+            onBlur={(e) => {
+              const val = e.target.value;
+              if (val) {
+                setFormData({ ...formData, endTime: roundToNearest15Minutes(val) });
+              }
+            }}
+          />
+        </div>
       </div>
 
       {/* Goal Selection */}
@@ -309,6 +372,17 @@ export default function ActivityForm({
           )}
         </div>
       </div>
+
+      {/* Online Time Toggle */}
+      <label className="flex items-center gap-3 cursor-pointer">
+        <input
+          type="checkbox"
+          checked={formData.requiresOnlineTime ?? false}
+          onChange={(e) => setFormData({ ...formData, requiresOnlineTime: e.target.checked })}
+          className="h-4 w-4 text-primary border-border rounded focus:ring-primary"
+        />
+        <span className="text-sm text-foreground">Requires online time</span>
+      </label>
 
       {!showDelete && (
         <p className="text-sm text-muted-foreground">

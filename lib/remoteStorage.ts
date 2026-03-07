@@ -204,7 +204,8 @@ const ImpactSchema = {
     endTime: { type: 'number' },
     allDay: { type: 'boolean' },
     sourceUrl: { type: 'string' },
-    photoIds: { type: 'array', items: { type: 'string' } } // References to photo attachments
+    photoIds: { type: 'array', items: { type: 'string' } }, // References to photo attachments
+    requiresOnlineTime: { type: 'boolean' }
   },
   required: ['activity']
 };
@@ -733,6 +734,7 @@ export interface Impact {
   endTime?: number;
   allDay?: boolean;
   sourceUrl?: string;
+  requiresOnlineTime?: boolean;
 }
 
 export interface StackHabit {
@@ -1194,7 +1196,8 @@ export class RemoteStorageClient {
     if (!this.client) return;
     
     try {
-      return await this.client.storeObject('ImpactsCollection', 'impacts', { impacts });
+      const clean = JSON.parse(JSON.stringify({ impacts }));
+      return await this.client.storeObject('ImpactsCollection', 'impacts', clean);
     } catch (error) {
       console.error('Failed to save impacts:', error);
     }

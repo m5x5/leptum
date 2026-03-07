@@ -6,6 +6,7 @@ interface Impact {
   id?: string;
   activity: string;
   date: number;
+  endTime?: number;
   goalId?: string;
   stress?: string | number;
   fulfillment?: string | number;
@@ -170,7 +171,7 @@ export function TimelineWeekView({
                 ) : (
                   dayImpacts.map((impact, idx) => {
                     const nextImpact = dayImpacts[idx + 1];
-                    const endTime = nextImpact ? nextImpact.date : (impact.date + 3600000); // Default to 1 hour if no next activity
+                    const endTime = impact.endTime ?? (nextImpact ? nextImpact.date : (impact.date + 3600000)); // Use impact.endTime if set, else next activity or default 1 hour
                     const durationMs = getDurationInMs(impact.date, endTime);
                     const durationMins = Math.round(durationMs / 60000);
 

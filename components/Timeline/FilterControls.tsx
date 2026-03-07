@@ -57,13 +57,6 @@ export default function FilterControls({
           <div className="flex items-center gap-2 md:gap-4">
             <FilterIcon className="w-5 h-5 text-muted-foreground" />
             <h3 className="font-semibold text-foreground">Filters</h3>
-
-            {/* Time Tracking Pill - Desktop Only */}
-            {totalActiveTime !== undefined && formatDuration && totalActiveTime > 0 && (
-              <div className="hidden md:flex items-center gap-2 px-3 py-1.5 bg-green-500/10 text-green-700 dark:text-green-400 rounded-md border border-green-500/20">
-                <span className="text-sm font-medium">Online Presence: {formatDuration(totalActiveTime)}</span>
-              </div>
-            )}
           </div>
           <button
             className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center p-1 hover:bg-muted rounded"
@@ -126,7 +119,7 @@ export default function FilterControls({
                 <label className="text-sm font-medium text-foreground block">
                   ActivityWatch Buckets
                 </label>
-                <div className="space-y-2 max-h-32 overflow-y-auto">
+                <div className="space-y-2 max-h-32 overflow-y-auto scrollbar-hide">
                   {buckets.map((bucket) => {
                     const isVisible = visibleBuckets.includes(bucket.id);
                     return (

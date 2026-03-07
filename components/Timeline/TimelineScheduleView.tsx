@@ -8,6 +8,7 @@ interface Impact {
   id?: string;
   activity: string;
   date: number;
+  endTime?: number;
   goalId?: string;
   stress?: string | number;
   fulfillment?: string | number;
@@ -117,7 +118,9 @@ export function TimelineScheduleView({
     sortedImpacts.forEach((impact, index) => {
       let endTime: number;
 
-      if (index === 0) {
+      if (impact.endTime != null) {
+        endTime = impact.endTime;
+      } else if (index === 0) {
         const impactDateKey = toDateKey(impact.date);
         if (impactDateKey === todayKey) {
           endTime = now;
@@ -148,6 +151,7 @@ export function TimelineScheduleView({
             id: impact.id,
             activity: impact.activity,
             date: nextDayStart.getTime(),
+            endTime: impact.endTime,
             goalId: impact.goalId,
             isVirtualContinuation: true,
             originalStartTime: impact.date,
@@ -178,7 +182,7 @@ export function TimelineScheduleView({
   const dates = allDates.slice(0, daysToShow);
 
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-2 2xl:grid-cols-3 gap-8">
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 2xl:grid-cols-7 gap-8">
       {dates.map((dateKey) => {
         const allDayImpacts = (groupedImpacts[dateKey] || []).filter(i => i.allDay);
         const dayImpacts    = (groupedImpacts[dateKey] || []).filter(i => !i.allDay);
@@ -253,7 +257,7 @@ export function TimelineScheduleView({
                 dayImpacts.map((impact, index) => {
                   const isFirstItem = index === 0;
                   const isVirtualContinuation = impact.isVirtualContinuation || false;
-                  const isLive = isTodayFlag && isFirstItem && !isVirtualContinuation;
+                  const isLive = isTodayFlag && isFirstItem && !isVirtualContinuation && impact.endTime == null;
 
                   let duration = null;
                   let endTime: number;
@@ -263,7 +267,10 @@ export function TimelineScheduleView({
                     displayStartTime = impact.date;
                   }
 
-                  if (isFirstItem && !isTodayFlag) {
+                  if (impact.endTime != null) {
+                    endTime = impact.endTime;
+                    duration = getDuration(displayStartTime, endTime);
+                  } else if (isFirstItem && !isTodayFlag) {
                     const dayEnd = new Date(impact.date);
                     dayEnd.setHours(24, 0, 0, 0);
                     endTime = dayEnd.getTime();

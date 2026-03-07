@@ -228,13 +228,17 @@ export function DayTimeline({
 
             {dayImpacts.map((impact, index) => {
               const isFirstItem = index === 0;
-              const isLive = isTodayFlag && isFirstItem;
+              const isLive = isTodayFlag && isFirstItem && impact.endTime == null;
 
               let duration = null;
               let endTime: number;
               let durationMs: number;
 
-              if (isFirstItem && !isTodayFlag) {
+              if (impact.endTime != null) {
+                endTime = impact.endTime;
+                duration = getDuration(impact.date, endTime);
+                durationMs = getDurationInMs(impact.date, endTime);
+              } else if (isFirstItem && !isTodayFlag) {
                 endTime = dayEnd;
                 duration = getDuration(impact.date, endTime);
                 durationMs = getDurationInMs(impact.date, endTime);

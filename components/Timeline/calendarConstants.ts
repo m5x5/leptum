@@ -1,0 +1,4 @@
+export const CALENDAR_PX_PER_HOUR = 48;
+export const CALENDAR_DAY_HEIGHT = 24 * CALENDAR_PX_PER_HOUR;
+export const QUARTER_HOUR_MS = 15 * 60 * 1000;
+export const PX_PER_QUARTER = CALENDAR_PX_PER_HOUR / 4;

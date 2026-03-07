@@ -56,7 +56,9 @@ export function LiveSummaryBar({
       const current = dayImpacts[i];
       let endTime: number;
 
-      if (i === 0) {
+      if (current.endTime != null) {
+        endTime = current.endTime;
+      } else if (i === 0) {
         // This is the most recent activity
         if (isTodayFlag) {
           // For today's most recent activity, duration goes until now
@@ -72,7 +74,11 @@ export function LiveSummaryBar({
         endTime = dayImpacts[i - 1].date;
       }
 
-      const duration = getDurationInMs(current.date, endTime);
+      let duration = Math.max(0, getDurationInMs(current.date, endTime));
+      // Ensure events with endTime get at least minimal display when duration is 0 (avoids invisible segments)
+      if (duration === 0 && current.endTime != null && current.endTime >= current.date) {
+        duration = 60 * 1000; // 1 minute minimum for visibility
+      }
 
       if (!activityDurations[current.activity]) {
         activityDurations[current.activity] = 0;
@@ -157,7 +163,9 @@ export function LiveSummaryBar({
       const current = dayImpacts[i];
       let endTime: number;
 
-      if (i === 0) {
+      if (current.endTime != null) {
+        endTime = current.endTime;
+      } else if (i === 0) {
         // Most recent activity extends to now (if today) or end of day
         endTime = isTodayFlag ? currentTime : dayEnd.getTime();
       } else {
@@ -196,7 +204,7 @@ export function LiveSummaryBar({
         {daySummary.map((summary, idx) => (
           <div
             key={`${summary.activity}-${idx}`}
-            className={`${summary.color} flex items-center justify-center text-xs text-white font-medium border-r border-background/30`}
+            className={`${summary.color} flex shrink-0 items-center justify-center text-xs text-white font-medium border-r border-background/30`}
             style={{
               width: `${summary.percentage}%`,
               borderRightWidth: idx === daySummary.length - 1 && emptyPercentage === 0 ? '0' : '2px'
