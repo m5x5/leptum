@@ -735,7 +735,13 @@ export default function QuickCapture({
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
-              onDragStart={(_event: DragStartEvent) => setIsDraggingTask(true)}
+              onDragStart={(_event: DragStartEvent) => {
+                setIsDraggingTask(true);
+                // Snapshot the current order so external task updates (e.g. from
+                // RemoteStorage sync or tasksUpdated events) cannot change
+                // SortableContext's items array mid-drag and cancel the gesture.
+                setLocalOrderedIds(filteredTasks.map((t) => t.id));
+              }}
               onDragCancel={() => setIsDraggingTask(false)}
               onDragEnd={(event: DragEndEvent) => {
                 setIsDraggingTask(false);
