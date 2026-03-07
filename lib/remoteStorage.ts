@@ -8,6 +8,18 @@ interface RemoteStorageInstance {
   on: (event: string, callback: (...args: unknown[]) => void) => void;
   connected: boolean;
   _handlers?: Record<string, ((...args: unknown[]) => void)[]>;
+  // Fields used by the React widget
+  apiKeys: Record<string, unknown>;
+  backend: string;
+  remote: { userAddress: string };
+  connect: (userAddress: string) => void;
+  disconnect: () => void;
+  reconnect: () => void;
+  startSync: () => void;
+  stopSync: () => void;
+  hasFeature: (feature: string) => boolean;
+  dropbox?: { connect(): void };
+  googledrive?: { connect(): void };
 }
 
 interface RemoteStorageScopedClient {
@@ -29,16 +41,10 @@ export interface RemoteStorageChangeEvent {
   newValue: unknown;
 }
 
-interface RemoteStorageWidgetInstance {
-  attach: (containerId: string) => void;
-}
-
 let RemoteStorage: new (opts: Record<string, unknown>) => RemoteStorageInstance;
-let Widget: new (rs: RemoteStorageInstance, opts: Record<string, unknown>) => RemoteStorageWidgetInstance;
 
 if (typeof window !== 'undefined') {
   RemoteStorage = require('remotestoragejs');
-  Widget = require('m5x5-remotestorage-widget');
 }
 
 // Data schemas for RemoteStorage
@@ -763,6 +769,7 @@ export interface StandaloneTask {
   emotions?: Emotion[];
   routineId?: string;
   routineInstanceId?: string;
+  sortIndex?: number;
   // Geolocation (WGS84)
   lat?: number;
   lon?: number;
@@ -944,8 +951,10 @@ export class RemoteStorageClient {
   private remoteStorage: RemoteStorageInstance | null = null;
   private client: RemoteStorageScopedClient | null = null;
   private todonnaClient: RemoteStorageScopedClient | null = null;
-  private widget: RemoteStorageWidgetInstance | null = null;
+  private profileClient: RemoteStorageScopedClient | null = null;
   private initialized = false;
+  private changeListeners = new Set<(event: RemoteStorageChangeEvent) => void>();
+  private changeListenerRegistered = false;
 
   constructor() {
     // Don't initialize during SSR
@@ -971,14 +980,21 @@ export class RemoteStorageClient {
       dropbox: 'k4ydeln2lqgsfch',
     });
 
-    // Claim access to the leptum namespace
+    // Claim all scopes upfront so OAuth includes them all in one authorization request
     this.remoteStorage.access.claim('leptum', 'rw');
+    this.remoteStorage.access.claim('todonna', 'r');
+    this.remoteStorage.access.claim('profile', 'r');
 
     // Create scoped client for Leptum data
     this.client = this.remoteStorage.scope('/leptum/');
 
     // Declare schemas
     this.setupSchemas();
+
+    // Enable local caching for frequently accessed paths so reads resolve
+    // from IndexedDB instead of hitting the remote server on every page load.
+    this.client.cache('routines/');
+    this.client.cache('goals/');
 
     this.initialized = true;
   }
@@ -1019,38 +1035,24 @@ export class RemoteStorageClient {
     this.client.declareType('LifeEvent', LifeEventSchema);
   }
 
-  // Initialize and attach widget
-  public attachWidget(containerId: string = 'remotestorage-widget') {
-    if (typeof window === 'undefined' || !Widget || !this.remoteStorage) return;
-
-    // Ensure RemoteStorage is initialized
+  /** Returns the initialized RemoteStorage instance for use with the React widget. */
+  public getRS(): RemoteStorageInstance | null {
     this.initialize();
-
-    if (!this.initialized) return;
-
-    // Don't attach if already attached
-    if (this.widget) return;
-
-    this.widget = new Widget(this.remoteStorage, {
-      leaveOpen: true,
-      autoCloseAfter: 0,
-      skipInitial: false,
-      logging: false,
-      modalBackdrop: 'onlySmallScreens'
-    });
-
-    this.widget.attach(containerId);
-
-    // Enable caching for all paths
-    this.client!.cache('');
+    return this.remoteStorage;
   }
 
-  // Detach widget (cleanup)
-  public detachWidget() {
-    if (this.widget) {
-      // RemoteStorage widget doesn't have a direct detach method,
-      // but we can set it to null and the DOM element will be cleaned up
-      this.widget = null;
+  public async getProfile(): Promise<{ displayName?: string; avatarDataUrl?: string } | null> {
+    if (!this.remoteStorage) this.initialize();
+    if (!this.remoteStorage) return null;
+    if (!this.profileClient) {
+      this.profileClient = this.remoteStorage.scope('/profile/');
+    }
+    try {
+      const data = await this.profileClient.getObject('data.json');
+      if (!data) return null;
+      return data as { displayName?: string; avatarDataUrl?: string };
+    } catch {
+      return null;
     }
   }
 
@@ -1361,6 +1363,15 @@ export class RemoteStorageClient {
     return await this.saveHomeTasks(tasks);
   }
 
+  public async reorderHomeTasks(orderedIds: string[]): Promise<void> {
+    const tasks = await this.getHomeTasks();
+    const indexMap = new Map(orderedIds.map((id, i) => [id, i]));
+    const updated = tasks.map((t) =>
+      indexMap.has(t.id) ? { ...t, sortIndex: indexMap.get(t.id) } : t,
+    );
+    await this.saveHomeTasks(updated);
+  }
+
   public async updateStandaloneTask(taskId: string, updates: Partial<StandaloneTask>, retries: number = 3) {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
@@ -1666,7 +1677,6 @@ export class RemoteStorageClient {
         this.initialize();
       }
       if (!this.remoteStorage) return [];
-      this.remoteStorage.access.claim('todonna', 'r');
       this.todonnaClient = this.remoteStorage.scope('/todonna/');
       this.todonnaClient.declareType('aTodoItem', TodonnaItemSchema);
     }
@@ -2375,14 +2385,24 @@ export class RemoteStorageClient {
     }
   }
 
-  // Event listening
+  // Event listening — single underlying listener fans out to all subscribers
   public onChange(callback: (event: RemoteStorageChangeEvent) => void) {
     if (!this.client) {
       this.initialize();
     }
     if (!this.client) return;
 
-    this.client.on('change', callback);
+    if (!this.changeListenerRegistered) {
+      this.changeListenerRegistered = true;
+      this.client.on('change', (event) => {
+        this.changeListeners.forEach((cb) => cb(event));
+      });
+    }
+    this.changeListeners.add(callback);
+  }
+
+  public offChange(callback: (event: RemoteStorageChangeEvent) => void) {
+    this.changeListeners.delete(callback);
   }
 
   public onConnect(callback: () => void) {

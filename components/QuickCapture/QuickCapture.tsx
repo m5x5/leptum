@@ -3,7 +3,6 @@ import { CameraIcon, MicrophoneIcon, DocumentTextIcon, XIcon, StopIcon } from '@
 import { useQuickNotes, QuickNote } from '../../utils/useQuickNotes';
 import { usePhotoAttachments, PhotoAttachment } from '../../utils/usePhotoAttachments';
 import { Button } from '../ui/button';
-
 import { Textarea } from '../ui/textarea';
 import { AudioPlayer } from '../ui/audio-player';
 import Image from 'next/image';
@@ -12,6 +11,21 @@ import { Dialog, DialogContent } from '../ui/dialog';
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle, DrawerClose } from '../ui/drawer';
 import StandaloneTaskItem from '../Tasks/StandaloneItem';
 import type { StandaloneTask } from '../../utils/useStandaloneTasks';
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from '@dnd-kit/core';
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from '@dnd-kit/sortable';
+import { CSS } from '@dnd-kit/utilities';
 
 // Helper to get date key (YYYY-MM-DD) from timestamp
 function getDateKey(timestamp: number): string {
@@ -67,6 +81,7 @@ interface QuickCaptureProps {
   onTaskUpdate?: (taskId: string, updates: Partial<StandaloneTask>) => void;
   onTaskStart?: (taskName: string) => void;
   onTaskEdit?: (task: StandaloneTask) => void;
+  onTaskReorder?: (orderedIds: string[]) => void;
   currentActivityName?: string;
   /** When this value changes to a truthy number (e.g. timestamp), opens the text note capture (for Shift+N shortcut). */
   openTextNoteTrigger?: number;
@@ -74,6 +89,48 @@ interface QuickCaptureProps {
   pendingShare?: PendingSharePayload | null;
   /** Called after pending share has been processed (note created). */
   onProcessedShare?: () => void;
+}
+
+interface SortableTaskItemProps {
+  task: StandaloneTask;
+  onComplete: (id: string) => void;
+  onUncomplete: (id: string) => void;
+  onDelete: (id: string) => void;
+  onUpdate: (id: string, updates: Partial<StandaloneTask>) => void;
+  onStart?: (name: string) => void;
+  onEdit?: (task: StandaloneTask) => void;
+  isActive: boolean;
+}
+
+function SortableTaskItem({ task, ...props }: SortableTaskItemProps) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    setActivatorNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: task.id });
+
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.4 : 1,
+    zIndex: isDragging ? 10 : undefined,
+    position: 'relative',
+  };
+
+  return (
+    <div ref={setNodeRef} style={style}>
+      <StandaloneTaskItem
+        task={task}
+        {...props}
+        dragHandleRef={setActivatorNodeRef}
+        dragHandleProps={{ ...attributes, ...listeners }}
+      />
+    </div>
+  );
 }
 
 export default function QuickCapture({
@@ -85,11 +142,17 @@ export default function QuickCapture({
   onTaskUpdate,
   onTaskStart,
   onTaskEdit,
+  onTaskReorder,
   currentActivityName,
   openTextNoteTrigger,
   pendingShare,
   onProcessedShare,
 }: QuickCaptureProps) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { delay: 250, tolerance: 5 },
+    }),
+  );
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, getFullImage, photos: allPhotos } = usePhotoAttachments();
 
@@ -447,7 +510,7 @@ export default function QuickCapture({
     Object.values(audioUrlsByNoteIdRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
-  // Filter tasks by selected day (active tasks only). Put currently tracking task on top, then newest first.
+  // Filter tasks by selected day (active tasks only). Active task on top, then by sortIndex, then newest first.
   const filteredTasks = useMemo(() => {
     return [...tasks]
       .filter((task) => task.status !== 'completed' && getDateKey(task.createdAt) === selectedDay)
@@ -456,6 +519,9 @@ export default function QuickCapture({
         const bActive = currentActivityName ? b.name === currentActivityName : false;
         if (aActive && !bActive) return -1;
         if (!aActive && bActive) return 1;
+        if (a.sortIndex !== undefined && b.sortIndex !== undefined) return a.sortIndex - b.sortIndex;
+        if (a.sortIndex !== undefined) return -1;
+        if (b.sortIndex !== undefined) return 1;
         return b.createdAt - a.createdAt;
       });
   }, [tasks, selectedDay, currentActivityName]);
@@ -630,20 +696,35 @@ export default function QuickCapture({
           <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
             <h3 className="font-semibold text-sm text-foreground">Tasks</h3>
           </div>
-          <div className="p-2 space-y-1">
-            {filteredTasks.map((task) => (
-              <StandaloneTaskItem
-                key={task.id}
-                task={task}
-                onComplete={onTaskComplete}
-                onUncomplete={onTaskUncomplete}
-                onDelete={onTaskDelete}
-                onUpdate={onTaskUpdate}
-                onStart={onTaskStart}
-                onEdit={onTaskEdit}
-                isActive={currentActivityName === task.name}
-              />
-            ))}
+          <div className="p-2 space-y-1 select-none">
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={(event: DragEndEvent) => {
+                const { active, over } = event;
+                if (!over || active.id === over.id) return;
+                const oldIndex = filteredTasks.findIndex((t) => t.id === active.id);
+                const newIndex = filteredTasks.findIndex((t) => t.id === over.id);
+                const reordered = arrayMove(filteredTasks, oldIndex, newIndex);
+                onTaskReorder?.(reordered.map((t) => t.id));
+              }}
+            >
+              <SortableContext items={filteredTasks.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                {filteredTasks.map((task) => (
+                  <SortableTaskItem
+                    key={task.id}
+                    task={task}
+                    onComplete={onTaskComplete}
+                    onUncomplete={onTaskUncomplete}
+                    onDelete={onTaskDelete}
+                    onUpdate={onTaskUpdate}
+                    onStart={onTaskStart}
+                    onEdit={onTaskEdit}
+                    isActive={currentActivityName === task.name}
+                  />
+                ))}
+              </SortableContext>
+            </DndContext>
           </div>
         </div>
       )}

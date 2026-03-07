@@ -1,7 +1,9 @@
 import { useState, useEffect } from "react";
+import { hapticTap } from "../../utils/haptics";
 import { StandaloneTask } from "../../utils/useStandaloneTasks";
 import { TrashIcon, PencilIcon, DotsVerticalIcon } from "@heroicons/react/outline";
 import { PlayIcon } from "@heroicons/react/solid";
+import { GripVertical } from "lucide-react";
 import { Checkbox } from "../ui/checkbox";
 import { useCurrentActivity } from "../CurrentActivityContext";
 import { Input } from "../ui/input";
@@ -36,6 +38,8 @@ interface Props {
   onStart?: (taskName: string) => void;
   isActive?: boolean;
   onEdit?: (task: StandaloneTask) => void;
+  dragHandleRef?: (el: HTMLElement | null) => void;
+  dragHandleProps?: React.HTMLAttributes<HTMLElement>;
 }
 
 export default function StandaloneTaskItem({
@@ -46,7 +50,9 @@ export default function StandaloneTaskItem({
   onUpdate,
   onStart,
   isActive = false,
-  onEdit
+  onEdit,
+  dragHandleRef,
+  dragHandleProps,
 }: Props) {
   const [isEditing, setIsEditing] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -115,11 +121,21 @@ export default function StandaloneTaskItem({
       hover:bg-muted/50 transition-colors
       ${isActive ? 'bg-primary/5 border-l-2 border-primary' : ''}
     `}>
+      {dragHandleRef && dragHandleProps && (
+        <div
+          ref={dragHandleRef}
+          {...dragHandleProps}
+          className="touch-none cursor-grab active:cursor-grabbing p-1.5 mr-1 text-muted-foreground/40 hover:text-muted-foreground shrink-0"
+        >
+          <GripVertical className="h-4 w-4" />
+        </div>
+      )}
       <div className="flex items-center flex-grow">
         <Checkbox
           checked={task.status === 'completed'}
           onCheckedChange={(checked) => {
             if (checked) {
+              hapticTap();
               onComplete(task.id);
             } else {
               onUncomplete(task.id);
