@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 
 import { useInsights, Insight, AffectedMetric } from "../../utils/useInsights";
-import { PlusIcon, TrashIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon } from "@heroicons/react/solid";
+import { PlusIcon, TrashIcon, PencilIcon, ChevronDownIcon, ChevronUpIcon, FireIcon } from "@heroicons/react/solid";
 import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from "../../components/ui/mention-input";
@@ -17,6 +17,7 @@ import { Routine } from "../../components/Job/api";
 import { StreakBadge } from "../../components/StreakBadge";
 import Modal from "../../components/Modal";
 import YearViewHeatmap from "../../components/YearViewHeatmap";
+import { Spinner } from "../../components/ui/spinner";
 
 // Metric configuration matching impact.js
 const AVAILABLE_METRICS = [
@@ -185,7 +186,7 @@ export default function InsightsPageContent() {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <div className="text-muted-foreground">Loading insights...</div>
+        <Spinner className="h-6 w-6 text-muted-foreground" />
       </div>
     );
   }
@@ -212,7 +213,7 @@ export default function InsightsPageContent() {
     <>
         <div className="space-y-6">
           {/* Year View Section */}
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="bg-card border border-border rounded-control overflow-hidden">
             <button
               onClick={() => toggleSection('yearView')}
               className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition"
@@ -265,13 +266,13 @@ export default function InsightsPageContent() {
           </div>
 
           {/* Streaks Section */}
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="bg-card border border-border rounded-control overflow-hidden">
             <button
               onClick={() => toggleSection('streaks')}
               className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition"
             >
               <div className="flex items-center gap-2">
-                <span className="text-xl">🔥</span>
+                <FireIcon className="w-6 h-6 text-orange-500" />
                 <h2 className="text-lg font-semibold text-foreground">Streaks</h2>
               </div>
               {expandedSections.streaks ? (
@@ -284,7 +285,7 @@ export default function InsightsPageContent() {
               <div className="px-4 pb-4 space-y-3">
                 {/* Show Up Streak */}
                 {showUpRoutine && (
-                  <div className="bg-gradient-to-r from-orange-500/10 to-yellow-500/10 border border-orange-500/20 rounded-lg p-4">
+                  <div className="bg-gradient-to-r from-orange-500/10 to-yellow-500/10 border border-orange-500/20 rounded-control p-4">
                     <div className="flex items-center justify-between">
                       <div>
                         <h3 className="font-semibold text-foreground">Show Up</h3>
@@ -299,7 +300,7 @@ export default function InsightsPageContent() {
                 {routinesWithStreaks.length > 0 && (
                   <div className="space-y-2">
                     {routinesWithStreaks.map(({ routine, streakInfo }) => (
-                      <div key={routine.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-lg">
+                      <div key={routine.id} className="flex items-center justify-between p-3 bg-muted/50 rounded-control">
                         <span className="font-medium text-foreground">{routine.name}</span>
                         <StreakBadge streakInfo={streakInfo} />
                       </div>
@@ -318,7 +319,7 @@ export default function InsightsPageContent() {
 
           {/* ActivityWatch Statistics Section */}
           {awData && awData.buckets.length > 0 && (
-            <div className="bg-card border border-border rounded-lg overflow-hidden">
+            <div className="bg-card border border-border rounded-control overflow-hidden">
               <button
                 onClick={() => toggleSection('activityWatch')}
                 className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition"
@@ -336,27 +337,27 @@ export default function InsightsPageContent() {
               {expandedSections.activityWatch && (
                 <div className="px-4 pb-4">
                   <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-center">
-                    <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="p-4 bg-muted/50 rounded-control">
                       <p className="text-xs text-muted-foreground mb-1">Total Buckets</p>
-                      <p className="text-2xl font-bold text-foreground">
+                      <p className="text-2xl font-semibold text-foreground">
                         {awData.buckets.length}
                       </p>
                     </div>
-                    <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="p-4 bg-muted/50 rounded-control">
                       <p className="text-xs text-muted-foreground mb-1">Visible Buckets</p>
-                      <p className="text-2xl font-bold text-foreground">
+                      <p className="text-2xl font-semibold text-foreground">
                         {filterSettings.visibleBuckets.length}
                       </p>
                     </div>
-                    <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="p-4 bg-muted/50 rounded-control">
                       <p className="text-xs text-muted-foreground mb-1">Total Events</p>
-                      <p className="text-2xl font-bold text-foreground">
+                      <p className="text-2xl font-semibold text-foreground">
                         {awData.buckets.reduce((sum, b) => sum + b.eventCount, 0).toLocaleString()}
                       </p>
                     </div>
-                    <div className="p-4 bg-muted/50 rounded-lg">
+                    <div className="p-4 bg-muted/50 rounded-control">
                       <p className="text-xs text-muted-foreground mb-1">Bucket Types</p>
-                      <p className="text-2xl font-bold text-foreground">
+                      <p className="text-2xl font-semibold text-foreground">
                         {new Set(awData.buckets.map((b) => b.type)).size}
                       </p>
                     </div>
@@ -367,7 +368,7 @@ export default function InsightsPageContent() {
           )}
 
           {/* Velocity Section */}
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="bg-card border border-border rounded-control overflow-hidden">
             <button
               onClick={() => toggleSection('velocity')}
               className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition"
@@ -385,7 +386,7 @@ export default function InsightsPageContent() {
             {expandedSections.velocity && (
               <div className="px-4 pb-4">
                 {velocityLoading ? (
-                  <p className="text-sm text-muted-foreground">Loading velocity data...</p>
+                  <Spinner className="h-5 w-5 text-muted-foreground" />
                 ) : velocityData.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">
                     Complete tasks with effort estimates to see velocity tracking.
@@ -394,19 +395,19 @@ export default function InsightsPageContent() {
                   <>
                     {/* Summary Stats */}
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                      <div className="text-center p-4 bg-muted/50 rounded-lg">
-                        <div className="text-2xl font-bold text-primary">{avgNumeric.toFixed(1)}</div>
+                      <div className="text-center p-4 bg-muted/50 rounded-control">
+                        <div className="text-2xl font-semibold text-primary">{avgNumeric.toFixed(1)}</div>
                         <div className="text-xs text-muted-foreground">Avg Points/Week</div>
                       </div>
-                      <div className="text-center p-4 bg-muted/50 rounded-lg">
-                        <div className="text-2xl font-bold text-primary">{avgTasks.toFixed(1)}</div>
+                      <div className="text-center p-4 bg-muted/50 rounded-control">
+                        <div className="text-2xl font-semibold text-primary">{avgTasks.toFixed(1)}</div>
                         <div className="text-xs text-muted-foreground">Avg Tasks/Week</div>
                       </div>
                     </div>
 
                     {/* Weekly Breakdown */}
                     <div className="space-y-2">
-                      <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Recent Weeks</h4>
+                      <h4 className="text-xs font-medium text-muted-foreground uppercase">Recent Weeks</h4>
                       {velocityData.slice(-4).map((week) => (
                         <div key={week.week} className="flex items-center justify-between py-2 px-3 bg-muted/30 rounded">
                           <div className="text-sm font-medium">{week.week.replace('-W', ' Week ')}</div>
@@ -430,7 +431,7 @@ export default function InsightsPageContent() {
           </div>
 
           {/* Insights Section */}
-          <div className="bg-card border border-border rounded-lg overflow-hidden">
+          <div className="bg-card border border-border rounded-control overflow-hidden">
             <button
               onClick={() => toggleSection('insights')}
               className="w-full flex items-center justify-between p-4 hover:bg-muted/50 transition"
@@ -459,7 +460,7 @@ export default function InsightsPageContent() {
             {expandedSections.insights && (
               <div className="px-4 pb-4 space-y-3">
                 {insights.length === 0 ? (
-                  <div className="text-center py-8 bg-muted/30 rounded-lg">
+                  <div className="text-center py-8 bg-muted/30 rounded-control">
                     <p className="text-muted-foreground mb-4">
                       No insights yet. Track what helps your mood!
                     </p>
@@ -471,7 +472,7 @@ export default function InsightsPageContent() {
                   insights.map(insight => (
                     <div
                       key={insight.id}
-                      className="bg-muted/30 rounded-lg p-4 hover:bg-muted/50 transition"
+                      className="bg-muted/30 rounded-control p-4 hover:bg-muted/50 transition"
                     >
                       <div className="flex items-start justify-between mb-2">
                         <div className="flex-1">
@@ -485,20 +486,22 @@ export default function InsightsPageContent() {
                           )}
                         </div>
                         <div className="flex gap-1">
-                          <button
+                          <Button
+                            variant="ghost"
+                            size="icon"
                             onClick={() => openEditModal(insight)}
-                            className="p-1.5 text-foreground hover:bg-muted rounded transition"
                             title="Edit"
                           >
-                            <PencilIcon className="w-4 h-4" />
-                          </button>
-                          <button
+                            <PencilIcon />
+                          </Button>
+                          <Button
+                            variant="ghost-destructive"
+                            size="icon"
                             onClick={() => handleDelete(insight.id)}
-                            className="p-1.5 text-red-500 hover:bg-red-50 dark:hover:bg-red-950 rounded transition"
                             title="Delete"
                           >
-                            <TrashIcon className="w-4 h-4" />
-                          </button>
+                            <TrashIcon />
+                          </Button>
                         </div>
                       </div>
 
@@ -531,13 +534,14 @@ export default function InsightsPageContent() {
         </div>
 
         {/* Mobile Add Button */}
-        <button
+        <Button
+          size="lg"
           onClick={openAddModal}
-          className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition"
+          className="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] gap-2 shadow-lg"
         >
-          <PlusIcon className="w-5 h-5" />
+          <PlusIcon />
           <span>Add Insight</span>
-        </button>
+        </Button>
 
         {/* Add/Edit Modal */}
         <Modal isOpen={showModal} closeModal={() => setShowModal(false)}>
@@ -583,7 +587,7 @@ export default function InsightsPageContent() {
                       key={metric}
                       type="button"
                       onClick={() => toggleMetric(metric)}
-                      className={`px-4 py-2 rounded-lg text-sm font-medium capitalize transition ${getMetricButtonStyle(metric)}`}
+                      className={`px-4 py-2 rounded-control text-sm font-medium capitalize transition ${getMetricButtonStyle(metric)}`}
                     >
                       {metric}{getMetricSymbol(metric)}
                     </button>
@@ -607,18 +611,12 @@ export default function InsightsPageContent() {
           </Modal.Body>
           <Modal.Footer>
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowModal(false)}
-                className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-              >
+              <Button variant="secondary" onClick={() => setShowModal(false)}>
                 Cancel
-              </button>
-              <button
-                onClick={handleSave}
-                className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-              >
+              </Button>
+              <Button onClick={handleSave}>
                 {editingInsight ? 'Save Changes' : 'Add Insight'}
-              </button>
+              </Button>
             </div>
           </Modal.Footer>
         </Modal>

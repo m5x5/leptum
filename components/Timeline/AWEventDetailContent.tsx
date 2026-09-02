@@ -1,6 +1,7 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
 import { ProcessedAWEvent } from "../../activity-watch.d";
+import { Button } from "../ui/button";
 
 interface AWEventDetailContentProps {
   event: ProcessedAWEvent;
@@ -22,8 +23,12 @@ export function AWEventDetailContent({
   const [eventDataJson, setEventDataJson] = useState<string | null>(null);
   const eventIdRef = useRef(event.id);
   const isMountedRef = useRef(true);
+  const processedEventIdRef = useRef<string | null>(null);
 
   useEffect(() => {
+    if (processedEventIdRef.current === event.id) return;
+    processedEventIdRef.current = event.id;
+
     isMountedRef.current = true;
     eventIdRef.current = event.id;
     setEventDataJson(null);
@@ -38,6 +43,7 @@ export function AWEventDetailContent({
 
     return () => {
       isMountedRef.current = false;
+      processedEventIdRef.current = null;
       cancelAnimationFrame(id);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- event.eventData intentionally omitted to avoid re-run on parent re-render
@@ -46,8 +52,8 @@ export function AWEventDetailContent({
   return (
     <div className={compact ? "space-y-2" : "space-y-4 mt-4"}>
       {/* Header Info */}
-      <div className={`flex items-center gap-3 bg-muted rounded-lg ${compact ? "p-2" : "p-3"}`}>
-        <div className={`rounded-sm ${event.color} ${compact ? "w-2 h-8" : "w-3 h-12"}`} />
+      <div className={`flex items-center gap-3 bg-muted rounded-control ${compact ? "p-2" : "p-3"}`}>
+        <div className={`rounded-cell ${event.color} ${compact ? "w-2 h-8" : "w-3 h-12"}`} />
         <div className="flex-1">
           <h4 className="font-semibold text-foreground">{event.displayName}</h4>
           <p className="text-sm text-muted-foreground">{event.bucketType}</p>
@@ -81,7 +87,7 @@ export function AWEventDetailContent({
           Event Data
         </h5>
         <div
-          className={`bg-background rounded-lg border border-border overflow-y-auto scrollbar-hide ${compact ? "p-2 max-h-32" : "p-3 max-h-64"}`}
+          className={`bg-background rounded-control border border-border overflow-y-auto scrollbar-hide ${compact ? "p-2 max-h-32" : "p-3 max-h-64"}`}
         >
           <pre className="text-xs text-foreground font-mono whitespace-pre-wrap break-words">
             {eventDataJson ?? (
@@ -93,22 +99,23 @@ export function AWEventDetailContent({
 
       <div className={`flex gap-2 justify-between ${compact ? "pt-2" : "pt-4"}`}>
         {onCreateManualEntry && (
-          <button
+          <Button
+            variant="secondary"
             onClick={() => {
               onCreateManualEntry(event);
               onClose();
             }}
-            className="px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold"
           >
             Create Manual Entry
-          </button>
+          </Button>
         )}
-        <button
+        <Button
+          variant="secondary"
           onClick={onClose}
-          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 ml-auto"
+          className="ml-auto"
         >
           Close
-        </button>
+        </Button>
       </div>
     </div>
   );

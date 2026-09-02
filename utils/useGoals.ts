@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { v4 as uuidv4 } from 'uuid';
+import { defineCollection } from "../lib/query/defineCollection";
 
 export interface GoalMilestone {
   id: string;
@@ -47,54 +48,37 @@ export interface Goal {
   };
 }
 
-let cachedGoals: Goal[] | null = null;
+// Shared by every useGoals() consumer; `goalUpdated` (dispatched by
+// components that write goals directly, e.g. WebMCP) invalidates it.
+export const goalsCollection = defineCollection<Goal[]>(
+  'goals',
+  () => remoteStorageClient.getGoals() as Promise<Goal[]>,
+  { initial: [], refreshOn: ['goalUpdated', 'goalsUpdated'] }
+);
+
+/** Optimistically replace one goal in the cache, persist it, roll back on failure. */
+async function persistGoal(updated: Goal, label: string): Promise<void> {
+  goalsCollection.markSelfWrite();
+  goalsCollection.set((prev) =>
+    prev.some((g) => g.id === updated.id) ? prev.map((g) => (g.id === updated.id ? updated : g)) : [...prev, updated]
+  );
+  try {
+    await remoteStorageClient.saveGoal(updated);
+  } catch (error) {
+    console.error(`Failed to ${label}:`, error);
+    void goalsCollection.invalidate();
+    throw error;
+  }
+}
 
 export function useGoals(options?: { loadOnMount?: boolean }) {
-  const loadOnMount = options?.loadOnMount !== false;
-  const [goals, setGoals] = useState<Goal[]>(() => cachedGoals ?? []);
-  const [isLoading, setIsLoading] = useState(loadOnMount && cachedGoals === null);
-  const [isError, setIsError] = useState(false);
+  // `loadOnMount: false` used to skip the fetch; with a shared, de-duplicated
+  // query the option is accepted but no longer changes anything.
+  void options;
+  const { data, isPending, isError } = goalsCollection.useQuery();
+  const goals = data ?? [];
 
-  const loadGoals = async () => {
-    try {
-      setIsLoading(true);
-      const loadedGoals = await remoteStorageClient.getGoals();
-      cachedGoals = loadedGoals as Goal[];
-      setGoals(cachedGoals);
-      setIsError(false);
-    } catch (error) {
-      console.error("Failed to load goals:", error);
-      setIsError(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (loadOnMount) loadGoals();
-
-    // Listen for changes from RemoteStorage
-    const handleChange = (event: { relativePath: string }) => {
-      if (event.relativePath.startsWith('goals/')) {
-        loadGoals();
-      }
-    };
-
-    remoteStorageClient.onChange(handleChange);
-
-    // Listen for goal update events
-    const handleGoalUpdate = () => {
-      loadGoals();
-    };
-    window.addEventListener('goalUpdated', handleGoalUpdate);
-
-    return () => {
-      remoteStorageClient.offChange(handleChange);
-      window.removeEventListener('goalUpdated', handleGoalUpdate);
-    };
-  }, [loadOnMount]);
-
-  const addGoal = async (
+  const addGoal = useCallback(async (
     goalName: string,
     type: string,
     color?: string,
@@ -104,37 +88,32 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
       milestones?: Omit<GoalMilestone, 'id'>[];
     }
   ): Promise<Goal | undefined> => {
+    const milestones = options?.milestones?.map((m, index) => ({
+      ...m,
+      id: uuidv4(),
+      order: m.order ?? index,
+      completed: m.completed ?? false
+    }));
+    const newGoal: Goal = {
+      id: uuidv4(),
+      name: goalName,
+      type,
+      color,
+      description: options?.description,
+      targetDate: options?.targetDate,
+      createdAt: Date.now(),
+      status: 'active',
+      milestones
+    };
     try {
-      const milestones = options?.milestones?.map((m, index) => ({
-        ...m,
-        id: uuidv4(),
-        order: m.order ?? index,
-        completed: m.completed ?? false
-      }));
-
-      const newGoal: Goal = {
-        id: uuidv4(),
-        name: goalName,
-        type,
-        color,
-        description: options?.description,
-        targetDate: options?.targetDate,
-        createdAt: Date.now(),
-        status: 'active',
-        milestones
-      };
-
-      await remoteStorageClient.saveGoal(newGoal);
-      setGoals(prev => { const next = [...prev, newGoal]; cachedGoals = next; return next; });
+      await persistGoal(newGoal, 'add goal');
       return newGoal;
-    } catch (error) {
-      console.error("Failed to add goal:", error);
-      setIsError(true);
+    } catch {
       return undefined;
     }
-  };
+  }, []);
 
-  const updateGoal = async (
+  const updateGoal = useCallback(async (
     goalName: string,
     id: string,
     color?: string,
@@ -145,164 +124,89 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
       milestones?: GoalMilestone[];
     }
   ) => {
-    try {
-      const existingGoal = goals.find(g => g.id === id);
-      if (existingGoal) {
-        const updatedGoal: Goal = {
-          ...existingGoal,
-          name: goalName,
-          ...(color !== undefined && { color }),
-          ...(options?.description !== undefined && { description: options.description }),
-          ...(options?.targetDate !== undefined && {
-            targetDate: options.targetDate === null ? undefined : options.targetDate
-          }),
-          ...(options?.status !== undefined && { status: options.status }),
-          ...(options?.milestones !== undefined && { milestones: options.milestones }),
-          ...(options?.status === 'completed' && !existingGoal.completedAt && { completedAt: Date.now() })
-        };
-        await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
-      }
-    } catch (error) {
-      console.error("Failed to update goal:", error);
-      setIsError(true);
-    }
-  };
+    const existingGoal = goalsCollection.get().find((g) => g.id === id);
+    if (!existingGoal) return;
+    const updatedGoal: Goal = {
+      ...existingGoal,
+      name: goalName,
+      ...(color !== undefined && { color }),
+      ...(options?.description !== undefined && { description: options.description }),
+      ...(options?.targetDate !== undefined && {
+        targetDate: options.targetDate === null ? undefined : options.targetDate
+      }),
+      ...(options?.status !== undefined && { status: options.status }),
+      ...(options?.milestones !== undefined && { milestones: options.milestones }),
+      ...(options?.status === 'completed' && !existingGoal.completedAt && { completedAt: Date.now() })
+    };
+    await persistGoal(updatedGoal, 'update goal').catch(() => {});
+  }, []);
 
-  const completeGoal = async (id: string) => {
-    try {
-      const existingGoal = goals.find(g => g.id === id);
-      if (existingGoal) {
-        const updatedGoal: Goal = {
-          ...existingGoal,
-          status: 'completed',
-          completedAt: Date.now()
-        };
-        await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
-      }
-    } catch (error) {
-      console.error("Failed to complete goal:", error);
-      setIsError(true);
-    }
-  };
+  const patchGoal = useCallback(async (id: string, patch: (goal: Goal) => Goal, label: string) => {
+    const existingGoal = goalsCollection.get().find((g) => g.id === id);
+    if (!existingGoal) return undefined;
+    const updatedGoal = patch(existingGoal);
+    await persistGoal(updatedGoal, label).catch(() => {});
+    return updatedGoal;
+  }, []);
 
-  const addMilestone = async (goalId: string, milestone: Omit<GoalMilestone, 'id' | 'order'>) => {
-    try {
-      const existingGoal = goals.find(g => g.id === goalId);
-      if (existingGoal) {
-        const currentMilestones = existingGoal.milestones || [];
-        const newMilestone: GoalMilestone = {
-          ...milestone,
-          id: uuidv4(),
-          order: currentMilestones.length,
-          completed: milestone.completed ?? false
-        };
-        const updatedGoal: Goal = {
-          ...existingGoal,
-          milestones: [...currentMilestones, newMilestone]
-        };
-        await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => { const next = prev.map(g => g.id === goalId ? updatedGoal : g); cachedGoals = next; return next; });
-        return newMilestone;
-      }
-    } catch (error) {
-      console.error("Failed to add milestone:", error);
-      setIsError(true);
-    }
-  };
+  const completeGoal = useCallback(async (id: string) => {
+    await patchGoal(id, (g) => ({ ...g, status: 'completed', completedAt: Date.now() }), 'complete goal');
+  }, [patchGoal]);
 
-  const updateMilestone = async (goalId: string, milestoneId: string, updates: Partial<GoalMilestone>) => {
-    try {
-      const existingGoal = goals.find(g => g.id === goalId);
-      if (existingGoal && existingGoal.milestones) {
-        const updatedMilestones = existingGoal.milestones.map(m =>
-          m.id === milestoneId
-            ? {
-                ...m,
-                ...updates,
-                ...(updates.completed && !m.completedAt && { completedAt: Date.now() })
-              }
-            : m
-        );
-        const updatedGoal: Goal = {
-          ...existingGoal,
-          milestones: updatedMilestones
-        };
-        await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => { const next = prev.map(g => g.id === goalId ? updatedGoal : g); cachedGoals = next; return next; });
-      }
-    } catch (error) {
-      console.error("Failed to update milestone:", error);
-      setIsError(true);
-    }
-  };
+  const addMilestone = useCallback(async (goalId: string, milestone: Omit<GoalMilestone, 'id' | 'order'>) => {
+    let newMilestone: GoalMilestone | undefined;
+    await patchGoal(goalId, (g) => {
+      const currentMilestones = g.milestones || [];
+      newMilestone = { ...milestone, id: uuidv4(), order: currentMilestones.length, completed: milestone.completed ?? false };
+      return { ...g, milestones: [...currentMilestones, newMilestone] };
+    }, 'add milestone');
+    return newMilestone;
+  }, [patchGoal]);
 
-  const deleteMilestone = async (goalId: string, milestoneId: string) => {
-    try {
-      const existingGoal = goals.find(g => g.id === goalId);
-      if (existingGoal && existingGoal.milestones) {
-        const filteredMilestones = existingGoal.milestones
-          .filter(m => m.id !== milestoneId)
-          .map((m, index) => ({ ...m, order: index }));
-        const updatedGoal: Goal = {
-          ...existingGoal,
-          milestones: filteredMilestones
-        };
-        await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => { const next = prev.map(g => g.id === goalId ? updatedGoal : g); cachedGoals = next; return next; });
-      }
-    } catch (error) {
-      console.error("Failed to delete milestone:", error);
-      setIsError(true);
-    }
-  };
+  const updateMilestone = useCallback(async (goalId: string, milestoneId: string, updates: Partial<GoalMilestone>) => {
+    await patchGoal(goalId, (g) => ({
+      ...g,
+      milestones: (g.milestones ?? []).map((m) =>
+        m.id === milestoneId
+          ? { ...m, ...updates, ...(updates.completed && !m.completedAt && { completedAt: Date.now() }) }
+          : m
+      ),
+    }), 'update milestone');
+  }, [patchGoal]);
 
-  const completeMilestone = async (goalId: string, milestoneId: string) => {
+  const deleteMilestone = useCallback(async (goalId: string, milestoneId: string) => {
+    await patchGoal(goalId, (g) => ({
+      ...g,
+      milestones: (g.milestones ?? []).filter((m) => m.id !== milestoneId).map((m, index) => ({ ...m, order: index })),
+    }), 'delete milestone');
+  }, [patchGoal]);
+
+  const completeMilestone = useCallback(async (goalId: string, milestoneId: string) => {
     await updateMilestone(goalId, milestoneId, { completed: true, completedAt: Date.now() });
-  };
+  }, [updateMilestone]);
 
-  const archiveGoal = async (id: string) => {
-    try {
-      const existingGoal = goals.find(g => g.id === id);
-      if (existingGoal) {
-        const updatedGoal: Goal = { ...existingGoal, status: 'archived' };
-        await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
-      }
-    } catch (error) {
-      console.error("Failed to archive goal:", error);
-      setIsError(true);
-    }
-  };
+  const archiveGoal = useCallback(async (id: string) => {
+    await patchGoal(id, (g) => ({ ...g, status: 'archived' }), 'archive goal');
+  }, [patchGoal]);
 
-  const unarchiveGoal = async (id: string) => {
-    try {
-      const existingGoal = goals.find(g => g.id === id);
-      if (existingGoal) {
-        const updatedGoal: Goal = { ...existingGoal, status: 'active' };
-        await remoteStorageClient.saveGoal(updatedGoal);
-        setGoals(prev => { const next = prev.map(g => g.id === id ? updatedGoal : g); cachedGoals = next; return next; });
-      }
-    } catch (error) {
-      console.error("Failed to unarchive goal:", error);
-      setIsError(true);
-    }
-  };
+  const unarchiveGoal = useCallback(async (id: string) => {
+    await patchGoal(id, (g) => ({ ...g, status: 'active' }), 'unarchive goal');
+  }, [patchGoal]);
 
-  const deleteGoal = async (id: string) => {
+  const deleteGoal = useCallback(async (id: string) => {
+    goalsCollection.markSelfWrite();
+    goalsCollection.set((prev) => prev.filter((g) => g.id !== id));
     try {
       await remoteStorageClient.deleteGoal(id);
-      setGoals(prev => { const next = prev.filter(g => g.id !== id); cachedGoals = next; return next; });
     } catch (error) {
       console.error("Failed to delete goal:", error);
-      setIsError(true);
+      void goalsCollection.invalidate();
     }
-  };
+  }, []);
 
   return {
     goals,
-    isLoading,
+    isLoading: isPending,
     isError,
     addGoal,
     updateGoal,
@@ -314,6 +218,6 @@ export function useGoals(options?: { loadOnMount?: boolean }) {
     updateMilestone,
     deleteMilestone,
     completeMilestone,
-    reload: loadGoals,
+    reload: goalsCollection.invalidate,
   };
 }

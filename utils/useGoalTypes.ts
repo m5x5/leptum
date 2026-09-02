@@ -1,6 +1,7 @@
-import { useEffect, useState } from "react";
+import { useCallback } from "react";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { v4 as uuidv4 } from 'uuid';
+import { defineCollection } from "../lib/query/defineCollection";
 
 export interface GoalType {
   id: string;
@@ -8,92 +9,61 @@ export interface GoalType {
   description?: string | null; // Optional rich text description
 }
 
+export const goalTypesCollection = defineCollection<GoalType[]>(
+  'goalTypes',
+  () => remoteStorageClient.getGoalTypes() as Promise<GoalType[]>,
+  { initial: [], refreshOn: ['goalTypesUpdated'] }
+);
+
 export function useGoalTypes(options?: { loadOnMount?: boolean }) {
-  const loadOnMount = options?.loadOnMount !== false;
-  const [goalTypes, setGoalTypes] = useState<GoalType[]>([]);
-  const [isLoading, setIsLoading] = useState(loadOnMount);
-  const [isError, setIsError] = useState(false);
+  // `loadOnMount: false` used to skip the fetch; with a shared cache the query
+  // is cheap and de-duplicated, so the option is accepted but no longer needed.
+  void options;
+  const { data, isPending, isError } = goalTypesCollection.useQuery();
+  const goalTypes = data ?? [];
 
-  const loadGoalTypes = async () => {
+  const addGoalType = useCallback(async (name: string, description: string = "") => {
+    const newGoalType: GoalType = { id: uuidv4(), name, description };
+    goalTypesCollection.markSelfWrite();
+    goalTypesCollection.set((prev) => [...prev, newGoalType]);
     try {
-      setIsLoading(true);
-      const loadedGoalTypes = await remoteStorageClient.getGoalTypes();
-      setGoalTypes(loadedGoalTypes as GoalType[]);
-      setIsError(false);
-    } catch (error) {
-      console.error("Failed to load goal types:", error);
-      setIsError(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (loadOnMount) loadGoalTypes();
-
-    // Listen for changes from RemoteStorage
-    const handleChange = (event: { relativePath: string }) => {
-      if (event.relativePath.startsWith('goal-types/')) {
-        loadGoalTypes();
-      }
-    };
-
-    remoteStorageClient.onChange(handleChange);
-
-    return () => {
-      remoteStorageClient.offChange(handleChange);
-    };
-  }, [loadOnMount]);
-
-  const addGoalType = async (name: string, description: string = "") => {
-    try {
-      const newGoalType: GoalType = {
-        id: uuidv4(),
-        name,
-        description
-      };
-      
       await remoteStorageClient.saveGoalType(newGoalType);
-      setGoalTypes(prev => [...prev, newGoalType]);
     } catch (error) {
       console.error("Failed to add goal type:", error);
-      setIsError(true);
+      void goalTypesCollection.invalidate();
     }
-  };
+  }, []);
 
-  const updateGoalType = async (name: string, id: string, description?: string) => {
+  const updateGoalType = useCallback(async (name: string, id: string, description?: string) => {
+    const existing = goalTypesCollection.get().find((gt) => gt.id === id);
+    if (!existing) return;
+    const updated = { ...existing, name, ...(description !== undefined && { description }) };
+    goalTypesCollection.markSelfWrite();
+    goalTypesCollection.set((prev) => prev.map((gt) => (gt.id === id ? updated : gt)));
     try {
-      const existingGoalType = goalTypes.find(gt => gt.id === id);
-      if (existingGoalType) {
-        const updatedGoalType = { 
-          ...existingGoalType, 
-          name,
-          ...(description !== undefined && { description })
-        };
-        await remoteStorageClient.saveGoalType(updatedGoalType);
-        setGoalTypes(prev => prev.map(gt => gt.id === id ? updatedGoalType : gt));
-      }
+      await remoteStorageClient.saveGoalType(updated);
     } catch (error) {
       console.error("Failed to update goal type:", error);
-      setIsError(true);
+      void goalTypesCollection.invalidate();
     }
-  };
+  }, []);
 
-  const deleteGoalType = async (id: string) => {
+  const deleteGoalType = useCallback(async (id: string) => {
+    goalTypesCollection.markSelfWrite();
+    goalTypesCollection.set((prev) => prev.filter((gt) => gt.id !== id));
     try {
-      await remoteStorageClient.deleteGoal(id); // This should be deleteGoalType but using existing method
-      setGoalTypes(prev => prev.filter(gt => gt.id !== id));
+      await remoteStorageClient.deleteGoalType(id);
     } catch (error) {
       console.error("Failed to delete goal type:", error);
-      setIsError(true);
+      void goalTypesCollection.invalidate();
     }
-  };
+  }, []);
 
   return {
     goalTypes,
-    isLoading,
+    isLoading: isPending,
     isError,
-    reload: loadGoalTypes,
+    reload: goalTypesCollection.invalidate,
     addGoal: addGoalType,
     addGoalType,
     updateGoal: updateGoalType,

@@ -1,0 +1,132 @@
+@prefix schema: <https://schema.org/> .
+@prefix ical: <http://www.w3.org/2002/12/cal/ical#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix crdt: <https://vocab.noeldemartin.com/crdt/> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:TaskShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors StandaloneTask (lib/remoteStorage.ts) as written by taskToRdf and read by extractTask. A Task resource's rdf:type includes schema:Action and ical:Vtodo together (and, for legacy Jobs, leptum:LegacyJob); additional rdf:type values are permitted (ShEx EXTRA a)." ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( schema:Action ical:Vtodo ) ] ;
+    sh:qualifiedMinCount 1
+  ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Title. Foreign Turtle (e.g. Focus's tasks) uses ical:summary instead; modeled as two independent optional fields, and the app does `name ?? summary`."
+  ] ;
+  sh:property [
+    sh:path ical:summary ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Alternative title predicate used by foreign Turtle (e.g. Focus's tasks) instead of schema:name."
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:actionStatus ;
+    sh:in ( schema:CompletedActionStatus schema:ActiveActionStatus schema:PotentialActionStatus schema:FailedActionStatus ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path dcterms:created ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path crdt:createdAt ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1 ;
+    sh:description "Fallback createdAt predicate used by other Solid apps sharing this container (e.g. SoukAI-based apps)."
+  ] ;
+  sh:property [
+    sh:path leptum:completedAt ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:archivedAt ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:about ;
+    sh:nodeKind sh:IRI ;
+    sh:description "Goal(s) this task is about — written as a single IRI today but read via getAll(), so zero-or-more."
+  ] ;
+  sh:property [
+    sh:path leptum:partOfRoutine ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:routineInstanceId ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:effort ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Intended value set: \"XS\" \"S\" \"M\" \"L\" \"XL\" (StandaloneTask's union type). Kept as plain xsd:string to stay faithful to the ShEx contract, which uses plain xsd:string due to an @ldo/cli 1.0.0-alpha.51 generator bug with literal value-sets."
+  ] ;
+  sh:property [
+    sh:path leptum:numericEstimate ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:emotions ;
+    sh:datatype xsd:string ;
+    sh:description "Intended value set: the 10 Emotion literals (StandaloneTask's union type). Kept as plain xsd:string to stay faithful to the ShEx contract, which uses plain xsd:string due to an @ldo/cli 1.0.0-alpha.51 generator bug with literal value-sets."
+  ] ;
+  sh:property [
+    sh:path schema:geo ;
+    sh:node leptum:GeoCoordinatesShape ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:indoorX ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:indoorY ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:sortIndex ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] .
+
+leptum:GeoCoordinatesShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( schema:GeoCoordinates ) ] ;
+    sh:qualifiedMinCount 0
+  ] ;
+  sh:property [
+    sh:path schema:latitude ;
+    sh:datatype xsd:decimal ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:longitude ;
+    sh:datatype xsd:decimal ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .

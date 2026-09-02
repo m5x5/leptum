@@ -1,10 +1,23 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
-import { CameraIcon, MicrophoneIcon, DocumentTextIcon, XIcon, StopIcon } from '@heroicons/react/solid';
+import { CameraIcon, MicrophoneIcon, DocumentTextIcon, XIcon, StopIcon, SortDescendingIcon } from '@heroicons/react/solid';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../ui/dropdown-menu';
 import { useQuickNotes, QuickNote } from '../../utils/useQuickNotes';
 import { usePhotoAttachments, PhotoAttachment } from '../../utils/usePhotoAttachments';
 import { Button } from '../ui/button';
-import { Textarea } from '../ui/textarea';
-import { AudioPlayer } from '../ui/audio-player';
+import { MentionInput, HighlightedMentions, extractMentionedEntityIds } from '../ui/mention-input';
+import { useEntities } from '../../utils/useEntities';
+import { useMentions } from '../../utils/useMentions';
+import dynamic from 'next/dynamic';
+// wavesurfer is ~200KB and only needed when a note actually has audio.
+const AudioPlayer = dynamic(() => import('../ui/audio-player').then((m) => m.AudioPlayer), {
+  ssr: false,
+  loading: () => <div className="h-10 rounded-full bg-muted/40 animate-pulse" aria-hidden />,
+});
 import Image from 'next/image';
 import Modal from '../Modal';
 import { Dialog, DialogContent } from '../ui/dialog';
@@ -27,6 +40,7 @@ import {
   arrayMove,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
+import { useNow } from '../../hooks/useNow';
 
 // Helper to get date key (YYYY-MM-DD) from timestamp
 function getDateKey(timestamp: number): string {
@@ -45,6 +59,8 @@ function getLastNDays(n: number): string[] {
   }
   return days;
 }
+
+const EFFORT_RANK: Record<string, number> = { XS: 1, S: 2, M: 3, L: 4, XL: 5 };
 
 // Format date key for display
 function formatDayLabel(dateKey: string, isToday: boolean): { day: string; date: string } {
@@ -82,6 +98,7 @@ interface QuickCaptureProps {
   onTaskUpdate?: (taskId: string, updates: Partial<StandaloneTask>) => void;
   onTaskStart?: (taskName: string) => void;
   onTaskEdit?: (task: StandaloneTask) => void;
+  onTaskSaveToRoutine?: (routineId: string, taskName: string, updates: { name: string; effort?: 'XS' | 'S' | 'M' | 'L' | 'XL'; numericEstimate?: number }) => Promise<void>;
   onTaskReorder?: (orderedIds: string[]) => void;
   currentActivityName?: string;
   /** When this value changes to a truthy number (e.g. timestamp), opens the text note capture (for Shift+N shortcut). */
@@ -90,6 +107,8 @@ interface QuickCaptureProps {
   pendingShare?: PendingSharePayload | null;
   /** Called after pending share has been processed (note created). */
   onProcessedShare?: () => void;
+  /** Rendered as the first row of the Tasks list (e.g. an inline "add task" form) when the selected day is today. */
+  addTaskRow?: React.ReactNode;
 }
 
 interface SortableTaskItemProps {
@@ -100,6 +119,7 @@ interface SortableTaskItemProps {
   onUpdate: (id: string, updates: Partial<StandaloneTask>) => void;
   onStart?: (name: string) => void;
   onEdit?: (task: StandaloneTask) => void;
+  onSaveToRoutine?: (routineId: string, taskName: string, updates: { name: string; effort?: 'XS' | 'S' | 'M' | 'L' | 'XL'; numericEstimate?: number }) => Promise<void>;
   isActive: boolean;
 }
 
@@ -140,11 +160,13 @@ export default function QuickCapture({
   onTaskUpdate,
   onTaskStart,
   onTaskEdit,
+  onTaskSaveToRoutine,
   onTaskReorder,
   currentActivityName,
   openTextNoteTrigger,
   pendingShare,
   onProcessedShare,
+  addTaskRow,
 }: QuickCaptureProps) {
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -156,11 +178,14 @@ export default function QuickCapture({
 
   // Reset local ordering when underlying tasks change from storage,
   // but never during an active drag (would break pointer capture).
-  useEffect(() => {
-    if (!isDraggingTask) {
-      setLocalOrderedIds(null);
-    }
-  }, [tasks, isDraggingTask]);
+  // Adjusted during render (React's recommended pattern for state that
+  // depends on a changed prop) instead of an effect, avoiding an extra
+  // cascading render on every tasks/drag change.
+  const [prevTasks, setPrevTasks] = useState(tasks);
+  if (tasks !== prevTasks && !isDraggingTask) {
+    setPrevTasks(tasks);
+    setLocalOrderedIds(null);
+  }
   const { notes, addNote, updateNote, deleteNote, saveAudio, getAudio, loading: notesLoading } = useQuickNotes();
   const { addPhoto, getPhotosForImpact, getFullImage, photos: allPhotos } = usePhotoAttachments();
 
@@ -172,10 +197,35 @@ export default function QuickCapture({
   const [lightboxPhoto, setLightboxPhoto] = useState<PhotoAttachment | null>(null);
   const [lightboxSrc, setLightboxSrc] = useState<string | null>(null);
 
+  const openCapture = (captureMode: 'text' | 'camera' | 'voice') => {
+    if (captureMode === 'voice') {
+      setMode('voice');
+      setVoiceFullscreen(true);
+      requestAnimationFrame(() => requestAnimationFrame(() => setVoiceAnimated(true)));
+      return;
+    }
+    setMode(captureMode);
+    if (window.innerWidth < 768) {
+      setShowMobileDrawer(true);
+    } else {
+      setShowModal(true);
+    }
+
+    if (captureMode === 'camera') {
+      // Auto-open file picker for gallery selection
+      setTimeout(() => {
+        fileInputRef.current?.click();
+      }, 100);
+    }
+  };
+
   // When parent triggers open (e.g. Shift+N), open text note capture
   useEffect(() => {
     if (openTextNoteTrigger) {
-      openCapture('text');
+      // Deferred: openCapture calls several state setters, and
+      // eslint-plugin-react-hooks forbids calling a setState-triggering
+      // function synchronously within an effect body.
+      queueMicrotask(() => openCapture('text'));
     }
   }, [openTextNoteTrigger]);
 
@@ -261,9 +311,11 @@ export default function QuickCapture({
   const [photoPreviews, setPhotoPreviews] = useState<string[]>([]);
 
   // Day selector state
-  const todayKey = getDateKey(Date.now());
+  const now = useNow();
+  const todayKey = getDateKey(now);
   const [selectedDay, setSelectedDay] = useState<string>(todayKey);
   const availableDays = useMemo(() => getLastNDays(7), []);
+  const showAddRow = !!addTaskRow && selectedDay === todayKey;
   
   // Voice recording state
   const [isRecording, setIsRecording] = useState(false);
@@ -276,7 +328,9 @@ export default function QuickCapture({
   
   // File input for gallery selection
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [noteText, setNoteText] = useState('');
+  const { entities } = useEntities();
+  const { updateMentionsForSource } = useMentions();
 
   // Cleanup on unmount
   useEffect(() => {
@@ -287,30 +341,18 @@ export default function QuickCapture({
       if (audioUrl) {
         URL.revokeObjectURL(audioUrl);
       }
+      const recorder = mediaRecorderRef.current;
+      if (recorder) {
+        if (recorder.state !== 'inactive') {
+          // Unmounting mid-recording: drop the onstop handler so it doesn't
+          // set state on an unmounted component, then stop the recorder.
+          recorder.onstop = null;
+          recorder.stop();
+        }
+        recorder.stream.getTracks().forEach(track => track.stop());
+      }
     };
   }, [audioUrl]);
-
-  const openCapture = (captureMode: 'text' | 'camera' | 'voice') => {
-    if (captureMode === 'voice') {
-      setMode('voice');
-      setVoiceFullscreen(true);
-      requestAnimationFrame(() => requestAnimationFrame(() => setVoiceAnimated(true)));
-      return;
-    }
-    setMode(captureMode);
-    if (window.innerWidth < 768) {
-      setShowMobileDrawer(true);
-    } else {
-      setShowModal(true);
-    }
-
-    if (captureMode === 'camera') {
-      // Auto-open file picker for gallery selection
-      setTimeout(() => {
-        fileInputRef.current?.click();
-      }, 100);
-    }
-  };
 
   const closeVoiceFullscreen = () => {
     setVoiceAnimated(false);
@@ -322,7 +364,7 @@ export default function QuickCapture({
 
   const closeCapture = () => {
     setMode(null);
-    if (textareaRef.current) textareaRef.current.value = '';
+    setNoteText('');
     setPendingPhotos([]);
     setPhotoPreviews([]);
     setAudioBlob(null);
@@ -420,7 +462,7 @@ export default function QuickCapture({
 
   const handleSave = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    const text = textareaRef.current?.value?.trim() ?? '';
+    const text = noteText.trim();
     if (!text && pendingPhotos.length === 0 && !audioBlob) {
       return;
     }
@@ -454,6 +496,12 @@ export default function QuickCapture({
         throw new Error('Failed to create note');
       }
 
+      // Record @mentions like the other note fields do, so they show up on the entity.
+      const mentionedEntityIds = extractMentionedEntityIds(text);
+      if (mentionedEntityIds.length > 0) {
+        await updateMentionsForSource('note', newNote.id, 'text', mentionedEntityIds, text);
+      }
+
       // Save photos using note ID as impact ID
       const photoIds: string[] = [];
       for (const photo of pendingPhotos) {
@@ -474,7 +522,7 @@ export default function QuickCapture({
       }
 
       // Note: addPhoto already updates local state, so photos should be available immediately
-      // We don't need to refresh here as it might overwrite the state before RemoteStorage syncs
+      // We don't need to refresh here as it might overwrite the state before storage syncs
 
       closeCapture();
     } catch (error) {
@@ -498,22 +546,31 @@ export default function QuickCapture({
 
   const [audioUrlsByNoteId, setAudioUrlsByNoteId] = useState<Record<string, string>>({});
   const audioUrlsByNoteIdRef = useRef(audioUrlsByNoteId);
-  audioUrlsByNoteIdRef.current = audioUrlsByNoteId;
+  useEffect(() => {
+    audioUrlsByNoteIdRef.current = audioUrlsByNoteId;
+  });
 
   useEffect(() => {
     const notesWithAudio = filteredNotes.filter((n) => n.audioPath);
     const noteIds = new Set(notesWithAudio.map((n) => n.id));
-    setAudioUrlsByNoteId((prev) => {
-      const next = { ...prev };
-      let changed = false;
-      for (const id of Object.keys(next)) {
-        if (!noteIds.has(id)) {
-          URL.revokeObjectURL(next[id]);
-          delete next[id];
-          changed = true;
+    // Deferred a microtask: this prune reacts to filteredNotes (a derived
+    // external value) and belongs in an effect, but eslint-plugin-react-hooks
+    // forbids calling a state setter directly/synchronously in an effect body.
+    // Deferring by a microtask (fires before the next paint) keeps the
+    // revoke-then-prune behavior intact without a synchronous setState call.
+    queueMicrotask(() => {
+      setAudioUrlsByNoteId((prev) => {
+        const next = { ...prev };
+        let changed = false;
+        for (const id of Object.keys(next)) {
+          if (!noteIds.has(id)) {
+            URL.revokeObjectURL(next[id]);
+            delete next[id];
+            changed = true;
+          }
         }
-      }
-      return changed ? next : prev;
+        return changed ? next : prev;
+      });
     });
     notesWithAudio.forEach((note) => {
       if (audioUrlsByNoteId[note.id]) return;
@@ -534,11 +591,30 @@ export default function QuickCapture({
     Object.values(audioUrlsByNoteIdRef.current).forEach((url) => URL.revokeObjectURL(url));
   }, []);
 
+  const [sortMode, setSortMode] = useState<'recency' | 'priority'>('recency');
+
   // Filter tasks by selected day (active tasks only). Active task on top, then by sortIndex, then newest first.
   const filteredTasks = useMemo(() => {
     const base = [...tasks].filter(
       (task) => task.status !== 'completed' && getDateKey(task.createdAt) === selectedDay,
     );
+
+    if (sortMode === 'priority') {
+      return base.sort((a, b) => {
+        const aActive = currentActivityName ? a.name === currentActivityName : false;
+        const bActive = currentActivityName ? b.name === currentActivityName : false;
+        if (aActive && !bActive) return -1;
+        if (!aActive && bActive) return 1;
+        // Sort by numericEstimate desc, then by effort rank desc, then newest first
+        const aNum = a.numericEstimate ?? 0;
+        const bNum = b.numericEstimate ?? 0;
+        if (bNum !== aNum) return bNum - aNum;
+        const aEffort = a.effort ? EFFORT_RANK[a.effort] : 0;
+        const bEffort = b.effort ? EFFORT_RANK[b.effort] : 0;
+        if (bEffort !== aEffort) return bEffort - aEffort;
+        return b.createdAt - a.createdAt;
+      });
+    }
 
     if (localOrderedIds) {
       const idOrder = new Map(localOrderedIds.map((id, i) => [id, i]));
@@ -559,30 +635,20 @@ export default function QuickCapture({
       if (b.sortIndex !== undefined) return 1;
       return b.createdAt - a.createdAt;
     });
-  }, [tasks, selectedDay, currentActivityName, localOrderedIds]);
-
-  // Focus textarea when text mode is opened
-  useEffect(() => {
-    if (mode === 'text' && textareaRef.current) {
-      const t = setTimeout(() => textareaRef.current?.focus(), 100);
-      return () => clearTimeout(t);
-    }
-  }, [mode]);
+  }, [tasks, selectedDay, currentActivityName, localOrderedIds, sortMode]);
 
   const captureContent = (
     <form onSubmit={handleSave} className="space-y-4">
       {mode === 'text' && (
         <div>
-          <label htmlFor="quick-note-input" className="block text-sm font-medium text-foreground mb-2">
-            Quick Note
-          </label>
-          <Textarea
-            ref={textareaRef}
+          <MentionInput
             id="quick-note-input"
-            name="quickNote"
-            defaultValue=""
-            placeholder="Type your note here..."
-            className="min-h-[120px]"
+            value={noteText}
+            onChange={setNoteText}
+            entities={entities}
+            placeholder="Type your note here... (use @ to mention)"
+            multiline
+            rows={10}
             autoFocus
           />
         </div>
@@ -617,9 +683,9 @@ export default function QuickCapture({
           </div>
 
           {photoPreviews.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-3 gap-1 sm:gap-2">
               {photoPreviews.map((preview, index) => (
-                <div key={`preview-${index}-${preview.substring(0, 20)}`} className="relative">
+                <div key={`preview-${index}-${preview.substring(0, 20)}`} className="relative min-w-0">
                   <Image src={preview} alt={`Preview ${index}`} width={200} height={96} unoptimized className="w-full h-24 object-cover rounded" />
                   <button
                     onClick={() => removePhoto(index)}
@@ -649,7 +715,7 @@ export default function QuickCapture({
                 </Button>
               ) : (
                 <div className="space-y-4">
-                  <div className="text-4xl font-bold text-primary">
+                  <div className="text-4xl font-semibold text-primary">
                     {formatTime(recordingTime)}
                   </div>
                   <Button
@@ -702,36 +768,67 @@ export default function QuickCapture({
   return (
     <>
       {/* Day Selector */}
-      <div className="flex gap-1 mb-4 overflow-x-auto pb-2 -mx-1 px-1">
-        {availableDays.map((dateKey) => {
-          const isSelected = dateKey === selectedDay;
-          const isToday = dateKey === todayKey;
-          const label = formatDayLabel(dateKey, isToday);
+      <div className="mb-4 -mx-1 px-1 py-1">
+        <div className="flex min-h-[60px] items-center gap-1 overflow-x-auto pb-2 [scrollbar-gutter:stable]">
+          {availableDays.map((dateKey) => {
+            const isSelected = dateKey === selectedDay;
+            const isToday = dateKey === todayKey;
+            const label = formatDayLabel(dateKey, isToday);
 
-          return (
-            <button
-              key={dateKey}
-              onClick={() => setSelectedDay(dateKey)}
-              className={`shrink-0 flex flex-col items-center justify-center rounded-lg transition-colors h-[52px] w-[52px] ${
-                isSelected
-                  ? 'bg-primary text-primary-foreground'
-                  : 'bg-muted/50 hover:bg-muted text-foreground'
-              }`}
-            >
-              <span className="text-xs font-medium">{label.day}</span>
-              {label.date && <span className="text-sm font-semibold">{label.date}</span>}
-            </button>
-          );
-        })}
+            return (
+              <button
+                type="button"
+                key={dateKey}
+                onClick={() => setSelectedDay(dateKey)}
+                className={`shrink-0 flex flex-col items-center justify-center rounded-control transition-colors h-[52px] w-[52px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${
+                  isSelected
+                    ? 'bg-primary text-primary-foreground'
+                    : 'bg-muted/50 hover:bg-muted text-foreground'
+                }`}
+              >
+                <span className="text-xs font-medium">{label.day}</span>
+                {label.date && <span className="text-sm font-semibold">{label.date}</span>}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Tasks for Selected Day */}
-      {filteredTasks.length > 0 && onTaskComplete && onTaskUncomplete && onTaskDelete && onTaskUpdate && (
-        <div className="bg-card border border-border rounded-lg mb-4">
-          <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
+      {(filteredTasks.length > 0 || showAddRow) && onTaskComplete && onTaskUncomplete && onTaskDelete && onTaskUpdate && (
+        <div className="bg-card border border-border rounded-control mb-4">
+          <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg flex items-center justify-between">
             <h3 className="font-semibold text-sm text-foreground">Tasks</h3>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className={`gap-1 text-xs ${sortMode !== 'recency' ? 'text-primary' : 'text-muted-foreground'}`}
+                  title="Sort tasks"
+                >
+                  <SortDescendingIcon />
+                  {sortMode === 'priority' ? 'Priority' : 'Recency'}
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => setSortMode('recency')}
+                  className={`cursor-pointer ${sortMode === 'recency' ? 'font-medium' : ''}`}
+                >
+                  Recency
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => setSortMode('priority')}
+                  className={`cursor-pointer ${sortMode === 'priority' ? 'font-medium' : ''}`}
+                >
+                  Priority
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
           <div className="p-2 space-y-1 select-none">
+            {showAddRow && addTaskRow}
             <DndContext
               sensors={sensors}
               collisionDetection={closestCenter}
@@ -760,6 +857,7 @@ export default function QuickCapture({
                     onUpdate={onTaskUpdate}
                     onStart={onTaskStart}
                     onEdit={onTaskEdit}
+                    onSaveToRoutine={onTaskSaveToRoutine}
                     isActive={currentActivityName === task.name}
                   />
                 ))}
@@ -807,7 +905,7 @@ export default function QuickCapture({
       )}
       {/* Notes for Selected Day */}
       {filteredNotes.length > 0 && (
-        <div className="bg-card border border-border rounded-lg mb-4">
+        <div className="bg-card border border-border rounded-control mb-4">
           <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg">
             <h3 className="font-semibold text-sm text-foreground">Notes</h3>
           </div>
@@ -819,12 +917,12 @@ export default function QuickCapture({
               return (
                 <article
                   key={note.id}
-                  className="group rounded-xl border border-border/80 bg-muted/30 overflow-hidden transition-colors hover:bg-muted/50"
+                  className="group rounded-card border border-border/80 bg-muted/30 overflow-hidden transition-colors hover:bg-muted/50"
                 >
                   <div className="p-3 sm:p-4">
                     {note.text && (
                       <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed">
-                        {note.text}
+                        <HighlightedMentions text={note.text} />
                       </p>
                     )}
                     {photos.length > 0 && (
@@ -838,7 +936,7 @@ export default function QuickCapture({
                               setLightboxSrc(null);
                               getFullImage(photo).then((src) => setLightboxSrc(src ?? photo.thumbnail));
                             }}
-                            className="rounded-lg overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                            className="rounded-control overflow-hidden focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                           >
                             <Image
                               src={photo.thumbnail}
@@ -846,7 +944,7 @@ export default function QuickCapture({
                               width={160}
                               height={160}
                               unoptimized
-                              className="w-40 h-40 object-cover rounded-lg cursor-pointer"
+                              className="w-40 h-40 object-cover rounded-control cursor-pointer"
                             />
                           </button>
                         ))}
@@ -864,7 +962,7 @@ export default function QuickCapture({
                         {audioUrlsByNoteId[note.id] ? (
                           <AudioPlayer src={audioUrlsByNoteId[note.id]} compact />
                         ) : (
-                          <div className="flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
+                          <div className="flex items-center gap-2 rounded-control border border-border bg-card px-3 py-2 text-sm text-muted-foreground">
                             <div className="h-4 w-4 animate-pulse rounded bg-muted" />
                             Loading audio…
                           </div>
@@ -872,10 +970,10 @@ export default function QuickCapture({
                       </div>
                     )}
                   </div>
-                  <div className="flex items-center justify-between gap-2 px-3 sm:px-4 py-2 border-t border-border/60 bg-background/50">
+                  <div className="flex items-center justify-between gap-2 px-3 sm:px-4 border-t border-border/60 bg-background/50">
                     <time
                       dateTime={new Date(note.createdAt).toISOString()}
-                      className="text-[11px] text-muted-foreground tabular-nums"
+                      className="text-xs text-muted-foreground tabular-nums"
                     >
                       {new Date(note.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
                     </time>
@@ -917,17 +1015,19 @@ export default function QuickCapture({
       >
         <DialogContent className="max-w-4xl bg-black/90 border-none shadow-none p-4 flex items-center justify-center">
           {lightboxPhoto && (lightboxSrc ?? lightboxPhoto.thumbnail) && (
+            // eslint-disable-next-line @next/next/no-img-element -- dynamic blob/data URL of unknown natural size, rendered at intrinsic aspect ratio via w-auto/h-auto
             <img
               src={lightboxSrc ?? lightboxPhoto.thumbnail}
               alt="Note photo"
-              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto"
+              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-control mx-auto"
             />
           )}
           {lightboxPhoto && !lightboxSrc && lightboxPhoto.thumbnail && (
+            // eslint-disable-next-line @next/next/no-img-element -- dynamic blob/data URL of unknown natural size, rendered at intrinsic aspect ratio via w-auto/h-auto
             <img
               src={lightboxPhoto.thumbnail}
               alt="Note photo"
-              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-lg mx-auto animate-pulse"
+              className="max-w-full max-h-[85vh] w-auto h-auto object-contain rounded-control mx-auto animate-pulse"
             />
           )}
         </DialogContent>
@@ -1002,7 +1102,7 @@ export default function QuickCapture({
                 </Button>
               ) : (
                 <div className="flex flex-col items-center gap-4 w-full">
-                  <div className="text-4xl font-bold text-white tabular-nums">
+                  <div className="text-4xl font-semibold text-white tabular-nums">
                     {formatTime(recordingTime)}
                   </div>
                   <Button onClick={stopRecording} variant="destructive" size="lg" className="w-full">

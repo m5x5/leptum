@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
+import { defineCollection } from '../lib/query/defineCollection';
 import { remoteStorageClient } from '../lib/remoteStorage';
 
 export interface PhotoAttachment {
   id: string;
   impactId: string;
   thumbnail: string; // Base64 encoded thumbnail
-  fullImagePath?: string; // Path to full image in RemoteStorage
+  fullImagePath?: string; // URL/path to full image resource
   mimeType: string;
   width?: number;
   height?: number;
@@ -96,44 +97,33 @@ export function fileToBase64(file: File): Promise<string> {
   });
 }
 
-export function usePhotoAttachments() {
-  const [photos, setPhotos] = useState<PhotoAttachment[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    loadPhotos();
-
-    // Listen for changes from RemoteStorage
-    const handleChange = (event: { relativePath: string }) => {
-      if (event.relativePath === 'photos' || event.relativePath.startsWith('photo-images/')) {
-        loadPhotos();
-      }
-    };
-
-    remoteStorageClient.onChange(handleChange);
-
-    return () => {
-      remoteStorageClient.offChange(handleChange);
-    };
-  }, []);
-
-  const loadPhotos = async () => {
+export const photosCollection = defineCollection<PhotoAttachment[]>(
+  'photos',
+  async () => {
     try {
-      const loadedPhotos = await remoteStorageClient.getPhotos();
-      setPhotos(loadedPhotos);
+      return await remoteStorageClient.getPhotos();
     } catch (error: unknown) {
       const err = error as { status?: number; missing?: boolean };
-      // 404 errors are expected when photos collection doesn't exist yet
-      if (!(err?.status === 404 || String(error).includes('404') || err?.missing)) {
-        console.error('Failed to load photos:', error);
-      } else {
-        console.warn('Photos collection does not exist yet (404 - expected)');
-        setPhotos([]); // Ensure we set empty array on 404
-      }
-    } finally {
-      setLoading(false);
+      // 404 is expected when the photos collection doesn't exist yet.
+      if (err?.status === 404 || String(error).includes('404') || err?.missing) return [];
+      throw error;
     }
-  };
+  },
+  { initial: [], refreshOn: ['photosUpdated'] }
+);
+
+// Module-level, stable — callbacks below need no extra deps.
+const setPhotos = (updater: (prev: PhotoAttachment[]) => PhotoAttachment[]) => {
+  photosCollection.markSelfWrite();
+  photosCollection.set(updater);
+};
+
+const EMPTY: PhotoAttachment[] = [];
+
+export function usePhotoAttachments() {
+  const { data, isPending: loading } = photosCollection.useQuery();
+  const photos = data ?? EMPTY;
+  const loadPhotos = photosCollection.invalidate;
 
   /**
    * Add a photo attachment for an impact
@@ -156,8 +146,8 @@ export function usePhotoAttachments() {
 
       // Optionally store full image (for larger images, this can be skipped to save space)
       if (options?.storeFullImage) {
-        const fullBase64 = await fileToBase64(file);
-        fullImagePath = await remoteStorageClient.saveFullImage(photoId, fullBase64, file.type) || undefined;
+        const buffer = await file.arrayBuffer();
+        fullImagePath = await remoteStorageClient.saveFullImage(photoId, buffer, file.type) || undefined;
       }
 
       newPhoto = {
@@ -187,22 +177,14 @@ export function usePhotoAttachments() {
 
       return newPhoto;
     } catch (error: unknown) {
-      // If addPhoto failed, try saving directly (handles 404 and other cases)
+      // If the single PUT failed (e.g. container just created), retry it once.
       if (newPhoto) {
         try {
-          // Get existing photos and merge
-          const existingPhotos = await remoteStorageClient.getPhotos();
-          const allPhotos = [...existingPhotos, newPhoto];
-          await remoteStorageClient.savePhotos(allPhotos);
+          await remoteStorageClient.addPhoto(newPhoto);
           setPhotos(prev => [...prev, newPhoto!]);
           return newPhoto;
         } catch (retryError: unknown) {
-          const retryErr = retryError as { status?: number; missing?: boolean };
-          // Only log if it's not a 404 (404s are expected when creating new collection)
-          if (!(retryErr?.status === 404 || String(retryError).includes('404') || retryErr?.missing)) {
-            console.error('Failed to save photos after retry:', retryError);
-          }
-          // Still return null if retry failed
+          console.error('Failed to save photo after retry:', retryError);
           return null;
         }
       }
@@ -248,15 +230,15 @@ export function usePhotoAttachments() {
    */
   const updatePhotoCaption = useCallback(async (photoId: string, caption: string) => {
     try {
-      const updatedPhotos = photos.map(p =>
-        p.id === photoId ? { ...p, caption } : p
-      );
-      await remoteStorageClient.savePhotos(updatedPhotos);
-      setPhotos(updatedPhotos);
+      const existing = photosCollection.get().find(p => p.id === photoId);
+      if (!existing) return;
+      const updated = { ...existing, caption };
+      setPhotos(prev => prev.map(p => (p.id === photoId ? updated : p)));
+      await remoteStorageClient.updatePhoto(updated);
     } catch (error) {
       console.error('Failed to update photo caption:', error);
     }
-  }, [photos]);
+  }, []);
 
   /**
    * Get full image data (if stored)
@@ -268,8 +250,9 @@ export function usePhotoAttachments() {
     }
 
     try {
-      const file = await remoteStorageClient.getFullImage(photo.fullImagePath);
-      return file?.data || photo.thumbnail;
+      const blob = await remoteStorageClient.getFullImageBlob(photo.fullImagePath, photo.mimeType);
+      if (!blob) return photo.thumbnail;
+      return URL.createObjectURL(blob);
     } catch (error) {
       console.error('Failed to get full image:', error);
       return photo.thumbnail;

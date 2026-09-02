@@ -1,0 +1,39 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors the shared 'events' container — LifeEvent and Impact both write
+# schema:Event (see containers.ts). Disambiguated the same way
+# extractEventResource() does today: schema:startDate holding a bare
+# YYYY-MM-DD date (not a full datetime) means LifeEvent, not Impact.
+leptum:EventShape EXTRA a {
+  a [ schema:Event ] ;
+  schema:name xsd:string ? ;
+  schema:startDate xsd:string ? ;
+  schema:endDate xsd:string ? ;
+  schema:color xsd:string ? ;
+  dcterms:created xsd:dateTime ? ;
+
+  # Impact-only fields below — absent on LifeEvent resources.
+  schema:description xsd:string ? ;
+  schema:url xsd:string ? ;
+  schema:about IRI ? ;
+  schema:image IRI * ;
+  leptum:allDay xsd:boolean ? ;
+  leptum:dismissed xsd:boolean ? ;
+  leptum:requiresOnlineTime xsd:boolean ? ;
+  # Impact.{stress,fulfillment,...} are `string | number` app-side — modeled
+  # as xsd:string (same convention as task.shex's effort/emotions fields),
+  # assigned straight into that union without casting.
+  leptum:stress xsd:string ? ;
+  leptum:fulfillment xsd:string ? ;
+  leptum:motivation xsd:string ? ;
+  leptum:cleanliness xsd:string ? ;
+  leptum:happiness xsd:string ? ;
+  leptum:confidence xsd:string ? ;
+  leptum:energy xsd:string ? ;
+  leptum:focus xsd:string ? ;
+  leptum:shame xsd:string ? ;
+  leptum:guilt xsd:string ?
+}

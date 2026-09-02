@@ -1,0 +1,104 @@
+id: https://mpeters.dev/ns/leptum/linkml/routine
+name: leptum-routine
+description: >-
+  Routine with nested routine tasks, mirroring the Solid RDF written for
+  routines (schema:Action / ical:Vtodo / leptum:Routine).
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  ical: http://www.w3.org/2002/12/cal/ical#
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Routine:
+    tree_root: true
+    class_uri: schema:Action
+    description: >-
+      A scheduled routine. The ShEx shape requires one rdf:type from
+      schema:Action, ical:Vtodo, or leptum:Routine (class_uri is the first);
+      additional rdf:type values are permitted (ShEx EXTRA a).
+    attributes:
+      uid:
+        slot_uri: ical:uid
+        range: string
+      name:
+        slot_uri: schema:name
+        range: string
+      summary:
+        slot_uri: ical:summary
+        range: string
+      description:
+        slot_uri: schema:description
+        range: string
+      rrule:
+        slot_uri: ical:rrule
+        range: string
+      actionStatus:
+        slot_uri: schema:actionStatus
+        range: ActionStatusEnum
+      about:
+        slot_uri: schema:about
+        range: uri
+        multivalued: true
+      isShowUpRoutine:
+        slot_uri: leptum:isShowUpRoutine
+        range: boolean
+      routineTask:
+        slot_uri: leptum:routineTask
+        range: RoutineTask
+        inlined: true
+        multivalued: true
+  RoutineTask:
+    class_uri: schema:Action
+    description: >-
+      A task within a routine. The ShEx shape requires one rdf:type from
+      schema:Action or ical:Vtodo (class_uri is the first); additional
+      rdf:type values are permitted (ShEx EXTRA a).
+    attributes:
+      uid:
+        slot_uri: ical:uid
+        range: string
+      name:
+        slot_uri: schema:name
+        range: string
+      summary:
+        slot_uri: ical:summary
+        range: string
+      description:
+        slot_uri: schema:description
+        range: string
+      relatedTo:
+        slot_uri: ical:relatedTo
+        range: uri
+      actionStatus:
+        slot_uri: schema:actionStatus
+        range: ActionStatusEnum
+      completedAt:
+        slot_uri: leptum:completedAt
+        range: datetime
+      effort:
+        slot_uri: leptum:effort
+        range: string
+      numericEstimate:
+        slot_uri: leptum:numericEstimate
+        range: decimal
+      order:
+        slot_uri: leptum:order
+        range: decimal
+
+enums:
+  ActionStatusEnum:
+    permissible_values:
+      CompletedActionStatus:
+        meaning: schema:CompletedActionStatus
+      ActiveActionStatus:
+        meaning: schema:ActiveActionStatus
+      PotentialActionStatus:
+        meaning: schema:PotentialActionStatus
+      FailedActionStatus:
+        meaning: schema:FailedActionStatus

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { GOAL_TEMPLATES, GoalTemplate } from '../../utils/goalTemplates';
+import { Button } from '../ui/button';
 
 interface GoalTemplateGalleryProps {
   onSelectTemplate: (template: GoalTemplate | null) => void;
@@ -37,7 +38,7 @@ export default function GoalTemplateGallery({ onSelectTemplate }: GoalTemplateGa
           placeholder="Search templates..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          className="w-full px-4 py-2 rounded-lg border border-border bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
+          className="w-full px-4 py-2 rounded-control border border-border bg-background text-foreground placeholder-muted-foreground focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
 
@@ -47,7 +48,7 @@ export default function GoalTemplateGallery({ onSelectTemplate }: GoalTemplateGa
           <button
             key={template.id}
             onClick={() => onSelectTemplate(template)}
-            className="group relative p-4 rounded-lg border border-border bg-card hover:bg-accent hover:border-primary transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-primary"
+            className="group relative p-4 rounded-control border border-border bg-card hover:bg-accent hover:border-primary transition-all duration-200 text-left focus:outline-none focus:ring-2 focus:ring-primary"
           >
             {/* Icon and Color Indicator */}
             <div className="flex items-start gap-3 mb-3">
@@ -85,7 +86,7 @@ export default function GoalTemplateGallery({ onSelectTemplate }: GoalTemplateGa
             </div>
 
             {/* Hover Indicator */}
-            <div className="absolute inset-0 rounded-lg border-2 border-primary opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
+            <div className="absolute inset-0 rounded-control border-2 border-primary opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none" />
           </button>
         ))}
       </div>
@@ -120,12 +121,10 @@ export default function GoalTemplateGallery({ onSelectTemplate }: GoalTemplateGa
         <p className="text-sm text-muted-foreground mb-2">
           Prefer to start from scratch?
         </p>
-        <button
-          onClick={() => onSelectTemplate(null)}
-          className="min-h-[44px] px-4 py-2 rounded-lg border border-border bg-background text-foreground hover:bg-accent hover:border-primary transition-colors"
-        >
+        <Button variant="outline" onClick={() => onSelectTemplate(null)}>
           Create Custom Goal
-        </button>
+        </Button>
+
       </div>
     </div>
   );

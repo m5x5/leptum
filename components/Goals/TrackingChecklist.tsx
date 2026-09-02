@@ -1,9 +1,10 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback, type ReactNode } from 'react';
 import { Goal, GoalTrackingConfig, DailyTrackingEntry } from '../../utils/useGoals';
 import { remoteStorageClient, Routine } from '../../lib/remoteStorage';
+import { fetchActiveTasks, setTasksCache, markSelfWrite } from '../../lib/query/collections';
 import { useRoutineCompletions } from '../../utils/useRoutineCompletions';
 import { v4 as uuidv4 } from 'uuid';
-import { CheckIcon } from '@heroicons/react/solid';
+import { Checkbox } from '../ui/checkbox';
 
 interface TrackingChecklistProps {
   goal: Goal;
@@ -14,6 +15,9 @@ interface TrackingChecklistProps {
   showHistory?: boolean;
   showQuickAdd?: boolean;
   routineName?: string; // Optional: filter to show only the option matching this routine name
+  /** When set with routineCardActions + embedded: checkbox sits in the lead column; title row is not duplicated below */
+  routineCardHeader?: ReactNode;
+  routineCardActions?: ReactNode;
 }
 
 // Helper to get start of day timestamp
@@ -23,7 +27,19 @@ function getStartOfDay(): number {
   return today.getTime();
 }
 
-export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, embedded = false, showHistory = true, showQuickAdd: _showQuickAdd = true, routineName }: TrackingChecklistProps) {
+export function TrackingChecklist({
+  goal,
+  config,
+  entries: _entries,
+  onUpdate,
+  embedded = false,
+  showHistory = true,
+  showQuickAdd: _showQuickAdd = true,
+  routineName,
+  routineCardHeader,
+  routineCardActions,
+}: TrackingChecklistProps) {
+  const mergedRoutineHeader = Boolean(embedded && routineCardHeader && routineCardActions);
   const { completions, reload: reloadCompletions, loading: completionsLoading } = useRoutineCompletions();
   
   // Find all linked routines for this goal (nutrition has multiple routines)
@@ -126,23 +142,18 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
   
   // Determine which items are completed based on task names in completions
   // We'll check the standalone tasks to see which meal types were logged
-  const [completedItems, setCompletedItems] = useState<Set<string>>(new Set());
-  
-  useEffect(() => {
-    if (linkedRoutines.length === 0) {
-      setCompletedItems(new Set());
-      return;
-    }
-    
+  const completedItems = useMemo(() => {
+    if (linkedRoutines.length === 0) return new Set<string>();
+
     // Map completions to meal types based on routine names
     const completed = new Set<string>();
-    
+
     todayCompletions.forEach((completion) => {
       // Find which routine this completion belongs to
       const routine = linkedRoutines.find(
         r => r.id === completion.routineId || r.name === completion.routineName
       );
-      
+
       if (routine) {
         // Match routine to meal type based on routine name
         options.forEach(option => {
@@ -152,11 +163,11 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
         });
       }
     });
-    
-    setCompletedItems(completed);
-  }, [todayCompletions, linkedRoutines, optionsString, options]);
+
+    return completed;
+  }, [todayCompletions, linkedRoutines, options]);
   
-  const toggleItem = async (item: string) => {
+  const toggleItem = useCallback(async (item: string) => {
     if (linkedRoutines.length === 0) return;
     
     const isCompleted = completedItems.has(item);
@@ -186,17 +197,17 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
           
           await remoteStorageClient.deleteRoutineCompletion(completionToRemove.routineInstanceId);
           
-          // Also delete associated tasks (batch delete to avoid conflicts)
-          const tasks = await remoteStorageClient.getStandaloneTasks();
+          // Also delete the tasks that belonged to that routine instance — one
+          // DELETE each, against the cached task list.
+          const tasks = await fetchActiveTasks();
           const tasksToDelete = tasks.filter(
             (t) => t.routineInstanceId === completionToRemove.routineInstanceId
           );
-
-          // Batch delete: remove all tasks in one operation
           if (tasksToDelete.length > 0) {
-            const taskIdsToDelete = new Set(tasksToDelete.map((t) => t.id));
-            const remainingTasks = tasks.filter((t) => !taskIdsToDelete.has(t.id));
-            await remoteStorageClient.saveStandaloneTasks(remainingTasks);
+            const ids = new Set(tasksToDelete.map((t) => t.id));
+            markSelfWrite('tasks');
+            setTasksCache((prev) => prev.filter((t) => !ids.has(t.id)));
+            await Promise.all(tasksToDelete.map((t) => remoteStorageClient.deleteStandaloneTask(t.id)));
           }
         }
       } catch (error) {
@@ -217,7 +228,7 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
       };
       await remoteStorageClient.addRoutineCompletion(completion);
       
-      // Small delay to prevent overwhelming RemoteStorage sync
+      // Small delay to avoid overwhelming storage writes
       await new Promise(resolve => setTimeout(resolve, 100));
       
       // Create StandaloneTask with meal name
@@ -238,15 +249,31 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
     await reloadCompletions();
     window.dispatchEvent(new CustomEvent('tasksUpdated'));
     onUpdate();
-  };
+  }, [linkedRoutines, completedItems, mealTypeToRoutine, todayCompletions, goal.id, reloadCompletions, onUpdate]);
   
   // Show loading state
   if (routineLoading || completionsLoading) {
+    if (mergedRoutineHeader) {
+      return (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-start gap-2">
+              <div className="flex shrink-0 flex-col gap-2" aria-hidden>
+                <div className="h-5 w-5 shrink-0 animate-pulse rounded-md bg-muted/50" />
+              </div>
+              {routineCardHeader}
+            </div>
+            {routineCardActions}
+          </div>
+          <p className="text-sm text-muted-foreground">Loading...</p>
+        </div>
+      );
+    }
     if (embedded) {
       return <div className="text-sm text-muted-foreground">Loading...</div>;
     }
     return (
-      <div className="bg-card border border-border rounded-lg p-4">
+      <div className="bg-card border border-border rounded-control p-4">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-2xl">{config.icon}</span>
           <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>
@@ -258,6 +285,24 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
   
   // Show message if no routines are linked
   if (linkedRoutines.length === 0) {
+    if (mergedRoutineHeader) {
+      return (
+        <div className="flex flex-col gap-2">
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-start gap-2">
+              <div className="shrink-0 pt-0.5" aria-hidden>
+                <div className="h-5 w-5 rounded-md border border-dashed border-border bg-muted/20" />
+              </div>
+              {routineCardHeader}
+            </div>
+            {routineCardActions}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            No routines linked to this goal. Apply the template to create meal reminder routines.
+          </p>
+        </div>
+      );
+    }
     if (embedded) {
       return (
         <div className="text-sm text-muted-foreground">
@@ -266,7 +311,7 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
       );
     }
     return (
-      <div className="bg-card border border-border rounded-lg p-4">
+      <div className="bg-card border border-border rounded-control p-4">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-2xl">{config.icon}</span>
           <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>
@@ -281,123 +326,155 @@ export function TrackingChecklist({ goal, config, entries: _entries, onUpdate, e
   const completedCount = completedItems.size;
   const target = config.dailyTarget || options.length;
   
-  const containerClass = embedded ? "" : "bg-card border border-border rounded-lg p-4";
+  const containerClass = embedded ? "" : "bg-card border border-border rounded-control p-4";
   const titleSection = embedded ? null : (
     <div className="flex items-center gap-2 mb-3">
       <span className="text-2xl">{config.icon}</span>
       <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>
     </div>
   );
-  
-  return (
-    <div className={containerClass}>
-      {titleSection}
-      
-      <div className={embedded ? "mb-0" : "mb-4"}>
-        {!embedded && (
-          <>
-            <div className="flex items-baseline gap-2 mb-2">
-              <span className="text-2xl font-bold text-foreground">Today: {completedCount}</span>
-              <span className="text-muted-foreground">/ {target} {config.unit}</span>
-            </div>
 
-            {/* Progress bar */}
-            <div className="w-full bg-muted rounded-full h-3 mb-4">
-              <div
-                className="bg-primary rounded-full h-3 transition-all"
-                style={{ width: `${Math.min((completedCount / target) * 100, 100)}%` }}
-              />
-            </div>
-          </>
-        )}
-        
-        {/* Checklist items */}
-        <div className={`space-y-2 ${embedded ? 'mb-0' : 'mb-4'}`}>
-          {options.map((option, index) => {
-            const isChecked = completedItems.has(option);
+  const historyBlock =
+    showHistory && (
+      <div className={`${embedded ? "mt-3 pt-3" : "mt-4 pt-4"} border-t border-border`}>
+        <h4 className={`${embedded ? "text-xs" : "text-sm"} mb-2 font-medium text-muted-foreground`}>Last 7 days</h4>
+        <div className="flex h-16 items-end gap-1">
+          {Array.from({ length: 7 }).map((_, index) => {
+            const date = new Date();
+            date.setDate(date.getDate() - (6 - index));
+            const dateStart = new Date(date);
+            dateStart.setHours(0, 0, 0, 0);
+            const dateEnd = new Date(date);
+            dateEnd.setHours(23, 59, 59, 999);
+
+            const dayCompletions =
+              linkedRoutines.length > 0
+                ? completions.filter((c) => {
+                    const matchesRoutine = linkedRoutines.some(
+                      (r) => c.routineId === r.id || c.routineName === r.name
+                    );
+                    const isInDateRange =
+                      c.completedAt >= dateStart.getTime() && c.completedAt <= dateEnd.getTime();
+                    return matchesRoutine && isInDateRange;
+                  })
+                : [];
+
+            const uniqueMeals = new Set<string>();
+            dayCompletions.forEach((c) => {
+              const routine = linkedRoutines.find((r) => r.id === c.routineId || r.name === c.routineName);
+              if (routine) {
+                options.forEach((option) => {
+                  if (routine.name.toLowerCase().includes(option.toLowerCase())) {
+                    uniqueMeals.add(option);
+                  }
+                });
+              }
+            });
+
+            const value = uniqueMeals.size;
+            const height = target > 0 ? Math.min((value / target) * 100, 100) : 0;
+
             return (
-              <button
-                key={index}
-                onClick={() => toggleItem(option)}
-                className={`w-full min-h-[44px] flex items-center gap-3 p-3 rounded-lg border transition-all ${
-                  isChecked
-                    ? 'bg-primary/10 border-primary text-foreground'
-                    : 'bg-muted/50 border-border text-muted-foreground hover:bg-muted'
-                }`}
-              >
-                <div className={`flex-shrink-0 w-5 h-5 rounded border-2 flex items-center justify-center ${
-                  isChecked ? 'bg-primary border-primary' : 'border-border'
-                }`}>
-                  {isChecked && <CheckIcon className="w-4 h-4 text-primary-foreground" />}
-                </div>
-                <span className={`flex-1 text-left font-medium ${isChecked ? 'text-foreground' : 'text-muted-foreground'}`}>
-                  {option}
+              <div key={index} className="flex flex-1 flex-col items-center gap-1">
+                <div
+                  className="w-full rounded-t bg-primary transition-all"
+                  style={{ height: `${height}%`, minHeight: value > 0 ? "4px" : "0" }}
+                  title={`${date.toLocaleDateString("en-US", { month: "short", day: "numeric" })}: ${value} ${config.unit}`}
+                />
+                <span className="text-xs text-muted-foreground">
+                  {date.toLocaleDateString("en-US", { day: "numeric" })}
                 </span>
-              </button>
+              </div>
             );
           })}
         </div>
       </div>
-      
-      {/* 7-day history */}
-      {showHistory && (
-        <div className={`${embedded ? 'mt-3 pt-3' : 'mt-4 pt-4'} border-t border-border`}>
-          <h4 className={`${embedded ? 'text-xs' : 'text-sm'} font-medium text-muted-foreground mb-2`}>Last 7 days</h4>
-          <div className="flex gap-1 items-end h-16">
-            {Array.from({ length: 7 }).map((_, index) => {
-              const date = new Date();
-              date.setDate(date.getDate() - (6 - index));
-              const dateStart = new Date(date);
-              dateStart.setHours(0, 0, 0, 0);
-              const dateEnd = new Date(date);
-              dateEnd.setHours(23, 59, 59, 999);
-              
-              // Count unique meal types for this day
-              const dayCompletions = linkedRoutines.length > 0
-                ? completions.filter(
-                    c => {
-                      const matchesRoutine = linkedRoutines.some(
-                        r => c.routineId === r.id || c.routineName === r.name
-                      );
-                      const isInDateRange = c.completedAt >= dateStart.getTime() && c.completedAt <= dateEnd.getTime();
-                      return matchesRoutine && isInDateRange;
-                    }
-                  )
-                : [];
-              
-              // Count unique meal types (one per routine)
-              const uniqueMeals = new Set<string>();
-              dayCompletions.forEach((c) => {
-                const routine = linkedRoutines.find(
-                  r => r.id === c.routineId || r.name === c.routineName
-                );
-                if (routine) {
-                  options.forEach(option => {
-                    if (routine.name.toLowerCase().includes(option.toLowerCase())) {
-                      uniqueMeals.add(option);
-                    }
-                  });
-                }
-              });
-              
-              const value = uniqueMeals.size;
-              const height = target > 0 ? Math.min((value / target) * 100, 100) : 0;
-              
-              return (
-                <div key={index} className="flex-1 flex flex-col items-center gap-1">
-                  <div
-                    className="w-full bg-primary rounded-t transition-all"
-                    style={{ height: `${height}%`, minHeight: value > 0 ? '4px' : '0' }}
-                    title={`${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${value} ${config.unit}`}
-                  />
-                  <span className={`${embedded ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
-                    {date.toLocaleDateString('en-US', { day: 'numeric' })}
+    );
+
+  return (
+    <div className={containerClass}>
+      {titleSection}
+
+      {mergedRoutineHeader ? (
+        <>
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2">
+              <div className="flex shrink-0 flex-col gap-2">
+                {options.map((option, index) => {
+                  const isChecked = completedItems.has(option);
+                  const inputId = `tracking-check-${goal.id}-${index}`;
+                  return (
+                    <Checkbox
+                      key={inputId}
+                      id={inputId}
+                      boxSize="lg"
+                      compact
+                      checked={isChecked}
+                      onCheckedChange={() => {
+                        void toggleItem(option);
+                      }}
+                      aria-label={option}
+                      className={isChecked ? "border border-primary/40" : "border border-muted-foreground/30 bg-muted/40"}
+                    />
+                  );
+                })}
+              </div>
+              <div className="min-w-0 flex-1">{routineCardHeader}</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">{routineCardActions}</div>
+          </div>
+          {historyBlock}
+        </>
+      ) : (
+        <>
+          <div className={embedded ? "mb-0" : "mb-4"}>
+            {!embedded && (
+              <>
+                <div className="mb-2 flex items-baseline gap-2">
+                  <span className="text-2xl font-semibold text-foreground">Today: {completedCount}</span>
+                  <span className="text-muted-foreground">
+                    / {target} {config.unit}
                   </span>
                 </div>
-              );
-            })}
+
+                <div className="mb-4 h-3 w-full rounded-full bg-muted">
+                  <div
+                    className="h-3 rounded-full bg-primary transition-all"
+                    style={{ width: `${Math.min((completedCount / target) * 100, 100)}%` }}
+                  />
+                </div>
+              </>
+            )}
+
+            <div className={`space-y-2 ${embedded ? "mb-0" : "mb-4"}`}>
+              {options.map((option, index) => {
+                const isChecked = completedItems.has(option);
+                const inputId = `tracking-check-${goal.id}-${index}`;
+                return (
+                  <div key={index} className="flex min-h-[44px] items-center gap-3 py-0.5">
+                    <Checkbox
+                      id={inputId}
+                      checked={isChecked}
+                      onCheckedChange={() => {
+                        void toggleItem(option);
+                      }}
+                    />
+                    <label
+                      htmlFor={inputId}
+                      className={`flex-1 cursor-pointer text-left text-sm font-medium leading-snug ${
+                        isChecked ? "text-foreground" : "text-muted-foreground"
+                      }`}
+                    >
+                      {option}
+                    </label>
+                  </div>
+                );
+              })}
+            </div>
           </div>
-        </div>
+
+          {historyBlock}
+        </>
       )}
     </div>
   );

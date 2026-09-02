@@ -6,6 +6,8 @@ import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
 import { PlusIcon } from "@heroicons/react/solid";
 import AddGoalTypeModal from "../../components/Modal/AddGoalTypeModal";
+import { Spinner } from "../../components/ui/spinner";
+import { Button } from "../../components/ui/button";
 
 export default function GoalsPageContent() {
   const { goals, isError } = useGoals();
@@ -29,21 +31,21 @@ export default function GoalsPageContent() {
   }, []);
 
   if (isError) return <div>Failed to load. Press F5 to retry.</div>;
-  if (!goals) return <div>loading...</div>;
+  if (!goals) return <div className="p-8 flex justify-center"><Spinner className="h-6 w-6 text-muted-foreground" /></div>;
   if (isErrorGoalTypes) return <div>Failed to load. Press F5 to retry.</div>;
-  if (!goalTypes) return <div>loading...</div>;
+  if (!goalTypes) return <div className="p-8 flex justify-center"><Spinner className="h-6 w-6 text-muted-foreground" /></div>;
 
   return (
     <>
-      <div className="mb-4 flex justify-end">
-        <button
-          onClick={() => setShowAddGoalTypeModal(true)}
-          className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
-        >
-          <PlusIcon className="w-5 h-5" />
-          <span>Add Goal Category</span>
-        </button>
-      </div>
+      <Button
+        size="lg"
+        onClick={() => setShowAddGoalTypeModal(true)}
+        aria-label="Add goal category"
+        className="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] shadow-lg"
+      >
+        <PlusIcon />
+        <span>Add</span>
+      </Button>
 
       <AddGoalTypeModal
         isOpen={showAddGoalTypeModal}
@@ -62,11 +64,6 @@ export default function GoalsPageContent() {
             items={goals.filter((goal) => goal.type === goalType.id)}
           />
         ))}
-        {goalTypes.length === 0 && (
-          <div className="col-span-1 md:col-span-2 text-center py-8 text-muted-foreground">
-            No goal categories yet. Click &quot;Add Goal Category&quot; to create one.
-          </div>
-        )}
       </div>
     </>
   );

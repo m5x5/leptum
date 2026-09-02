@@ -1,0 +1,42 @@
+@prefix oa: <http://www.w3.org/ns/oa#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:MentionShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors Mention (lib/remoteStorage.ts) as written by mentionToRdf and read by extractMention. sourceType can't be recovered from oa:hasTarget alone — left as 'unknown', same as extractMention() today." ;
+  sh:targetClass oa:Annotation ;
+  sh:property [
+    sh:path oa:hasTarget ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path oa:hasBody ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:fieldName ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:context ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:position ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path dcterms:created ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1 ;
+  ] .

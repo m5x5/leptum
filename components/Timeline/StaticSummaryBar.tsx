@@ -107,7 +107,7 @@ export const StaticSummaryBar = memo(function StaticSummaryBar({
   return (
     <div className="relative">
       <div
-        className="relative h-8 rounded-lg overflow-hidden border border-border bg-muted/20"
+        className="relative h-8 rounded-control overflow-hidden border border-border bg-muted/20"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >

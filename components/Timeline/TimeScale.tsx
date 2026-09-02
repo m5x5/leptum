@@ -5,7 +5,7 @@ import { CALENDAR_PX_PER_HOUR, CALENDAR_DAY_HEIGHT } from "./calendarConstants";
 export function TimeScale() {
   return (
     <div
-      className="flex flex-col shrink-0 text-xs font-mono text-muted-foreground pr-2"
+      className="flex flex-col shrink-0 text-xs text-muted-foreground pr-2"
       style={{ width: "3rem", height: CALENDAR_DAY_HEIGHT }}
     >
       {Array.from({ length: 24 }, (_, h) => (
@@ -17,7 +17,7 @@ export function TimeScale() {
             lineHeight: `${CALENDAR_PX_PER_HOUR}px`,
           }}
         >
-          {h.toString().padStart(2, "0")}:00
+          {h}
         </div>
       ))}
     </div>

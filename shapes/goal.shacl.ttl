@@ -1,0 +1,162 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:GoalShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors Goal (lib/remoteStorage.ts) as written by goalToRdf and read by extractGoal. milestones/trackingConfig/trackingData didn't round-trip through the flat Fact[] reader — restoring them is the highest-value fix in the ldo migration. Additional rdf:type values are permitted (ShEx EXTRA a)." ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( schema:Action leptum:Goal ) ] ;
+    sh:qualifiedMinCount 1
+  ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:color ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:additionalType ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:actionStatus ;
+    sh:in ( schema:CompletedActionStatus schema:ActiveActionStatus schema:PotentialActionStatus schema:FailedActionStatus ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:endTime ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path dcterms:created ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:completedAt ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:milestone ;
+    sh:node leptum:MilestoneShape
+  ] ;
+  sh:property [
+    sh:path leptum:trackingConfig ;
+    sh:node leptum:TrackingConfigShape ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:trackingEntry ;
+    sh:node leptum:TrackingEntryShape
+  ] .
+
+leptum:MilestoneShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:endTime ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:actionStatus ;
+    sh:in ( schema:CompletedActionStatus schema:PotentialActionStatus ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:completedAt ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:order ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] .
+
+leptum:TrackingConfigShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path leptum:trackingType ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Should be a value-set enum (counter/checklist/timer/amount) matching GoalTrackingConfig['type'] — left as xsd:string, same @ldo/cli literal-enum crash workaround as task.shex's effort field."
+  ] ;
+  sh:property [
+    sh:path leptum:unit ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:icon ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:dailyTarget ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:maxPerDay ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:increments ;
+    sh:datatype xsd:decimal
+  ] ;
+  sh:property [
+    sh:path leptum:options ;
+    sh:datatype xsd:string
+  ] .
+
+leptum:TrackingEntryShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path leptum:date ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:value ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:completed ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:notes ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:timestamp ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] .

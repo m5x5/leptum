@@ -1,6 +1,12 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { Button } from './button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from './dropdown-menu';
 
 interface ImportSourceButtonProps {
   onActivityWatch: () => void;
@@ -14,73 +20,39 @@ export function ImportSourceButton({
   onGoogleCalendar,
   size = 'md',
 }: ImportSourceButtonProps) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef<HTMLDivElement>(null);
-
-  // Close on outside click
-  useEffect(() => {
-    if (!open) return;
-    const handler = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) {
-        setOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [open]);
-
-  const pick = (fn: () => void) => {
-    setOpen(false);
-    fn();
-  };
-
-  const btnCls = size === 'sm'
-    ? 'flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-lg hover:bg-muted/60 transition text-foreground'
-    : 'hidden md:flex items-center gap-2 px-4 py-2 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold';
-
   return (
-    <div ref={ref} className="relative">
-      <button
-        type="button"
-        onClick={() => setOpen(v => !v)}
-        className={btnCls}
-        aria-haspopup="true"
-        aria-expanded={open}
-      >
-        <UploadIcon className={size === 'sm' ? 'w-4 h-4' : 'w-5 h-5'} />
-        Import
-        <svg className="w-3 h-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-        </svg>
-      </button>
-
-      {open && (
-        <div className="absolute left-0 top-full mt-1 w-52 rounded-lg border border-border bg-popover shadow-lg z-50 py-1 text-sm">
-          <button
-            type="button"
-            onClick={() => pick(onActivityWatch)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/60 transition-colors text-left"
-          >
-            <AWIcon />
-            <div>
-              <div className="font-medium text-foreground">ActivityWatch</div>
-              <div className="text-xs text-muted-foreground">Import from JSON file</div>
-            </div>
-          </button>
-          <button
-            type="button"
-            onClick={() => pick(onGoogleCalendar)}
-            className="w-full flex items-center gap-3 px-3 py-2.5 hover:bg-muted/60 transition-colors text-left"
-          >
-            <GCalIcon />
-            <div>
-              <div className="font-medium text-foreground">Google Calendar</div>
-              <div className="text-xs text-muted-foreground">Sign in &amp; pick a calendar</div>
-            </div>
-          </button>
-        </div>
-      )}
-    </div>
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          type="button"
+          variant={size === 'sm' ? 'outline' : 'secondary'}
+          size="sm"
+          className={size === 'sm' ? 'gap-1.5' : 'hidden md:inline-flex md:px-4'}
+        >
+          <UploadIcon />
+          Import
+          <svg className="!size-3 opacity-60" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-56">
+        <DropdownMenuItem onSelect={onActivityWatch} className="gap-3 py-2.5">
+          <AWIcon />
+          <div>
+            <div className="font-medium text-foreground">ActivityWatch</div>
+            <div className="text-xs text-muted-foreground">Import from JSON file</div>
+          </div>
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={onGoogleCalendar} className="gap-3 py-2.5">
+          <GCalIcon />
+          <div>
+            <div className="font-medium text-foreground">Google Calendar</div>
+            <div className="text-xs text-muted-foreground">Sign in &amp; pick a calendar</div>
+          </div>
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }
 
@@ -94,7 +66,7 @@ function UploadIcon({ className }: { className?: string }) {
 
 function AWIcon() {
   return (
-    <div className="w-7 h-7 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0 text-xs font-bold">
+    <div className="w-7 h-7 rounded bg-primary/10 text-primary flex items-center justify-center shrink-0 text-xs font-semibold">
       AW
     </div>
   );

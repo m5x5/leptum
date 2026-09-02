@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Modal from ".";
 import EmotionSelector, { Emotion } from "../ui/emotion-selector";
+import { Button } from "../ui/button";
 import {
   Drawer,
   DrawerContent,
@@ -54,18 +55,19 @@ export default function TaskCompletionModal({
               className="mb-6"
             />
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="secondary"
                 onClick={handleSkip}
-                className="min-h-[44px] flex-1 px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+                className="flex-1"
               >
                 Skip
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={handleComplete}
-                className="min-h-[44px] flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
+                className="flex-1"
               >
                 Complete
-              </button>
+              </Button>
             </div>
           </div>
         </DrawerContent>
@@ -87,18 +89,17 @@ export default function TaskCompletionModal({
       </Modal.Body>
       <Modal.Footer>
         <div className="flex gap-2 justify-end w-full">
-          <button
+          <Button
+            variant="secondary"
             onClick={handleSkip}
-            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
           >
             Skip
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={handleComplete}
-            className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
           >
             Complete
-          </button>
+          </Button>
         </div>
       </Modal.Footer>
     </Modal>

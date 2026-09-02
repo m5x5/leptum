@@ -1,663 +1,39 @@
-// Dynamic imports to avoid SSR issues
+import type { LocationUpdate, GroceryNotification, GroceryStore } from '../types/grocery';
+import type { ExperimentId } from './experiments';
+import { getSolidSessionIfActive } from './solidAuth';
+import * as solidTasks from './solidRdf/taskBackend';
+import { getResolvedContainers } from './solidRdf/activeContainers';
+import { goalBackend } from './solidRdf/goalBackend';
+import { goalTypeBackend } from './solidRdf/goalTypeBackend';
+import { insightBackend } from './solidRdf/insightBackend';
+import { patternNoteBackend } from './solidRdf/patternNoteBackend';
+import * as solidQuickNotes from './solidRdf/quickNoteBackend';
+import { velocityBackend } from './solidRdf/velocityBackend';
+import { impactBackend } from './solidRdf/impactBackend';
+import { emitPodWrite } from './podWriteBus';
+import { lifeEventBackend } from './solidRdf/lifeEventBackend';
+import { routineCompletionBackend } from './solidRdf/routineCompletionBackend';
+import { activityWatchBackend } from './solidRdf/activityWatchBackend';
+import * as solidPhotos from './solidRdf/imageBackend';
+import * as solidWeekReflections from './solidRdf/weekReflectionBackend';
+import * as solidEntities from './solidRdf/entityBackend';
+import * as solidMentions from './solidRdf/mentionBackend';
+import * as solidRoutines from './solidRdf/routineBackend';
+import { userSettingsBackend } from './solidRdf/userSettingsBackend';
+import { getSolidProfileBirthDate } from './solidProfile';
+import { locationBackend } from './solidRdf/locationBackend';
+import { groceryStoreBackend } from './solidRdf/groceryStoreBackend';
+import { groceryNotificationBackend } from './solidRdf/groceryNotificationBackend';
+import { healthBackend } from './solidRdf/healthBackend';
 
-// Minimal interface for the RemoteStorage library (untyped third-party)
-interface RemoteStorageInstance {
-  access: { claim: (scope: string, mode: string) => void };
-  scope: (path: string) => RemoteStorageScopedClient;
-  setApiKeys: (keys: Record<string, string>) => void;
-  on: (event: string, callback: (...args: unknown[]) => void) => void;
-  connected: boolean;
-  _handlers?: Record<string, ((...args: unknown[]) => void)[]>;
-  // Fields used by the React widget
-  apiKeys: Record<string, unknown>;
-  backend: string;
-  remote: { userAddress: string };
-  connect: (userAddress: string) => void;
-  disconnect: () => void;
-  reconnect: () => void;
-  startSync: () => void;
-  stopSync: () => void;
-  hasFeature: (feature: string) => boolean;
-  dropbox?: { connect(): void };
-  googledrive?: { connect(): void };
-}
-
-interface RemoteStorageScopedClient {
-  declareType: (name: string, schema: Record<string, unknown>) => void;
-  storeObject: (type: string, path: string, obj: unknown) => Promise<unknown>;
-  storeFile: (mimeType: string, path: string, data: string) => Promise<unknown>;
-  getObject: (path: string) => Promise<Record<string, unknown> | null>;
-  getFile: (path: string) => Promise<{ data: string } | null>;
-  getAll: (path: string) => Promise<Record<string, unknown>>;
-  remove: (path: string) => Promise<unknown>;
-  cache: (path: string) => void;
-  on: (event: string, callback: (event: RemoteStorageChangeEvent) => void) => void;
-}
-
-export interface RemoteStorageChangeEvent {
+export interface StorageChangeEvent {
   relativePath: string;
   origin: string;
   oldValue: unknown;
   newValue: unknown;
 }
 
-let RemoteStorage: new (opts: Record<string, unknown>) => RemoteStorageInstance;
-
-if (typeof window !== 'undefined') {
-  RemoteStorage = require('remotestoragejs');
-}
-
-// Data schemas for RemoteStorage
-const JobSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    cron: { type: 'string' },
-    status: { type: 'string' },
-    index: { type: 'number' },
-    name: { type: 'string' },
-    lastEndTime: { type: 'number' },
-    habits: { 
-      type: 'array',
-      items: {
-        type: 'object',
-        properties: {
-          id: { type: 'string' },
-          name: { type: 'string' },
-          jobId: { type: 'string' },
-          index: { type: 'number' },
-          status: { type: 'string' },
-          description: { type: 'string' }
-        }
-      }
-    }
-  },
-  required: ['id', 'cron', 'status', 'index', 'name', 'lastEndTime', 'habits']
-};
-
-const GoalMilestoneSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    targetDate: { type: ['number', 'null'] },
-    completed: { type: 'boolean' },
-    completedAt: { type: ['number', 'null'] },
-    order: { type: 'number' }
-  },
-  required: ['id', 'name', 'completed', 'order']
-};
-
-const DailyTrackingEntrySchema = {
-  type: 'object',
-  properties: {
-    date: { type: 'string' }, // YYYY-MM-DD format
-    value: { type: 'number' },
-    completed: { type: 'boolean' },
-    notes: { type: 'string' },
-    timestamp: { type: 'number' }
-  },
-  required: ['date']
-};
-
-const GoalTrackingConfigSchema = {
-  type: 'object',
-  properties: {
-    type: { type: 'string', enum: ['counter', 'checklist', 'timer', 'amount'] },
-    unit: { type: 'string' },
-    icon: { type: 'string' },
-    dailyTarget: { type: 'number' },
-    maxPerDay: { type: 'number' },
-    increments: {
-      type: 'array',
-      items: { type: 'number' }
-    },
-    options: {
-      type: 'array',
-      items: { type: 'string' }
-    }
-  },
-  required: ['type', 'unit', 'icon']
-};
-
-const GoalSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    type: { type: 'string' },
-    color: { type: ['string', 'null'] },
-    description: { type: ['string', 'null'] },
-    targetDate: { type: ['number', 'null'] },
-    createdAt: { type: ['number', 'null'] },
-    completedAt: { type: ['number', 'null'] },
-    status: { type: ['string', 'null'] },
-    milestones: {
-      type: ['array', 'null'],
-      items: GoalMilestoneSchema
-    },
-    templateId: { type: ['string', 'null'] }, // Reference to goal template
-    trackingConfig: GoalTrackingConfigSchema, // Configuration for visual tracking
-    trackingData: {
-      type: ['object', 'null'],
-      properties: {
-        entries: {
-          type: 'array',
-          items: DailyTrackingEntrySchema
-        }
-      }
-    }
-  },
-  required: ['id', 'name', 'type']
-};
-
-const GoalTypeSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    description: { type: ['string', 'null'] } // Optional rich text description
-  },
-  required: ['id', 'name']
-};
-
-// Photo attachment schema for mood entries
-const PhotoAttachmentSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    impactId: { type: 'string' },
-    thumbnail: { type: 'string' }, // Base64 encoded thumbnail (max ~50KB)
-    fullImagePath: { type: ['string', 'null'] }, // Optional path to full image in RemoteStorage
-    mimeType: { type: 'string' },
-    width: { type: ['number', 'null'] }, // Optional width
-    height: { type: ['number', 'null'] }, // Optional height
-    createdAt: { type: 'number' },
-    caption: { type: ['string', 'null'] } // Optional caption
-  },
-  required: ['id', 'impactId', 'thumbnail', 'mimeType', 'createdAt']
-};
-
-const PhotosCollectionSchema = {
-  type: 'object',
-  properties: {
-    photos: {
-      type: 'array',
-      items: PhotoAttachmentSchema
-    }
-  },
-  required: ['photos']
-};
-
-const ImpactSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    activity: { type: 'string' },
-    date: { type: 'number', default: Date.now() },
-    stress: { type: ['string', 'number'] },
-    fulfillment: { type: ['string', 'number'] },
-    motivation: { type: ['string', 'number'] },
-    cleanliness: { type: ['string', 'number'] },
-    happiness: { type: ['string', 'number'] },
-    confidence: { type: ['string', 'number'] },
-    energy: { type: ['string', 'number'] },
-    focus: { type: ['string', 'number'] },
-    shame: { type: ['string', 'number'] },
-    guilt: { type: ['string', 'number'] },
-    goalId: { type: 'string' },
-    notes: { type: 'string' },
-    endTime: { type: 'number' },
-    allDay: { type: 'boolean' },
-    sourceUrl: { type: 'string' },
-    photoIds: { type: 'array', items: { type: 'string' } }, // References to photo attachments
-    requiresOnlineTime: { type: 'boolean' }
-  },
-  required: ['activity']
-};
-
-const ImpactsCollectionSchema = {
-  type: 'object',
-  properties: {
-    impacts: {
-      type: 'array',
-      items: ImpactSchema
-    }
-  },
-  required: ['impacts']
-};
-
-const StackHabitSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    id: { type: 'string' }
-  },
-  required: ['name', 'id']
-};
-
-const StackSchema = {
-  type: 'object',
-  properties: {
-    name: { type: 'string' },
-    habits: {
-      type: 'array',
-      items: StackHabitSchema
-    }
-  },
-  required: ['name']
-};
-
-const StandaloneTaskSchema = {
-   type: 'object',
-   properties: {
-      id: { type: 'string' },
-      name: { type: 'string' },
-      description: { type: 'string' },
-      status: { type: 'string' },
-      createdAt: { type: 'number' },
-      completedAt: { type: 'number' },
-      archivedAt: { type: 'number' },
-      goalId: { type: 'string' },
-      effort: { type: 'string', enum: ['XS', 'S', 'M', 'L', 'XL'] },
-      numericEstimate: { type: 'number' },
-      emotions: { 
-        type: 'array', 
-        items: { 
-          type: 'string',
-          enum: ['happy', 'sad', 'neutral', 'excited', 'anxious', 'calm', 'frustrated', 'proud', 'tired', 'energized']
-        } 
-      },
-      routineId: { type: 'string' },
-      routineInstanceId: { type: 'string' },
-      lat: { type: 'number' },
-      lon: { type: 'number' },
-      indoorX: { type: 'number' },
-      indoorY: { type: 'number' }
-   },
-   required: ['id', 'name', 'status', 'createdAt']
-};
-
-const StandaloneTasksCollectionSchema = {
-  type: 'object',
-  properties: {
-    tasks: {
-      type: 'array',
-      items: StandaloneTaskSchema
-    }
-  },
-  required: ['tasks']
-};
-
-// Home tasks: single file for non-archived tasks (homepage loads this only)
-const HomeTasksCollectionSchema = {
-  type: 'object',
-  properties: {
-    tasks: {
-      type: 'array',
-      items: StandaloneTaskSchema
-    }
-  },
-  required: ['tasks']
-};
-
-// Archived tasks: buckets with timestamp name, max 250 tasks per bucket
-const ArchivedBucketSchema = {
-  type: 'object',
-  properties: {
-    tasks: {
-      type: 'array',
-      items: StandaloneTaskSchema
-    },
-    createdAt: { type: 'number' }
-  },
-  required: ['tasks', 'createdAt']
-};
-
-const ArchivedIndexSchema = {
-  type: 'object',
-  properties: {
-    bucketIds: {
-      type: 'array',
-      items: { type: 'string' }
-    }
-  },
-  required: ['bucketIds']
-};
-
-const WeeklyGoalSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    weekStart: { type: 'string' }, // ISO date string (Monday of the week)
-    version: { type: 'number' }, // 1 = old text format, 2 = new goalId format
-    goals: {
-      type: 'object',
-      properties: {
-        // Each day can contain either strings (v1) or WeeklyGoalItem objects (v2)
-        monday: { type: 'array' },
-        tuesday: { type: 'array' },
-        wednesday: { type: 'array' },
-        thursday: { type: 'array' },
-        friday: { type: 'array' },
-        saturday: { type: 'array' },
-        sunday: { type: 'array' }
-      }
-    },
-    legacyGoals: { type: 'object' } // Backup of text-based goals
-  },
-  required: ['id', 'weekStart', 'goals']
-};
-
-// Unified Routine schema (combines Jobs and Stacks)
-const RoutineTaskSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    routineId: { type: 'string' },
-    index: { type: 'number' },
-    status: { type: 'string' },
-    description: { type: 'string' },
-    completedAt: { type: 'number' }
-  },
-  required: ['id', 'name', 'routineId', 'index', 'status']
-};
-
-const RoutineSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    cron: { type: 'string' }, // Optional - for scheduled routines
-    status: { type: 'string' },
-    lastEndTime: { type: 'number' },
-    index: { type: 'number' },
-    description: { type: ['string', 'null'] }, // Optional rich text description
-    goalIds: { 
-      type: 'array', 
-      items: { type: 'string' } 
-    }, // Optional - array of goal IDs this routine supports (many-to-many)
-    goalId: { type: 'string' }, // DEPRECATED: Use goalIds instead. Kept for backward compatibility
-    isShowUpRoutine: { type: 'boolean' }, // Special flag for "Show Up" routine
-    tasks: {
-      type: 'array',
-      items: RoutineTaskSchema
-    }
-  },
-  required: ['id', 'name', 'index', 'tasks']
-};
-
-// Routine Completion schema
-const RoutineCompletionSchema = {
-  type: 'object',
-  properties: {
-    routineId: { type: 'string' },
-    routineInstanceId: { type: 'string' },
-    routineName: { type: 'string' },
-    completedAt: { type: 'number' },
-    taskCount: { type: 'number' }
-  },
-  required: ['routineId', 'routineInstanceId', 'routineName', 'completedAt', 'taskCount']
-};
-
-const RoutineCompletionsCollectionSchema = {
-  type: 'object',
-  properties: {
-    completions: {
-      type: 'array',
-      items: RoutineCompletionSchema
-    }
-  },
-  required: ['completions']
-};
-
-// Todonna schema for integration with other apps
-const TodonnaItemSchema = {
-  type: 'object',
-  properties: {
-    todo_item_text: { type: 'string' },
-    todo_item_status: { type: 'string' },
-    todo_item_id: { type: 'string' },
-    '@context': { type: 'string' }
-  },
-  required: ['todo_item_text', 'todo_item_status', 'todo_item_id', '@context']
-};
-
-// ActivityWatch schemas
-const ProcessedAWEventSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    bucketId: { type: 'string' },
-    bucketType: { type: 'string' },
-    timestamp: { type: 'number' },
-    duration: { type: 'number' },
-    displayName: { type: 'string' },
-    eventData: { type: 'object' },
-    color: { type: 'string' },
-    isHidden: { type: 'boolean' }
-  },
-  required: ['id', 'bucketId', 'bucketType', 'timestamp', 'duration', 'displayName', 'eventData', 'color']
-};
-
-const BucketMetadataSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    type: { type: 'string' },
-    eventCount: { type: 'number' },
-    dateRange: {
-      type: 'object',
-      properties: {
-        start: { type: 'number' },
-        end: { type: 'number' }
-      },
-      required: ['start', 'end']
-    },
-    isVisible: { type: 'boolean' }
-  },
-  required: ['id', 'type', 'eventCount', 'dateRange', 'isVisible']
-};
-
-const ActivityWatchDataSchema = {
-  type: 'object',
-  properties: {
-    events: {
-      type: 'array',
-      items: ProcessedAWEventSchema
-    },
-    importedAt: { type: 'number' },
-    buckets: {
-      type: 'array',
-      items: BucketMetadataSchema
-    }
-  },
-  required: ['events', 'importedAt', 'buckets']
-};
-
-// Insight schemas
-const AffectedMetricSchema = {
-  type: 'object',
-  properties: {
-    metric: { type: 'string' },
-    effect: { type: 'string' } // "positive" or "negative"
-  },
-  required: ['metric', 'effect']
-};
-
-const InsightSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    affectedMetrics: {
-      type: 'array',
-      items: AffectedMetricSchema
-    },
-    notes: { type: 'string' },
-    category: { type: 'string' },
-    createdAt: { type: 'number' }
-  },
-  required: ['id', 'name', 'affectedMetrics', 'createdAt']
-};
-
-const InsightsCollectionSchema = {
-  type: 'object',
-  properties: {
-    insights: {
-      type: 'array',
-      items: InsightSchema
-    }
-  },
-  required: ['insights']
-};
-
-// Pattern Note schemas
-const PatternNoteSchema = {
-  type: 'object',
-  properties: {
-    activity: { type: 'string' },
-    notes: { type: 'string' },
-    createdAt: { type: 'number' },
-    updatedAt: { type: 'number' }
-  },
-  required: ['activity', 'notes', 'createdAt']
-};
-
-const PatternNotesCollectionSchema = {
-  type: 'object',
-  properties: {
-    notes: {
-      type: 'array',
-      items: PatternNoteSchema
-    }
-  },
-  required: ['notes']
-};
-
-// Quick Note schemas (for homepage quick capture)
-const QuickNoteSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    text: { type: ['string', 'null'] }, // Optional text content
-    photoIds: { type: ['array', 'null'], items: { type: 'string' } }, // Optional photo IDs
-    audioPath: { type: ['string', 'null'] }, // Optional path to audio file in RemoteStorage
-    audioDuration: { type: ['number', 'null'] }, // Optional duration in seconds
-    createdAt: { type: 'number' },
-    updatedAt: { type: ['number', 'null'] } // Optional update timestamp
-  },
-  required: ['id', 'createdAt']
-};
-
-const QuickNotesCollectionSchema = {
-  type: 'object',
-  properties: {
-    notes: {
-      type: 'array',
-      items: QuickNoteSchema
-    }
-  },
-  required: ['notes']
-};
-
-const WeekReflectionSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    text: { type: ['string', 'null'] },
-    createdAt: { type: 'number' },
-    updatedAt: { type: ['number', 'null'] },
-  },
-  required: ['id', 'createdAt'],
-};
-
-const LifeEventSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    label: { type: 'string' },
-    startWeek: { type: 'string' }, // "YYYY-MM-DD" Monday
-    endWeek: { type: 'string' },   // "YYYY-MM-DD" Monday (inclusive)
-    color: { type: 'string' },     // hex color e.g. "#ef4444"
-    createdAt: { type: 'number' },
-    updatedAt: { type: ['number', 'null'] },
-  },
-  required: ['id', 'label', 'startWeek', 'endWeek', 'color', 'createdAt'],
-};
-
-// Entity schemas
-const EntitySchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    name: { type: 'string' },
-    type: { type: 'string' }, // 'person', 'project', 'context', or null for untyped
-    description: { type: 'string' },
-    tags: { type: 'array', items: { type: 'string' } },
-    createdAt: { type: 'number' },
-    updatedAt: { type: 'number' }
-  },
-  required: ['id', 'name', 'createdAt']
-};
-
-const EntitiesCollectionSchema = {
-  type: 'object',
-  properties: {
-    entities: {
-      type: 'array',
-      items: EntitySchema
-    }
-  },
-  required: ['entities']
-};
-
-// Mention schemas
-const MentionSchema = {
-  type: 'object',
-  properties: {
-    id: { type: 'string' },
-    sourceType: { type: 'string' }, // 'impact', 'insight', 'task', 'habit', 'goal', etc.
-    sourceId: { type: 'string' },
-    entityId: { type: 'string' },
-    context: { type: 'string' }, // Text snippet around the mention
-    position: { type: 'number' }, // Character position in source text
-    fieldName: { type: 'string' }, // Which field contains the mention (e.g., 'activity', 'notes')
-    createdAt: { type: 'number' }
-  },
-  required: ['id', 'sourceType', 'sourceId', 'entityId', 'createdAt']
-};
-
-const MentionsCollectionSchema = {
-   type: 'object',
-   properties: {
-      mentions: {
-         type: 'array',
-         items: MentionSchema
-      }
-   },
-   required: ['mentions']
-};
-
 // ---- Domain type interfaces exported from this module ----
-
-export interface Job {
-  id: string;
-  cron: string;
-  status: string;
-  index: number;
-  name: string;
-  lastEndTime: number;
-  habits: {
-    id: string;
-    name: string;
-    jobId: string;
-    index: number;
-    status: string;
-    description?: string;
-  }[];
-}
 
 export interface GoalMilestone {
   id: string;
@@ -741,16 +117,7 @@ export interface Impact {
   allDay?: boolean;
   sourceUrl?: string;
   requiresOnlineTime?: boolean;
-}
-
-export interface StackHabit {
-  name: string;
-  id: string;
-}
-
-export interface Stack {
-  name: string;
-  habits: StackHabit[];
+  dismissed?: boolean;
 }
 
 export type Emotion = 'happy' | 'sad' | 'neutral' | 'excited' | 'anxious' | 'calm' | 'frustrated' | 'proud' | 'tired' | 'energized';
@@ -796,11 +163,14 @@ export interface RoutineTask {
   status: string;
   description?: string;
   completedAt?: number;
+  effort?: 'XS' | 'S' | 'M' | 'L' | 'XL';
+  numericEstimate?: number;
 }
 
 export interface Routine {
   id: string;
   name: string;
+  rrule?: string;
   cron?: string;
   status?: string;
   lastEndTime?: number;
@@ -810,28 +180,6 @@ export interface Routine {
   goalId?: string;
   isShowUpRoutine?: boolean;
   tasks: RoutineTask[];
-}
-
-export interface WeeklyGoalItem {
-  goalId: string;
-  targetMinutes?: number;
-  note?: string;
-}
-
-export interface WeeklyGoal {
-  id: string;
-  weekStart: string;
-  version?: number;
-  goals: {
-    monday: (string | WeeklyGoalItem)[];
-    tuesday: (string | WeeklyGoalItem)[];
-    wednesday: (string | WeeklyGoalItem)[];
-    thursday: (string | WeeklyGoalItem)[];
-    friday: (string | WeeklyGoalItem)[];
-    saturday: (string | WeeklyGoalItem)[];
-    sunday: (string | WeeklyGoalItem)[];
-  };
-  legacyGoals?: Record<string, unknown>;
 }
 
 export interface AffectedMetric {
@@ -872,6 +220,13 @@ export interface WeekReflection {
   updatedAt?: number;
 }
 
+export interface DayNote {
+  id: string; // date key "YYYY-MM-DD"
+  text?: string;
+  createdAt: number;
+  updatedAt?: number;
+}
+
 export interface LifeEvent {
   id: string;
   label: string;
@@ -903,16 +258,8 @@ export interface Mention {
   createdAt: number;
 }
 
-export interface TodonnaItem {
-  todo_item_text: string;
-  todo_item_status: string;
-  todo_item_id: string;
-  '@context': string;
-  date?: string;
-}
-
 // Velocity tracking schemas
-interface VelocityEntry {
+export interface VelocityEntry {
    id: string;
    taskId: string;
    taskName: string;
@@ -922,392 +269,197 @@ interface VelocityEntry {
    period: string;
 }
 
-const VelocityEntrySchema = {
-   type: 'object',
-   properties: {
-      id: { type: 'string' },
-      taskId: { type: 'string' },
-      taskName: { type: 'string' },
-      effort: { type: 'string', enum: ['XS', 'S', 'M', 'L', 'XL'] },
-      numericEstimate: { type: 'number' },
-      completedAt: { type: 'number' },
-      period: { type: 'string' } // e.g., '2024-W01' for week 1 of 2024, or '2024-01-15' for daily
-   },
-   required: ['id', 'taskId', 'taskName', 'completedAt']
-};
+export type TimeFormat = '12h' | '24h' | 'system';
+export type ThemePreference = 'light' | 'dark' | 'system';
 
-const VelocityCollectionSchema = {
-   type: 'object',
-   properties: {
-      entries: {
-         type: 'array',
-         items: VelocityEntrySchema
+export interface UserSettings {
+  /** Read from the user's Solid profile/WebID when available; not stored in Leptum preferences. */
+  dateOfBirth?: string;
+  showKeyboardShortcuts?: boolean;
+  developerMode?: boolean;
+  /** Opt-in experimental features (see lib/experiments.ts). Absent/empty = all off. */
+  enabledExperiments?: ExperimentId[];
+  theme?: ThemePreference;
+  timeFormat?: TimeFormat;
+  wakingStartHour?: number;
+  wakingEndHour?: number;
+  /** vcard:AddressBook IRIs whose every contact is offered as an @mention. Both lists empty = all books. */
+  suggestContactsFromAddressBooks?: string[];
+  /** vcard:Group IRIs whose members are offered as an @mention. */
+  suggestContactsFromGroups?: string[];
+}
+
+export class StorageClient {
+  private async solid() {
+    return await getSolidSessionIfActive();
+  }
+
+  private async requireSolid(): Promise<Awaited<ReturnType<typeof getSolidSessionIfActive>> & { webId: string }> {
+    const solid = await this.solid();
+    if (!solid?.webId) {
+      throw new Error('Connect a Solid Pod before saving data.');
+    }
+    return solid as Awaited<ReturnType<typeof getSolidSessionIfActive>> & { webId: string };
+  }
+
+  // User settings operations
+  public async getUserSettings(): Promise<UserSettings> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        const settings = (await userSettingsBackend.get(solid, solid.webId)) ?? {};
+        const profileBirthDate = await getSolidProfileBirthDate(solid.webId, solid);
+        return profileBirthDate ? { ...settings, dateOfBirth: profileBirthDate } : settings;
+      } catch (error) {
+        console.error('Failed to get user settings from Solid pod:', error);
+        return {};
       }
-   },
-   required: ['entries']
-};
-
-export class RemoteStorageClient {
-  private remoteStorage: RemoteStorageInstance | null = null;
-  private client: RemoteStorageScopedClient | null = null;
-  private todonnaClient: RemoteStorageScopedClient | null = null;
-  private profileClient: RemoteStorageScopedClient | null = null;
-  private initialized = false;
-  private changeListeners = new Set<(event: RemoteStorageChangeEvent) => void>();
-  private changeListenerRegistered = false;
-
-  constructor() {
-    // Don't initialize during SSR
-    if (typeof window !== 'undefined') {
-      this.initialize();
     }
+    return {};
   }
 
-  private initialize() {
-    if (this.initialized || !RemoteStorage) return;
-
-    // Initialize RemoteStorage with change events enabled
-    this.remoteStorage = new RemoteStorage({
-      changeEvents: {
-        local: true,
-        window: true,
-        remote: true,
-        conflicts: true
-      }
-    });
-
-    this.remoteStorage.setApiKeys({
-      dropbox: 'k4ydeln2lqgsfch',
-    });
-
-    // Claim all scopes upfront so OAuth includes them all in one authorization request
-    this.remoteStorage.access.claim('leptum', 'rw');
-    this.remoteStorage.access.claim('todonna', 'r');
-    this.remoteStorage.access.claim('profile', 'r');
-
-    // Create scoped client for Leptum data
-    this.client = this.remoteStorage.scope('/leptum/');
-
-    // Declare schemas
-    this.setupSchemas();
-
-    // Enable local caching for frequently accessed paths so reads resolve
-    // from IndexedDB instead of hitting the remote server on every page load.
-    this.client.cache('routines/');
-    this.client.cache('goals/');
-
-    this.initialized = true;
-  }
-
-  private setupSchemas() {
-    if (!this.client) return;
-
-    this.client.declareType('Job', JobSchema);
-    this.client.declareType('Goal', GoalSchema);
-    this.client.declareType('GoalType', GoalTypeSchema);
-    this.client.declareType('Impact', ImpactSchema);
-    this.client.declareType('ImpactsCollection', ImpactsCollectionSchema);
-    this.client.declareType('Stack', StackSchema);
-    this.client.declareType('StandaloneTask', StandaloneTaskSchema);
-    this.client.declareType('StandaloneTasksCollection', StandaloneTasksCollectionSchema);
-    this.client.declareType('HomeTasksCollection', HomeTasksCollectionSchema);
-    this.client.declareType('ArchivedBucket', ArchivedBucketSchema);
-    this.client.declareType('ArchivedIndex', ArchivedIndexSchema);
-    this.client.declareType('WeeklyGoal', WeeklyGoalSchema);
-    this.client.declareType('Routine', RoutineSchema);
-    this.client.declareType('RoutineCompletionsCollection', RoutineCompletionsCollectionSchema);
-    this.client.declareType('ActivityWatchData', ActivityWatchDataSchema);
-    this.client.declareType('Insight', InsightSchema);
-    this.client.declareType('InsightsCollection', InsightsCollectionSchema);
-    this.client.declareType('PatternNote', PatternNoteSchema);
-    this.client.declareType('PatternNotesCollection', PatternNotesCollectionSchema);
-    this.client.declareType('QuickNote', QuickNoteSchema);
-    this.client.declareType('QuickNotesCollection', QuickNotesCollectionSchema);
-    this.client.declareType('Entity', EntitySchema);
-    this.client.declareType('EntitiesCollection', EntitiesCollectionSchema);
-    this.client.declareType('Mention', MentionSchema);
-    this.client.declareType('MentionsCollection', MentionsCollectionSchema);
-    this.client.declareType('VelocityEntry', VelocityEntrySchema);
-    this.client.declareType('VelocityCollection', VelocityCollectionSchema);
-    this.client.declareType('PhotoAttachment', PhotoAttachmentSchema);
-    this.client.declareType('PhotosCollection', PhotosCollectionSchema);
-    this.client.declareType('WeekReflection', WeekReflectionSchema);
-    this.client.declareType('LifeEvent', LifeEventSchema);
-  }
-
-  /** Returns the initialized RemoteStorage instance for use with the React widget. */
-  public getRS(): RemoteStorageInstance | null {
-    this.initialize();
-    return this.remoteStorage;
-  }
-
-  public async getProfile(): Promise<{ displayName?: string; avatarDataUrl?: string } | null> {
-    if (!this.remoteStorage) this.initialize();
-    if (!this.remoteStorage) return null;
-    if (!this.profileClient) {
-      this.profileClient = this.remoteStorage.scope('/profile/');
-    }
-    try {
-      const data = await this.profileClient.getObject('data.json');
-      if (!data) return null;
-      return data as { displayName?: string; avatarDataUrl?: string };
-    } catch {
-      return null;
-    }
-  }
-
-  // Job operations
-  public async getJobs(): Promise<Job[]> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return [];
-
-    try {
-      const jobs = await this.client.getAll('jobs/') || {};
-      return Object.values(jobs).filter((job): job is Job => !!job) as Job[];
-    } catch (error) {
-      console.error('Failed to get jobs:', error);
-      return [];
-    }
-  }
-
-  public async saveJob(job: Job) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    
-    try {
-      return await this.client.storeObject('Job', `jobs/${job.id}`, JSON.parse(JSON.stringify(job)));
-    } catch (error) {
-      console.error('Failed to save job:', error);
-    }
-  }
-
-  public async deleteJob(jobId: string) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    
-    try {
-      return await this.client.remove(`jobs/${jobId}`);
-    } catch (error) {
-      console.error('Failed to delete job:', error);
+  public async saveUserSettings(settings: UserSettings): Promise<void> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await userSettingsBackend.save(solid, solid.webId, settings);
     }
   }
 
   // Goal operations
   public async getGoals(): Promise<Goal[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await goalBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list goals from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const goals = await this.client.getAll('goals/') || {};
-      return Object.values(goals).filter((goal): goal is Goal => !!goal) as Goal[];
-    } catch (error) {
-      console.error('Failed to get goals:', error);
-      return [];
-    }
+    return [];
   }
 
   public async saveGoal(goal: Goal) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    try {
-      // Filter out undefined values to avoid schema validation errors
-      const cleanedGoal = Object.fromEntries(
-        Object.entries(goal).filter(([, value]) => value !== undefined)
-      );
-      
-      return await this.client.storeObject('Goal', `goals/${goal.id}`, cleanedGoal);
-    } catch (error) {
-      console.error('Failed to save goal:', error);
-      throw error;
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await goalBackend.save(solid, solid.webId, goal);
     }
   }
 
   public async deleteGoal(goalId: string) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    
-    try {
-      return await this.client.remove(`goals/${goalId}`);
-    } catch (error) {
-      console.error('Failed to delete goal:', error);
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await goalBackend.delete(solid, solid.webId, goalId);
     }
   }
 
   // Goal Type operations
   public async getGoalTypes(): Promise<GoalType[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await goalTypeBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list goal types from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const goalTypes = await this.client.getAll('goal-types/') || {};
-      return Object.values(goalTypes).filter((type): type is GoalType => !!type) as GoalType[];
-    } catch (error) {
-      console.error('Failed to get goal types:', error);
-      return [];
-    }
+    return [];
   }
 
   public async saveGoalType(goalType: GoalType) {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await goalTypeBackend.save(solid, solid.webId, goalType);
     }
-    if (!this.client) return;
-    
-    try {
-      return await this.client.storeObject('GoalType', `goal-types/${goalType.id}`, goalType);
-    } catch (error) {
-      console.error('Failed to save goal type:', error);
-    }
+  }
+
+  public async deleteGoalType(id: string): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — goal type was not deleted.');
+    await goalTypeBackend.delete(solid, solid.webId, id);
   }
 
   // Impact operations
   public async getImpacts(): Promise<Impact[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await impactBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list impacts from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('impacts') || { impacts: [] };
-      return (result['impacts'] as Impact[]) || [];
-    } catch (error) {
-      console.error('Failed to get impacts:', error);
-      return [];
-    }
+    return [];
   }
 
+  /**
+   * Reconciles the pod with `impacts`. Only changed impacts are written and
+   * only impacts this client has previously loaded (and are now missing from
+   * the array) are deleted — see lib/solidRdf/collectionBackend.ts.
+   * Prefer saveImpact()/deleteImpact() for single-record changes.
+   */
   public async saveImpacts(impacts: Impact[]) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    
-    try {
-      const clean = JSON.parse(JSON.stringify({ impacts }));
-      return await this.client.storeObject('ImpactsCollection', 'impacts', clean);
-    } catch (error) {
-      console.error('Failed to save impacts:', error);
-    }
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — impacts were not saved.');
+    return await impactBackend.saveAll(solid, solid.webId, impacts);
   }
 
-  // Stack operations
-  public async getStacks(): Promise<Stack[]> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return [];
-
-    try {
-      const stacks = await this.client.getAll('stacks/') || {};
-      return Object.values(stacks).filter((stack): stack is Stack => !!stack) as Stack[];
-    } catch (error) {
-      console.error('Failed to get stacks:', error);
-      return [];
-    }
+  public async saveImpact(impact: Impact) {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — impact was not saved.');
+    return await impactBackend.save(solid, solid.webId, impact);
   }
 
-  public async saveStack(stack: Stack, index: number) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    
-    try {
-      return await this.client.storeObject('Stack', `stacks/${index}`, JSON.parse(JSON.stringify(stack)));
-    } catch (error) {
-      console.error('Failed to save stack:', error);
-    }
-  }
-
-  public async deleteStack(index: number) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    try {
-      return await this.client.remove(`stacks/${index}`);
-    } catch (error) {
-      console.error('Failed to delete stack:', error);
-    }
+  public async deleteImpact(id: string) {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — impact was not deleted.');
+    return await impactBackend.delete(solid, solid.webId, id);
   }
 
   // Routine operations (unified Jobs + Stacks)
   public async getRoutines(): Promise<Routine[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await solidRoutines.listRoutines(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list routines from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const routines = await this.client.getAll('routines/') || {};
-      return Object.values(routines).filter((routine): routine is Routine => !!routine) as Routine[];
-    } catch (error) {
-      console.error('Failed to get routines:', error);
-      return [];
-    }
+    return [];
   }
 
   /** Get a single routine by id (e.g. for Show Up) without loading all routines. */
   public async getRoutine(id: string): Promise<Routine | null> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await solidRoutines.getRoutine(solid, solid.webId, id);
+      } catch (error) {
+        console.error('Failed to get routine from Solid pod:', error);
+        return null;
+      }
     }
-    if (!this.client) return null;
-
-    try {
-      const routine = await this.client.getObject(`routines/${id}`);
-      return routine ? (routine as unknown as Routine) : null;
-    } catch (error) {
-      console.error('Failed to get routine:', error);
-      return null;
-    }
+    return null;
   }
 
   public async saveRoutine(routine: Routine) {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await solidRoutines.saveRoutine(solid, solid.webId, routine);
     }
-    if (!this.client) return;
-
-    try {
-      // Strip undefined values — RemoteStorage schema validation rejects them
-      const clean = JSON.parse(JSON.stringify(routine));
-      return await this.client.storeObject('Routine', `routines/${routine.id}`, clean);
-    } catch (error) {
-      console.error('Failed to save routine:', error);
-    }
+    emitPodWrite('routines');
   }
 
   public async deleteRoutine(routineId: string) {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await solidRoutines.deleteRoutine(solid, solid.webId, routineId);
     }
-    if (!this.client) {
-      throw new Error('RemoteStorage client not initialized');
-    }
-
-    try {
-      return await this.client.remove(`routines/${routineId}`);
-    } catch (error) {
-      console.error('Failed to delete routine:', error);
-      throw error;
-    }
+    emitPodWrite('routines');
   }
 
   // Standalone Task operations
@@ -1315,511 +467,117 @@ export class RemoteStorageClient {
     return this.getHomeTasks();
   }
 
-  public async saveStandaloneTasks(tasks: StandaloneTask[], retries: number = 3): Promise<void> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        return await this.saveHomeTasks(tasks, retries);
-      } catch (error: unknown) {
-        const err = error as { status?: number; message?: string };
-        // Handle 412 Precondition Failed (ETag conflict) by retrying with fresh data
-        if (err.status === 412 && attempt < retries - 1) {
-          console.warn(`Standalone tasks conflict (attempt ${attempt + 1}/${retries}), refreshing and retrying...`);
-          // Get fresh data and merge
-          const freshTasks = await this.getStandaloneTasks();
-          // Merge: keep existing tasks, add new ones that don't exist
-          const taskIds = new Set(freshTasks.map(t => t.id));
-          const mergedTasks = [...freshTasks];
-          tasks.forEach(task => {
-            if (!taskIds.has(task.id)) {
-              mergedTasks.push(task);
-            }
-          });
-          tasks = mergedTasks;
-          // Wait a bit before retrying (exponential backoff)
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
-          continue;
-        }
-        // Handle "maximum debt" errors - wait longer and retry
-        if (err.message && err.message.includes('debt') && attempt < retries - 1) {
-          console.warn(`RemoteStorage debt limit reached (attempt ${attempt + 1}/${retries}), waiting longer before retry...`);
-          // Wait longer for debt to clear (exponential backoff, longer delays)
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
-          continue;
-        }
-        console.error('Failed to save standalone tasks:', error);
-        throw error;
-      }
-    }
-  }
-
   public async addStandaloneTask(task: StandaloneTask) {
-    const tasks = await this.getHomeTasks();
-    tasks.push(task);
-    return await this.saveHomeTasks(tasks);
+    const solid = await this.requireSolid();
+    const result = await solidTasks.saveTask(solid, solid.webId, task);
+    emitPodWrite('tasks');
+    return result;
   }
 
   public async reorderHomeTasks(orderedIds: string[]): Promise<void> {
-    const tasks = await this.getHomeTasks();
-    const indexMap = new Map(orderedIds.map((id, i) => [id, i]));
-    const updated = tasks.map((t) =>
-      indexMap.has(t.id) ? { ...t, sortIndex: indexMap.get(t.id) } : t,
-    );
-    await this.saveHomeTasks(updated);
+    const solid = await this.requireSolid();
+    const result = await solidTasks.reorderTasks(solid, solid.webId, orderedIds);
+    emitPodWrite('tasks');
+    return result;
   }
 
-  public async updateStandaloneTask(taskId: string, updates: Partial<StandaloneTask>, retries: number = 3) {
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        const tasks = await this.getHomeTasks();
-        const index = tasks.findIndex(task => task.id === taskId);
-        if (index !== -1) {
-          tasks[index] = { ...tasks[index], ...updates };
-          return await this.saveHomeTasks(tasks);
-        }
-        return;
-      } catch (error: unknown) {
-        const err = error as { status?: number };
-        if (err.status === 412 && attempt < retries - 1) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
-          continue;
-        }
-        throw error;
-      }
-    }
+  public async updateStandaloneTask(taskId: string, updates: Partial<StandaloneTask>) {
+    const solid = await this.requireSolid();
+    const result = await solidTasks.updateTask(solid, solid.webId, taskId, updates);
+    emitPodWrite('tasks');
+    return result;
   }
 
-  public async deleteStandaloneTask(taskId: string, retries: number = 3) {
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        const tasks = await this.getHomeTasks();
-        const filteredTasks = tasks.filter(task => task.id !== taskId);
-        return await this.saveHomeTasks(filteredTasks);
-      } catch (error: unknown) {
-        const err = error as { status?: number };
-        if (err.status === 412 && attempt < retries - 1) {
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
-          continue;
-        }
-        throw error;
-      }
-    }
+  public async deleteStandaloneTask(taskId: string) {
+    const solid = await this.requireSolid();
+    const result = await solidTasks.deleteTask(solid, solid.webId, taskId);
+    emitPodWrite('tasks');
+    return result;
   }
 
-  // Home tasks: single file for homepage (non-archived only)
-  private static readonly ARCHIVED_BUCKET_MAX = 250;
+  /** Every task, archived ones included — the single source the tasks query caches. */
+  public async getAllTasks(): Promise<StandaloneTask[]> {
+    const solid = await this.solid();
+    if (!solid?.webId) return [];
+    return await solidTasks.listTasks(solid, solid.webId);
+  }
 
   public async getHomeTasks(): Promise<StandaloneTask[]> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return [];
-    try {
-      const result = await this.client.getObject('home-tasks') || { tasks: [] };
-      return (result['tasks'] as StandaloneTask[]) || [];
-    } catch (error) {
-      console.error('Failed to get home tasks:', error);
-      return [];
-    }
-  }
-
-  public async saveHomeTasks(tasks: StandaloneTask[], retries: number = 3): Promise<void> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    for (let attempt = 0; attempt < retries; attempt++) {
+    const solid = await this.solid();
+    if (solid?.webId) {
       try {
-        // Clean undefined fields (e.g. optional effort/numericEstimate) to satisfy JSON schema
-        const cleanedTasks = tasks.map(t =>
-          Object.fromEntries(Object.entries(t).filter(([, v]) => v !== undefined))
-        );
-        await this.client.storeObject('HomeTasksCollection', 'home-tasks', { tasks: cleanedTasks });
-        return;
-      } catch (error: unknown) {
-        const err = error as { status?: number };
-        if (err.status === 412 && attempt < retries - 1) {
-          const fresh = await this.getHomeTasks();
-          const freshIds = new Set(fresh.map(t => t.id));
-          const merged = [...fresh];
-          tasks.forEach(t => {
-            if (!freshIds.has(t.id)) merged.push(t);
-          });
-          tasks = merged;
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
-          continue;
-        }
-        throw error;
+        return (await solidTasks.listTasks(solid, solid.webId)).filter((task) => !task.archivedAt);
+      } catch (error) {
+        console.error('Failed to list tasks from Solid pod:', error);
+        return [];
       }
     }
+    return [];
   }
 
-  public async getArchivedIndex(): Promise<{ bucketIds: string[] }> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return { bucketIds: [] };
-    try {
-      const result = await this.client.getObject('archived-tasks/_index') || { bucketIds: [] };
-      return { bucketIds: (result['bucketIds'] as string[]) || [] };
-    } catch (error) {
-      console.error('Failed to get archived index:', error);
-      return { bucketIds: [] };
-    }
+  /** Resolved URL of the tasks container, for subscribing to live pod notifications (see useStandaloneTasks). */
+  public async getTasksContainerUrl(): Promise<string | null> {
+    const solid = await this.solid();
+    if (!solid?.webId) return null;
+    const containers = await getResolvedContainers(solid, solid.webId);
+    return containers.tasks;
   }
 
-  public async saveArchivedIndex(bucketIds: string[]): Promise<void> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    try {
-      await this.client.storeObject('ArchivedIndex', 'archived-tasks/_index', { bucketIds });
-    } catch (error) {
-      console.error('Failed to save archived index:', error);
-      throw error;
-    }
-  }
-
-  public async getArchivedBucket(bucketId: string): Promise<{ tasks: StandaloneTask[]; createdAt: number } | null> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return null;
-    try {
-      const result = await this.client.getObject(`archived-tasks/${bucketId}`);
-      if (!result) return null;
-      return {
-        tasks: (result['tasks'] as StandaloneTask[]) || [],
-        createdAt: (result['createdAt'] as number) ?? parseInt(bucketId, 10)
-      };
-    } catch (error) {
-      console.error('Failed to get archived bucket:', bucketId, error);
-      return null;
-    }
-  }
-
-  /** Append tasks to archived storage; creates new bucket if current one would exceed ARCHIVED_BUCKET_MAX. */
+  /** Mark tasks as archived in-place. */
   public async appendArchivedTasks(tasksToArchive: StandaloneTask[]): Promise<void> {
     if (!tasksToArchive.length) return;
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    const { bucketIds } = await this.getArchivedIndex();
+    const solid = await this.solid();
+    if (!solid?.webId) return;
+    const webId = solid.webId;
     const now = Date.now();
-    let currentId = bucketIds.length > 0 ? bucketIds[bucketIds.length - 1] : null;
-    let bucket = currentId ? await this.getArchivedBucket(currentId) : null;
-    let remaining = [...tasksToArchive];
-
-    while (remaining.length > 0) {
-      const space = bucket ? RemoteStorageClient.ARCHIVED_BUCKET_MAX - bucket.tasks.length : RemoteStorageClient.ARCHIVED_BUCKET_MAX;
-      const take = Math.min(space || RemoteStorageClient.ARCHIVED_BUCKET_MAX, remaining.length);
-      const chunk = remaining.splice(0, take);
-      if (chunk.length === 0) break;
-      if (bucket && bucket.tasks.length + chunk.length <= RemoteStorageClient.ARCHIVED_BUCKET_MAX) {
-        bucket.tasks.push(...chunk);
-        await this.client.storeObject('ArchivedBucket', `archived-tasks/${currentId!}`, {
-          tasks: bucket.tasks,
-          createdAt: bucket.createdAt
-        });
-      } else {
-        const newId = String(now + bucketIds.length * 1000);
-        bucketIds.push(newId);
-        bucket = {
-          tasks: chunk,
-          createdAt: now
-        };
-        await this.client.storeObject('ArchivedBucket', `archived-tasks/${newId}`, bucket);
-        await this.saveArchivedIndex(bucketIds);
-        currentId = newId;
-      }
-    }
-  }
-
-  /** Fetch only the latest archived bucket (for archive view). */
-  public async getLatestArchivedBucket(): Promise<{ tasks: StandaloneTask[]; createdAt: number } | null> {
-    const { bucketIds } = await this.getArchivedIndex();
-    if (bucketIds.length === 0) return null;
-    const latestId = bucketIds[bucketIds.length - 1];
-    return this.getArchivedBucket(latestId);
-  }
-
-  /** One-time migration: split standalone-tasks into home-tasks + archived buckets. */
-  public async migrateToHomeAndArchivedIfNeeded(): Promise<void> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-    try {
-      const existingHome = await this.client.getObject('home-tasks');
-      if (existingHome != null) return; // Already migrated
-      const legacy = await this.client.getObject('standalone-tasks') || { tasks: [] };
-      const all = ((legacy['tasks'] as StandaloneTask[]) || []);
-      if (all.length === 0) {
-        await this.client.storeObject('HomeTasksCollection', 'home-tasks', { tasks: [] });
-        return;
-      }
-      const home = all.filter(t => !t.archivedAt);
-      const archived = all.filter(t => t.archivedAt);
-      await this.client.storeObject('HomeTasksCollection', 'home-tasks', { tasks: home });
-      if (archived.length > 0) {
-        await this.appendArchivedTasks(archived);
-      }
-    } catch (error) {
-      console.error('Migration to home/archived failed:', error);
-    }
+    await Promise.all(tasksToArchive.map((task) =>
+      solidTasks.saveTask(solid, webId, { ...task, archivedAt: task.archivedAt ?? now })
+    ));
+    emitPodWrite('tasks');
   }
 
   // Routine Completion operations
   public async getRoutineCompletions(): Promise<RoutineCompletion[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await routineCompletionBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list routine completions from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('routine-completions') || { completions: [] };
-      return (result['completions'] as RoutineCompletion[]) || [];
-    } catch (error) {
-      console.error('Failed to get routine completions:', error);
-      return [];
-    }
+    return [];
   }
 
   public async saveRoutineCompletions(completions: RoutineCompletion[]) {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await routineCompletionBackend.saveAll(solid, solid.webId, completions);
     }
-    if (!this.client) return;
-
-    try {
-      return await this.client.storeObject('RoutineCompletionsCollection', 'routine-completions', { completions });
-    } catch (error) {
-      console.error('Failed to save routine completions:', error);
-    }
+    emitPodWrite('completions');
   }
 
   public async addRoutineCompletion(completion: RoutineCompletion) {
-    const completions = await this.getRoutineCompletions();
-    completions.push(completion);
-    return await this.saveRoutineCompletions(completions);
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — completion was not saved.');
+    await routineCompletionBackend.save(solid, solid.webId, completion);
+    emitPodWrite('completions');
   }
 
   public async deleteRoutineCompletion(routineInstanceId: string) {
-    const completions = await this.getRoutineCompletions();
-    const filtered = completions.filter(c => c.routineInstanceId !== routineInstanceId);
-    return await this.saveRoutineCompletions(filtered);
-  }
-
-  // Todonna integration methods
-
-  // Convert local task format to todonna format
-  private taskToTodonna(task: StandaloneTask): TodonnaItem {
-    // Map status values
-    let todonnaStatus = 'todo'; // default
-    if (task.status === 'completed') {
-      todonnaStatus = 'done';
-    } else if (task.status === 'due') {
-      todonnaStatus = 'todo';
-    } else if (task.status === 'pending') {
-      todonnaStatus = 'pending';
-    }
-
-    return {
-      todo_item_text: task.name,
-      todo_item_status: todonnaStatus,
-      todo_item_id: task.id,
-      date: new Date(task.createdAt).toISOString(),
-      '@context': 'http://remotestorage.io/spec/modules/todonna/aTodoItem'
-    };
-  }
-
-  // Convert todonna format to local task format
-  private todonnaToTask(todonnaItem: TodonnaItem): StandaloneTask {
-    // Map status values back
-    let localStatus: 'due' | 'completed' | 'pending' = 'due'; // default
-    if (todonnaItem.todo_item_status === 'done') {
-      localStatus = 'completed';
-    } else if (todonnaItem.todo_item_status === 'todo') {
-      localStatus = 'due';
-    } else if (todonnaItem.todo_item_status === 'pending') {
-      localStatus = 'pending';
-    }
-
-    // Use Todonna's date field for createdAt when available, fallback to now
-    let createdAt = Date.now();
-    if (todonnaItem.date) {
-      const parsed = Date.parse(todonnaItem.date);
-      if (!Number.isNaN(parsed)) {
-        createdAt = parsed;
-      }
-    }
-
-    return {
-      id: todonnaItem.todo_item_id,
-      name: todonnaItem.todo_item_text,
-      status: localStatus,
-      createdAt,
-      // Note: description and completedAt are not in todonna format
-    };
-  }
-
-  // Get all todonna items (lazily initialize todonna client for read-only import)
-  public async getTodonnaItems(): Promise<TodonnaItem[]> {
-    // Lazily create todonna client only when importing, to avoid fetching todonna scope on normal app load
-    if (!this.todonnaClient) {
-      if (!this.remoteStorage) {
-        this.initialize();
-      }
-      if (!this.remoteStorage) return [];
-      this.todonnaClient = this.remoteStorage.scope('/todonna/');
-      this.todonnaClient.declareType('aTodoItem', TodonnaItemSchema);
-    }
-    try {
-      const items = (await this.todonnaClient.getAll('')) || {};
-      return Object.values(items).filter((item): item is TodonnaItem => !!item) as TodonnaItem[];
-    } catch (error) {
-      console.error('Failed to get todonna items:', error);
-      return [];
-    }
-  }
-
-  // Save a task to todonna format
-  public async saveToTodonna(task: StandaloneTask) {
-    if (!this.todonnaClient) {
-      this.initialize();
-    }
-    if (!this.todonnaClient) return;
-    
-    try {
-      const todonnaItem = this.taskToTodonna(task);
-      return await this.todonnaClient.storeObject('aTodoItem', task.id, todonnaItem);
-    } catch (error) {
-      console.error('Failed to save to todonna:', error);
-    }
-  }
-
-  // Delete a task from todonna
-  public async deleteFromTodonna(taskId: string) {
-    if (!this.todonnaClient) {
-      this.initialize();
-    }
-    if (!this.todonnaClient) return;
-    
-    try {
-      return await this.todonnaClient.remove(taskId);
-    } catch (error) {
-      console.error('Failed to delete from todonna:', error);
-    }
-  }
-
-  // Sync all home tasks to todonna
-  public async syncToTodonna() {
-    const localTasks = await this.getHomeTasks();
-    for (const task of localTasks) {
-      await this.saveToTodonna(task);
-    }
-  }
-
-  // Import tasks from todonna and merge with home tasks. Returns { importedCount, tasks } so caller can set state without refetch.
-  public async importFromTodonna(): Promise<{ importedCount: number; tasks: StandaloneTask[] }> {
-    try {
-      const [todonnaItems, localTasks] = await Promise.all([
-        this.getTodonnaItems(),
-        this.getHomeTasks()
-      ]);
-      // Only import items that are not marked as done in Todonna
-      const activeItems = todonnaItems.filter(item => item.todo_item_status !== 'done');
-      const importedTasks = activeItems.map(item => this.todonnaToTask(item));
-      const existingIds = new Set(localTasks.map(task => task.id));
-      const newTasks = importedTasks.filter(task => !existingIds.has(task.id));
-      if (newTasks.length > 0) {
-        const allTasks = [...localTasks, ...newTasks];
-        await this.saveHomeTasks(allTasks);
-        return { importedCount: newTasks.length, tasks: allTasks };
-      }
-      return { importedCount: 0, tasks: localTasks };
-    } catch (error) {
-      console.error('Failed to import from todonna:', error);
-      return { importedCount: 0, tasks: [] };
-    }
-  }
-
-  // Bi-directional sync: combines import and export
-  public async bidirectionalSync() {
-    try {
-      // First import any new todonna items
-      const importedCount = await this.importFromTodonna();
-
-      // Then sync all local tasks to todonna
-      await this.syncToTodonna();
-
-      return { importedCount };
-    } catch (error) {
-      console.error('Failed to perform bidirectional sync:', error);
-      return { importedCount: 0 };
-    }
-  }
-
-  // Weekly Goal operations
-  public async getWeeklyGoal(weekStart: string): Promise<WeeklyGoal | null> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return null;
-
-    try {
-      const result = await this.client.getObject(`weekly-goals/${weekStart}`);
-      return result ? (result as unknown as WeeklyGoal) : null;
-    } catch (error) {
-      console.error('Failed to get weekly goal:', error);
-      return null;
-    }
-  }
-
-  public async saveWeeklyGoal(weeklyGoal: WeeklyGoal) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    try {
-      return await this.client.storeObject('WeeklyGoal', `weekly-goals/${weeklyGoal.weekStart}`, weeklyGoal);
-    } catch (error) {
-      console.error('Failed to save weekly goal:', error);
-    }
-  }
-
-  public async getAllWeeklyGoals(): Promise<WeeklyGoal[]> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return [];
-
-    try {
-      const weeklyGoals = await this.client.getAll('weekly-goals/') || {};
-      return Object.values(weeklyGoals).filter((goal): goal is WeeklyGoal => !!goal) as WeeklyGoal[];
-    } catch (error) {
-      console.error('Failed to get all weekly goals:', error);
-      return [];
-    }
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — completion was not deleted.');
+    await routineCompletionBackend.delete(solid, solid.webId, routineInstanceId);
+    emitPodWrite('completions');
   }
 
   // ActivityWatch operations
   public async getActivityWatchData(): Promise<import('../activity-watch.d').ActivityWatchData | null> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return null;
-
+    const solid = await this.solid();
+    if (!solid?.webId) return null;
     try {
-      const data = await this.client.getObject('activity-watch-data');
-      return data ? (data as unknown as import('../activity-watch.d').ActivityWatchData) : null;
+      return await activityWatchBackend.get(solid, solid.webId);
     } catch (error) {
       console.error('Failed to get ActivityWatch data:', error);
       return null;
@@ -1827,37 +585,20 @@ export class RemoteStorageClient {
   }
 
   public async saveActivityWatchData(data: import('../activity-watch.d').ActivityWatchData) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    try {
-      return await this.client.storeObject('ActivityWatchData', 'activity-watch-data', data);
-    } catch (error) {
-      console.error('Failed to save ActivityWatch data:', error);
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await activityWatchBackend.save(solid, solid.webId, data);
     }
   }
 
   public async clearActivityWatchData() {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    try {
-      return await this.client.remove('activity-watch-data');
-    } catch (error) {
-      console.error('Failed to clear ActivityWatch data:', error);
+    const solid = await this.solid();
+    if (solid?.webId) {
+      await activityWatchBackend.save(solid, solid.webId, { importedAt: Date.now(), events: [], buckets: [] });
     }
   }
 
   public async getActivityWatchEventsInRange(start: number, end: number) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return [];
-
     try {
       const data = await this.getActivityWatchData();
       if (!data || !data.events) return [];
@@ -1873,224 +614,131 @@ export class RemoteStorageClient {
 
   // Insights operations
   public async getInsights(): Promise<Insight[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await insightBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list insights from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('insights') || { insights: [] };
-      return (result['insights'] as Insight[]) || [];
-    } catch (error) {
-      console.error('Failed to get insights:', error);
-      return [];
-    }
+    return [];
   }
 
-  public async saveInsights(insights: Insight[]) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
+  public async saveInsight(insight: Insight): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — insight was not saved.');
+    await insightBackend.save(solid, solid.webId, insight);
+  }
 
-    try {
-      return await this.client.storeObject('InsightsCollection', 'insights', { insights });
-    } catch (error) {
-      console.error('Failed to save insights:', error);
-    }
+  public async deleteInsight(id: string): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — insight was not deleted.');
+    await insightBackend.delete(solid, solid.webId, id);
   }
 
   // Pattern Notes operations
   public async getPatternNotes(): Promise<PatternNote[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await patternNoteBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list pattern notes from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('pattern-notes') || { notes: [] };
-      return (result['notes'] as PatternNote[]) || [];
-    } catch (error) {
-      console.error('Failed to get pattern notes:', error);
-      return [];
-    }
+    return [];
   }
 
-  public async savePatternNotes(notes: PatternNote[]) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
+  public async savePatternNote(note: PatternNote): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — pattern note was not saved.');
+    await patternNoteBackend.save(solid, solid.webId, note);
+  }
 
-    try {
-      return await this.client.storeObject('PatternNotesCollection', 'pattern-notes', { notes });
-    } catch (error) {
-      console.error('Failed to save pattern notes:', error);
-    }
+  public async deletePatternNote(activity: string): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — pattern note was not deleted.');
+    await patternNoteBackend.delete(solid, solid.webId, activity);
   }
 
   // Entity operations
   public async getEntities(): Promise<Entity[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await solidEntities.listEntities(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list entities from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('entities') || { entities: [] };
-      return (result['entities'] as Entity[]) || [];
-    } catch (error) {
-      console.error('Failed to get entities:', error);
-      return [];
-    }
+    return [];
   }
 
-  public async saveEntities(entities: Entity[]) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
+  public async saveEntity(entity: Entity): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — entity was not saved.');
+    await solidEntities.saveEntity(solid, solid.webId, entity);
+  }
 
-    try {
-      return await this.client.storeObject('EntitiesCollection', 'entities', { entities });
-    } catch (error) {
-      console.error('Failed to save entities:', error);
-    }
+  public async deleteEntity(id: string, type?: Entity['type']): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — entity was not deleted.');
+    await solidEntities.deleteEntity(solid, solid.webId, id, type);
   }
 
   // Mention operations
   public async getMentions(): Promise<Mention[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await solidMentions.listMentions(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list mentions from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('mentions') || { mentions: [] };
-      return (result['mentions'] as Mention[]) || [];
-    } catch (error) {
-      console.error('Failed to get mentions:', error);
-      return [];
-    }
+    return [];
   }
 
-  public async saveMentions(mentions: Mention[]) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
+  public async saveMention(mention: Mention): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — mention was not saved.');
+    await solidMentions.mentionBackend.save(solid, solid.webId, mention);
+  }
 
-    try {
-      return await this.client.storeObject('MentionsCollection', 'mentions', { mentions });
-    } catch (error) {
-      console.error('Failed to save mentions:', error);
-    }
+  public async deleteMention(id: string): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — mention was not deleted.');
+    await solidMentions.mentionBackend.delete(solid, solid.webId, id);
   }
 
   // Photo operations
   public async getPhotos(): Promise<PhotoAttachment[]> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return [];
-
+    const solid = await this.solid();
+    if (!solid?.webId) return [];
     try {
-      const result = await this.client.getObject('photos') || { photos: [] };
-      return (result['photos'] as PhotoAttachment[]) || [];
-    } catch (error: unknown) {
-      const err = error as { status?: number; missing?: boolean };
-      // 404 errors are expected when the photos collection doesn't exist yet
-      if (err?.status === 404 || String(error).includes('404') || err?.missing) {
-        console.warn('RemoteStorageClient.getPhotos() - 404 (collection does not exist yet)');
-        return [];
-      }
+      return await solidPhotos.listPhotos(solid, solid.webId);
+    } catch (error) {
       console.error('Failed to get photos:', error);
       return [];
     }
   }
 
-  public async savePhotos(photos: PhotoAttachment[], retries: number = 3): Promise<void> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    // Clean up photos: convert undefined to null for optional fields to match schema
-    // Use a mutable array of cleaned objects for the storage layer
-    type StoragePhoto = Omit<PhotoAttachment, 'fullImagePath' | 'width' | 'height' | 'caption'> & {
-      fullImagePath: string | null;
-      width: number | null;
-      height: number | null;
-      caption: string | null;
-    };
-
-    const cleanPhoto = (photo: PhotoAttachment): StoragePhoto => ({
-      ...photo,
-      fullImagePath: photo.fullImagePath ?? null,
-      width: photo.width ?? null,
-      height: photo.height ?? null,
-      caption: photo.caption ?? null,
-    });
-
-    const cleanedPhotos: StoragePhoto[] = photos.map(cleanPhoto);
-
-    for (let attempt = 0; attempt < retries; attempt++) {
-      try {
-        await this.client.storeObject('PhotosCollection', 'photos', { photos: cleanedPhotos });
-        return;
-      } catch (error: unknown) {
-        const err = error as { status?: number; missing?: boolean; message?: string };
-        // Handle 404 errors - these are expected when creating a new collection
-        if (err?.status === 404 || String(error).includes('404') || err?.missing) {
-          // On first attempt with 404, try again (collection will be created)
-          if (attempt < retries - 1) {
-            await new Promise(resolve => setTimeout(resolve, 100));
-            continue;
-          }
-        }
-
-        // Handle 412 Precondition Failed (ETag conflict) by retrying with fresh data
-        if (err.status === 412 && attempt < retries - 1) {
-          console.warn(`Photos conflict (attempt ${attempt + 1}/${retries}), refreshing and retrying...`);
-          const freshPhotos = await this.getPhotos();
-          // Merge: keep existing photos, add new ones that don't exist
-          const photoIds = new Set(freshPhotos.map(p => p.id));
-          const mergedPhotos = [...freshPhotos];
-          photos.forEach(photo => {
-            if (!photoIds.has(photo.id)) {
-              mergedPhotos.push(photo);
-            }
-          });
-          // Re-clean merged photos and update cleanedPhotos for next iteration
-          const reCleanedPhotos = mergedPhotos.map(cleanPhoto);
-          // Update cleanedPhotos array for next iteration
-          cleanedPhotos.length = 0;
-          cleanedPhotos.push(...reCleanedPhotos);
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 100));
-          continue;
-        }
-        
-        // Handle "maximum debt" errors - wait longer and retry
-        if (err.message && err.message.includes('debt') && attempt < retries - 1) {
-          console.warn(`RemoteStorage debt limit reached (attempt ${attempt + 1}/${retries}), waiting longer before retry...`);
-          await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 500));
-          continue;
-        }
-
-        // Log other errors
-        if (!(err?.status === 404 || String(error).includes('404') || err?.missing)) {
-          console.error('Failed to save photos:', error);
-        }
-        throw error;
-      }
-    }
+  /** Rewrite one photo's metadata resource (caption etc.). */
+  public async updatePhoto(photo: PhotoAttachment): Promise<void> {
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — photo was not updated.');
+    await solidPhotos.savePhotoMetadata(solid, solid.webId, photo);
   }
 
   public async addPhoto(photo: PhotoAttachment) {
-    const photos = await this.getPhotos();
-    photos.push(photo);
-    const result = await this.savePhotos(photos);
-    return result;
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — photo was not saved.');
+    return await solidPhotos.savePhotoMetadata(solid, solid.webId, photo);
   }
 
   public async getPhotosForImpact(impactId: string) {
@@ -2099,193 +747,79 @@ export class RemoteStorageClient {
   }
 
   public async deletePhoto(photoId: string) {
-    const photos = await this.getPhotos();
-    const filteredPhotos = photos.filter(photo => photo.id !== photoId);
-
-    // Also delete the full image file if it exists
-    const photoToDelete = photos.find(photo => photo.id === photoId);
-    if (photoToDelete?.fullImagePath && this.client) {
-      try {
-        await this.client.remove(photoToDelete.fullImagePath);
-      } catch (error) {
-        console.error('Failed to delete full image:', error);
-      }
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await solidPhotos.deletePhoto(solid, solid.webId, photoId);
     }
-
-    return await this.savePhotos(filteredPhotos);
   }
 
   public async deletePhotosForImpact(impactId: string) {
     const photos = await this.getPhotos();
-    const photosToDelete = photos.filter(photo => photo.impactId === impactId);
-
-    // Delete all full image files
-    for (const photo of photosToDelete) {
-      if (photo.fullImagePath && this.client) {
-        try {
-          await this.client.remove(photo.fullImagePath);
-        } catch (error) {
-          console.error('Failed to delete full image:', error);
-        }
-      }
-    }
-
-    const filteredPhotos = photos.filter(photo => photo.impactId !== impactId);
-    return await this.savePhotos(filteredPhotos);
+    await Promise.all(photos.filter((photo) => photo.impactId === impactId).map((photo) => this.deletePhoto(photo.id)));
   }
 
   // Quick Note operations
   public async getQuickNotes(): Promise<QuickNote[]> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('quick-notes') || { notes: [] };
-      return (result['notes'] as QuickNote[]) || [];
-    } catch (error: unknown) {
-      const err = error as { status?: number; missing?: boolean };
-      if (err?.status === 404 || String(error).includes('404') || err?.missing) {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await solidQuickNotes.quickNoteBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list quick notes from Solid pod:', error);
         return [];
       }
-      console.error('Failed to get quick notes:', error);
-      return [];
     }
-  }
-
-  public async saveQuickNotes(notes: QuickNote[]) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    try {
-      // Clean up notes: convert undefined to null for optional fields to match schema
-      const cleanedNotes = notes.map(note => ({
-        ...note,
-        text: note.text ?? null,
-        photoIds: note.photoIds ?? null,
-        audioPath: note.audioPath ?? null,
-        audioDuration: note.audioDuration ?? null,
-        updatedAt: note.updatedAt ?? null,
-      }));
-      
-      return await this.client.storeObject('QuickNotesCollection', 'quick-notes', { notes: cleanedNotes });
-    } catch (error) {
-      console.error('Failed to save quick notes:', error);
-      throw error;
-    }
+    return [];
   }
 
   public async addQuickNote(note: QuickNote) {
-    const notes = await this.getQuickNotes();
-    notes.push(note);
-    return await this.saveQuickNotes(notes);
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — note was not saved.');
+    return await solidQuickNotes.quickNoteBackend.save(solid, solid.webId, note);
   }
 
   public async updateQuickNote(noteId: string, updates: Partial<QuickNote>) {
-    const notes = await this.getQuickNotes();
-    const index = notes.findIndex(note => note.id === noteId);
-    if (index !== -1) {
-      notes[index] = { ...notes[index], ...updates, updatedAt: Date.now() };
-      return await this.saveQuickNotes(notes);
-    }
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — note was not updated.');
+    const existing = await solidQuickNotes.quickNoteBackend.get(solid, solid.webId, noteId);
+    if (!existing) return;
+    return await solidQuickNotes.quickNoteBackend.save(solid, solid.webId, { ...existing, ...updates, id: noteId, updatedAt: Date.now() });
   }
 
   public async deleteQuickNote(noteId: string) {
-    const notes = await this.getQuickNotes();
-    const filteredNotes = notes.filter(note => note.id !== noteId);
-
-    // Also delete associated audio file if it exists
-    const noteToDelete = notes.find(note => note.id === noteId);
-    if (noteToDelete?.audioPath && this.client) {
-      try {
-        await this.client.remove(noteToDelete.audioPath);
-      } catch (error) {
-        console.error('Failed to delete audio file:', error);
-      }
-    }
-    
-    return await this.saveQuickNotes(filteredNotes);
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — note was not deleted.');
+    return await solidQuickNotes.quickNoteBackend.delete(solid, solid.webId, noteId);
   }
 
   public async saveQuickNoteAudio(noteId: string, audioBlob: Blob): Promise<string | null> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return null;
-
-    try {
-      const path = `quick-note-audio/${noteId}`;
-      // Convert blob to base64
-      const base64 = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result as string);
-        reader.onerror = reject;
-        reader.readAsDataURL(audioBlob);
-      });
-      await this.client.storeFile(audioBlob.type, path, base64);
-      return path;
-    } catch (error) {
-      console.error('Failed to save quick note audio:', error);
-      return null;
-    }
+    const solid = await this.solid();
+    return solid?.webId ? await solidQuickNotes.saveQuickNoteAudio(solid, solid.webId, noteId, audioBlob) : null;
   }
 
   public async getQuickNoteAudio(path: string): Promise<Blob | null> {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return null;
-
-    try {
-      const file = await this.client.getFile(path);
-      if (file?.data) {
-        // Convert base64 to blob
-        const response = await fetch(file.data);
-        return await response.blob();
-      }
-      return null;
-    } catch (error) {
-      console.error('Failed to get quick note audio:', error);
-      return null;
-    }
+    const solid = await this.solid();
+    return solid?.webId ? await solidQuickNotes.getQuickNoteAudio(solid, path) : null;
   }
 
   // Velocity tracking operations
   public async getVelocityEntries(): Promise<VelocityEntry[]> {
-    if (!this.client) {
-      this.initialize();
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await velocityBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list velocity entries from Solid pod:', error);
+        return [];
+      }
     }
-    if (!this.client) return [];
-
-    try {
-      const result = await this.client.getObject('velocity') || { entries: [] };
-      return (result['entries'] as VelocityEntry[]) || [];
-    } catch (error) {
-      console.error('Failed to get velocity entries:', error);
-      return [];
-    }
-  }
-
-  public async saveVelocityEntries(entries: VelocityEntry[]) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    try {
-      return await this.client.storeObject('VelocityCollection', 'velocity', { entries });
-    } catch (error) {
-      console.error('Failed to save velocity entries:', error);
-    }
+    return [];
   }
 
   public async addVelocityEntry(entry: VelocityEntry) {
-    const entries = await this.getVelocityEntries();
-    entries.push(entry);
-    return await this.saveVelocityEntries(entries);
+    const solid = await this.solid();
+    if (!solid?.webId) throw new Error('Not connected to a Solid pod — velocity entry was not saved.');
+    return await velocityBackend.save(solid, solid.webId, entry);
   }
 
   public async recordTaskCompletionForVelocity(task: StandaloneTask) {
@@ -2353,230 +887,227 @@ export class RemoteStorageClient {
     return Array.from(weeklyData.values()).sort((a, b) => a.week.localeCompare(b.week));
   }
 
-  public async saveFullImage(photoId: string, base64Data: string, mimeType: string) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return null;
-
-    try {
-      const path = `photo-images/${photoId}`;
-      // Store as binary data
-      await this.client.storeFile(mimeType, path, base64Data);
-      return path;
-    } catch (error) {
-      console.error('Failed to save full image:', error);
-      return null;
-    }
+  public async saveFullImage(photoId: string, data: ArrayBuffer, mimeType: string) {
+    const solid = await this.solid();
+    return solid?.webId ? await solidPhotos.saveFullImage(solid, solid.webId, photoId, data, mimeType) : null;
   }
 
-  public async getFullImage(path: string) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return null;
-
-    try {
-      const file = await this.client.getFile(path);
-      return file;
-    } catch (error) {
-      console.error('Failed to get full image:', error);
-      return null;
-    }
+  public async getFullImageBlob(path: string, fallbackMime = 'image/jpeg'): Promise<Blob | null> {
+    void fallbackMime;
+    const solid = await this.solid();
+    return solid?.webId ? await solidPhotos.getFullImageBlob(solid, path) : null;
   }
 
-  // Event listening — single underlying listener fans out to all subscribers
-  public onChange(callback: (event: RemoteStorageChangeEvent) => void) {
-    if (!this.client) {
-      this.initialize();
-    }
-    if (!this.client) return;
-
-    if (!this.changeListenerRegistered) {
-      this.changeListenerRegistered = true;
-      this.client.on('change', (event) => {
-        this.changeListeners.forEach((cb) => cb(event));
-      });
-    }
-    this.changeListeners.add(callback);
+  public onChange(callback: (event: StorageChangeEvent) => void) {
+    void callback;
   }
 
-  public offChange(callback: (event: RemoteStorageChangeEvent) => void) {
-    this.changeListeners.delete(callback);
+  public offChange(callback: (event: StorageChangeEvent) => void) {
+    void callback;
   }
 
   public onConnect(callback: () => void) {
-    if (!this.remoteStorage) {
-      this.initialize();
-    }
-    if (!this.remoteStorage) return;
-
-    this.remoteStorage.on('connected', callback as () => void);
+    void callback;
   }
 
   public onDisconnect(callback: () => void) {
-    if (!this.remoteStorage) {
-      this.initialize();
-    }
-    if (!this.remoteStorage) return;
-
-    this.remoteStorage.on('disconnected', callback as () => void);
+    void callback;
   }
 
   public onError(callback: (error: Error) => void) {
-    if (!this.remoteStorage) {
-      this.initialize();
-    }
-    if (!this.remoteStorage) return;
-
-    this.remoteStorage.on('error', callback as (...args: unknown[]) => void);
+    void callback;
   }
 
   public offError(callback: (error: Error) => void) {
-    if (!this.remoteStorage) return;
-
-    // RemoteStorage uses '_handlers' internally; we need to remove the listener
-    const handlers = this.remoteStorage._handlers?.['error'];
-    if (handlers) {
-      const index = handlers.indexOf(callback as (...args: unknown[]) => void);
-      if (index > -1) {
-        handlers.splice(index, 1);
-      }
-    }
-  }
-
-  // Utility methods
-  public isConnected() {
-    if (!this.remoteStorage) {
-      this.initialize();
-    }
-    return this.remoteStorage?.connected || false;
+    void callback;
   }
 
   // Week reflection operations
   public async getWeekReflections(): Promise<Record<string, WeekReflection>> {
-    if (!this.client) this.initialize();
-    if (!this.client) return {};
-
-    try {
-      const listing = await this.client.getAll('week-reflections/');
-      if (!listing) return {};
-      const result: Record<string, WeekReflection> = {};
-      for (const [, value] of Object.entries(listing)) {
-        const r = value as WeekReflection;
-        if (r && r.id) result[r.id] = r;
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await solidWeekReflections.listWeekReflections(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list week reflections from Solid pod:', error);
+        return {};
       }
-      return result;
-    } catch (error) {
-      console.error('Failed to get week reflections:', error);
-      return {};
     }
+    return {};
   }
 
   public async saveWeekReflection(reflection: WeekReflection): Promise<void> {
-    if (!this.client) this.initialize();
-    if (!this.client) return;
-
-    try {
-      const cleaned: WeekReflection = {
-        id: reflection.id,
-        createdAt: reflection.createdAt,
-        ...(reflection.text !== undefined && { text: reflection.text }),
-        ...(reflection.updatedAt !== undefined && { updatedAt: reflection.updatedAt }),
-      };
-      await this.client.storeObject('WeekReflection', `week-reflections/${reflection.id}`, cleaned);
-    } catch (error) {
-      console.error('Failed to save week reflection:', error);
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await solidWeekReflections.saveWeekReflection(solid, solid.webId, reflection);
     }
   }
 
   public async deleteWeekReflection(id: string): Promise<void> {
-    if (!this.client) this.initialize();
-    if (!this.client) return;
-
-    try {
-      await this.client.remove(`week-reflections/${id}`);
-    } catch (error) {
-      console.error('Failed to delete week reflection:', error);
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await solidWeekReflections.deleteWeekReflection(solid, solid.webId, id);
     }
   }
 
   // Life event operations
   public async getLifeEvents(): Promise<LifeEvent[]> {
-    if (!this.client) this.initialize();
-    if (!this.client) return [];
-
-    try {
-      const listing = await this.client.getAll('life-events/');
-      if (!listing) return [];
-      return Object.values(listing)
-        .filter((v): v is LifeEvent => !!(v as LifeEvent)?.id)
-        .sort((a, b) => a.startWeek.localeCompare(b.startWeek));
-    } catch (error) {
-      console.error('Failed to get life events:', error);
-      return [];
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        const events = await lifeEventBackend.list(solid, solid.webId);
+        return events.sort((a, b) => a.startWeek.localeCompare(b.startWeek));
+      } catch (error) {
+        console.error('Failed to list life events from Solid pod:', error);
+        return [];
+      }
     }
+    return [];
   }
 
   public async saveLifeEvent(event: LifeEvent): Promise<void> {
-    if (!this.client) this.initialize();
-    if (!this.client) return;
-
-    try {
-      const cleaned: LifeEvent = {
-        id: event.id,
-        label: event.label,
-        startWeek: event.startWeek,
-        endWeek: event.endWeek,
-        color: event.color,
-        createdAt: event.createdAt,
-        ...(event.updatedAt !== undefined && { updatedAt: event.updatedAt }),
-      };
-      await this.client.storeObject('LifeEvent', `life-events/${event.id}`, cleaned);
-    } catch (error) {
-      console.error('Failed to save life event:', error);
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await lifeEventBackend.save(solid, solid.webId, event);
     }
   }
 
   public async deleteLifeEvent(id: string): Promise<void> {
-    if (!this.client) this.initialize();
-    if (!this.client) return;
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await lifeEventBackend.delete(solid, solid.webId, id);
+    }
+  }
 
+  // Health Connect data (synced from Android via Leptum app)
+  public async getHealthData(): Promise<DailyHealthData[]> {
+    const solid = await this.solid();
+    if (!solid?.webId) return [];
     try {
-      await this.client.remove(`life-events/${id}`);
+      return (await healthBackend.list(solid, solid.webId)).sort((a, b) => b.date.localeCompare(a.date));
     } catch (error) {
-      console.error('Failed to delete life event:', error);
+      console.error('Failed to get health data:', error);
+      return [];
     }
   }
 
-  public getRemoteStorage(): RemoteStorageInstance | null {
-    if (!this.remoteStorage) {
-      this.initialize();
-    }
-    return this.remoteStorage;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  private widget: any = null;
-
-  public attachWidget(elementId: string): void {
-    if (typeof window === 'undefined') return;
-    if (!this.remoteStorage) this.initialize();
-    if (!this.remoteStorage) return;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const Widget = require('remotestorage-widget');
-      this.widget = new Widget(this.remoteStorage);
-      this.widget.attach(elementId);
-    } catch (e) {
-      console.error('Failed to attach RemoteStorage widget', e);
+  public async saveLocation(location: LocationUpdate): Promise<void> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await locationBackend.save(solid, solid.webId, location);
     }
   }
 
-  public detachWidget(): void {
-    this.widget = null;
+  public async getLocation(): Promise<LocationUpdate | null> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await locationBackend.get(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to get location from Solid pod:', error);
+        return null;
+      }
+    }
+    return null;
+  }
+
+  public async getGroceryNotifications(): Promise<GroceryNotification[]> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await groceryNotificationBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list grocery notifications from Solid pod:', error);
+        return [];
+      }
+    }
+    return [];
+  }
+
+  public async saveGroceryNotification(notification: GroceryNotification): Promise<void> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await groceryNotificationBackend.save(solid, solid.webId, notification);
+    }
+  }
+
+  public async dismissGroceryNotification(id: string): Promise<void> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await groceryNotificationBackend.update(solid, solid.webId, id, { status: 'dismissed' });
+    }
+  }
+
+  public async acceptGroceryNotification(id: string): Promise<void> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await groceryNotificationBackend.update(solid, solid.webId, id, { status: 'accepted' });
+    }
+  }
+
+  public async getGroceryStores(): Promise<GroceryStore[]> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      try {
+        return await groceryStoreBackend.list(solid, solid.webId);
+      } catch (error) {
+        console.error('Failed to list grocery stores from Solid pod:', error);
+        return [];
+      }
+    }
+    return [];
+  }
+
+  public async saveGroceryStore(store: GroceryStore): Promise<void> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await groceryStoreBackend.save(solid, solid.webId, store);
+    }
+  }
+
+  public async deleteGroceryStore(storeId: string): Promise<void> {
+    const solid = await this.solid();
+    if (solid?.webId) {
+      return await groceryStoreBackend.delete(solid, solid.webId, storeId);
+    }
   }
 }
 
+export interface DailyHealthData {
+  date: string;
+  steps?: number;
+  distanceMeters?: number;
+  activeCalories?: number;
+  totalCalories?: number;
+  sleepMinutes?: number;
+  heartRateAvg?: number;
+  heartRateMin?: number;
+  heartRateMax?: number;
+  restingHeartRate?: number;
+  hrvRmssd?: number;
+  weightKg?: number;
+  bodyFatPct?: number;
+  bloodPressureSystolic?: number;
+  bloodPressureDiastolic?: number;
+  bloodGlucoseMmol?: number;
+  oxygenSaturationPct?: number;
+  floorsClimbed?: number;
+  exerciseSessions?: Array<{
+    type: number;
+    title?: string;
+    startTime: string;
+    endTime: string;
+    durationMinutes: number;
+  }>;
+  sleepSessions?: Array<{
+    startTime: string;
+    endTime: string;
+    durationMinutes: number;
+  }>;
+}
+
 // Create singleton instance
-export const remoteStorageClient = new RemoteStorageClient(); 
+export const remoteStorageClient = new StorageClient();
+if (typeof window !== 'undefined') {
+  (window as unknown as Record<string, unknown>).__rsClient = remoteStorageClient;
+}

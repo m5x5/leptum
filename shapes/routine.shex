@@ -1,0 +1,41 @@
+PREFIX schema: <https://schema.org/>
+PREFIX ical: <http://www.w3.org/2002/12/cal/ical#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+leptum:RoutineShape EXTRA a {
+  a [ schema:Action ical:Vtodo leptum:Routine ] ;
+  ical:uid xsd:string ? ;
+  schema:name xsd:string ? ;
+  ical:summary xsd:string ? ;
+  schema:description xsd:string ? ;
+  ical:rrule xsd:string ? ;
+  schema:actionStatus
+    [ schema:CompletedActionStatus
+      schema:ActiveActionStatus
+      schema:PotentialActionStatus
+      schema:FailedActionStatus
+    ] ? ;
+  schema:about IRI * ;
+  leptum:isShowUpRoutine xsd:boolean ? ;
+  leptum:routineTask @leptum:RoutineTaskShape *
+}
+
+leptum:RoutineTaskShape EXTRA a {
+  a [ schema:Action ical:Vtodo ] ;
+  ical:uid xsd:string ? ;
+  schema:name xsd:string ? ;
+  ical:summary xsd:string ? ;
+  schema:description xsd:string ? ;
+  ical:relatedTo IRI ? ;
+  schema:actionStatus
+    [ schema:CompletedActionStatus
+      schema:ActiveActionStatus
+      schema:PotentialActionStatus
+      schema:FailedActionStatus
+    ] ? ;
+  leptum:completedAt xsd:dateTime ? ;
+  leptum:effort xsd:string ? ;
+  leptum:numericEstimate xsd:decimal ? ;
+  leptum:order xsd:decimal ?
+}

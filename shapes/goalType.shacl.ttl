@@ -1,0 +1,21 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:GoalTypeShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors GoalType (lib/remoteStorage.ts) as written by goalTypeToRdf and read by extractGoalType (lib/solidRdf/transform.ts / fromRdf.ts). Additional rdf:type values are permitted (ShEx EXTRA a)." ;
+  sh:targetClass leptum:GoalType ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .

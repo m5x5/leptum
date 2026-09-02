@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from "react";
-import Modal from ".";
+import { useState, useEffect, useRef, type ReactNode } from "react";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "../ui/sheet";
 import { Input } from "../ui/input";
 import { RichTextEditor } from "../ui/rich-text-editor";
+import { Button } from "../ui/button";
 import { dateToInputValue, inputValueToTimestamp } from "../../utils/deadlineUtils";
 import { GoalMilestone } from "../../utils/useGoals";
 import { GOAL_TEMPLATES_WITH_TRACKING, GoalTemplateWithTracking } from "../../utils/goalTemplatesWithTracking";
@@ -25,6 +26,8 @@ interface AddGoalModalProps {
   isEdit?: boolean;
 }
 
+const EMPTY_MILESTONES: Array<{ name: string; order: number; daysOffset?: number }> = [];
+
 const COLORS = [
   { name: "Blue", value: "bg-blue-500" },
   { name: "Green", value: "bg-green-500" },
@@ -40,6 +43,31 @@ const COLORS = [
 
 type ModalStep = 'choice' | 'select-template' | 'create-custom';
 
+interface GoalSheetShellProps {
+  isOpen: boolean;
+  onClose: () => void;
+  title: string;
+  children: ReactNode;
+  footer: ReactNode;
+}
+
+function GoalSheetShell({ isOpen, onClose, title, children, footer }: GoalSheetShellProps) {
+  return (
+    <Sheet open={isOpen} onOpenChange={(open) => { if (!open) onClose(); }}>
+      <SheetContent
+        side="right"
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-md md:max-w-lg"
+      >
+        <SheetHeader className="border-b border-border px-6 py-4">
+          <SheetTitle>{title}</SheetTitle>
+        </SheetHeader>
+        <div className="flex-1 overflow-y-auto px-6 py-4">{children}</div>
+        <SheetFooter className="border-t border-border px-6 py-4">{footer}</SheetFooter>
+      </SheetContent>
+    </Sheet>
+  );
+}
+
 const AddGoalModal = ({
   onAdd,
   isOpen,
@@ -49,11 +77,12 @@ const AddGoalModal = ({
   initialColor = "bg-blue-500",
   initialDescription = "",
   initialTargetDate,
-  initialMilestones = [],
+  initialMilestones,
   isEdit = false,
 }: AddGoalModalProps) => {
   // Determine initial step: skip choice if editing, or if initialName is already set (from template)
   const allTemplates = [...GOAL_TEMPLATES_WITH_TRACKING, ...GOAL_TEMPLATES];
+  const stableMilestones = initialMilestones ?? EMPTY_MILESTONES;
   const shouldShowChoice = !isEdit && !initialName && allTemplates.length > 0;
   const [step, setStep] = useState<ModalStep>(shouldShowChoice ? 'choice' : 'create-custom');
   const [goalName, setGoalName] = useState(initialName);
@@ -62,7 +91,7 @@ const AddGoalModal = ({
   const [targetDate, setTargetDate] = useState(dateToInputValue(initialTargetDate));
   const baseDateRef = useRef(0);
   const [milestones, setMilestones] = useState<Array<{ name: string; order: number; targetDate?: number }>>(
-    initialMilestones.map((m, idx) => {
+    stableMilestones.map((m, idx) => {
       const baseDate = initialTargetDate ?? 0;
       const targetDate = m.daysOffset ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000) : undefined;
       return {
@@ -75,9 +104,9 @@ const AddGoalModal = ({
   useEffect(() => {
     if (baseDateRef.current === 0) {
       baseDateRef.current = Date.now();
-      if (!initialTargetDate && initialMilestones.length > 0) {
+      if (!initialTargetDate && stableMilestones.length > 0) {
         queueMicrotask(() => {
-          setMilestones(initialMilestones.map((m, idx) => {
+          setMilestones(stableMilestones.map((m, idx) => {
             const baseDate = baseDateRef.current;
             const targetDate = m.daysOffset ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000) : undefined;
             return { name: m.name, order: m.order ?? idx, targetDate };
@@ -85,53 +114,53 @@ const AddGoalModal = ({
         });
       }
     }
-  }, [initialTargetDate, initialMilestones]);
+  }, [initialTargetDate, stableMilestones]);
   const [newMilestoneName, setNewMilestoneName] = useState("");
-  const [showMilestones, setShowMilestones] = useState(initialMilestones.length > 0);
+  const [showMilestones, setShowMilestones] = useState(stableMilestones.length > 0);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | undefined>(undefined);
 
-  // Update state when initial values change (for edit mode)
-  // Note: We only update when the modal opens (isOpen changes to true) to avoid constant rerenders
+  // Sync form state only when modal opens (isOpen transitions to true)
+  const prevIsOpenRef = useRef(false);
   useEffect(() => {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+
     if (!isOpen) {
-      // Reset step when modal closes
-      const shouldShowChoice = !isEdit && !initialName && allTemplates.length > 0;
-      queueMicrotask(() => setStep(shouldShowChoice ? 'choice' : 'create-custom'));
+      if (wasOpen) {
+        // Modal just closed — reset step after animation
+        const shouldShowChoice = !isEdit && !initialName && allTemplates.length > 0;
+        setTimeout(() => setStep(shouldShowChoice ? 'choice' : 'create-custom'), 200);
+      }
       return;
     }
 
-    queueMicrotask(() => {
+    if (!wasOpen) {
+      // Modal just opened — sync form state from props
       setGoalName(initialName);
       setSelectedColor(initialColor);
       setDescription(initialDescription);
       setTargetDate(dateToInputValue(initialTargetDate));
-    });
 
-    if (baseDateRef.current === 0) baseDateRef.current = Date.now();
-    const baseDate = initialTargetDate ?? baseDateRef.current;
-    const milestonesData = initialMilestones.map((m, idx) => {
-      const targetDate = m.daysOffset ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000) : undefined;
-      return {
-        name: m.name,
-        order: m.order ?? idx,
-        targetDate
-      };
-    });
-    queueMicrotask(() => {
+      if (baseDateRef.current === 0) baseDateRef.current = Date.now();
+      const baseDate = initialTargetDate ?? baseDateRef.current;
+      const milestonesData = stableMilestones.map((m, idx) => {
+        const targetDate = m.daysOffset ? baseDate + (m.daysOffset * 24 * 60 * 60 * 1000) : undefined;
+        return { name: m.name, order: m.order ?? idx, targetDate };
+      });
       setMilestones(milestonesData);
-      setShowMilestones(initialMilestones.length > 0);
+      setShowMilestones(stableMilestones.length > 0);
+
       if (initialName) {
         const matchingTemplate = GOAL_TEMPLATES_WITH_TRACKING.find(t => t.name === initialName);
         setSelectedTemplateId(matchingTemplate ? matchingTemplate.id : undefined);
       } else {
         setSelectedTemplateId(undefined);
       }
-    });
 
-    // Reset step when modal opens
-    const shouldShowChoiceOnOpen = !isEdit && !initialName && allTemplates.length > 0;
-    queueMicrotask(() => setStep(shouldShowChoiceOnOpen ? 'choice' : 'create-custom'));
-  }, [isOpen, isEdit, initialName, allTemplates.length, initialColor, initialDescription, initialMilestones, initialTargetDate]);
+      const shouldShowChoiceOnOpen = !isEdit && !initialName && allTemplates.length > 0;
+      setStep(shouldShowChoiceOnOpen ? 'choice' : 'create-custom');
+    }
+  }, [isOpen, allTemplates.length, initialColor, initialDescription, initialName, initialTargetDate, isEdit, stableMilestones]);
 
   function resetForm() {
     setGoalName("");
@@ -250,124 +279,139 @@ const AddGoalModal = ({
   // Render choice screen
   if (step === 'choice') {
     return (
-      <Modal isOpen={isOpen} closeModal={closeModal}>
-        <Modal.Title>
-          Add Goal{categoryName ? ` to ${categoryName}` : ""}
-        </Modal.Title>
-        <Modal.Body>
-          <div className="space-y-4 mt-4">
-            <p className="text-sm text-muted-foreground mb-4">
-              Would you like to select a predefined goal template or create a custom one?
-            </p>
-            <div className="flex flex-col gap-3">
-              <button
-                type="button"
-                onClick={() => setStep('select-template')}
-                className="min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left"
-              >
-                <div className="font-medium">Select Predefined Template</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Choose from templates like Hydration, Nutrition, and more
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => setStep('create-custom')}
-                className="min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left"
-              >
-                <div className="font-medium">Create Custom Goal</div>
-                <div className="text-sm text-muted-foreground mt-1">
-                  Create a new goal with your own details
-                </div>
-              </button>
-            </div>
-          </div>
-        </Modal.Body>
-        <Modal.Footer>
-          <div className="flex gap-2 justify-end">
-            <button
+      <GoalSheetShell
+        isOpen={isOpen}
+        onClose={closeModal}
+        title={`Add Goal${categoryName ? ` to ${categoryName}` : ""}`}
+        footer={
+          <div className="flex w-full gap-2 justify-end">
+            <Button
               type="button"
-              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              variant="secondary"
               onClick={closeModal}
             >
               Cancel
+            </Button>
+          </div>
+        }
+      >
+        <div className="space-y-4">
+          <p className="text-sm text-muted-foreground mb-4">
+            Would you like to select a predefined goal template or create a custom one?
+          </p>
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={() => setStep('select-template')}
+              className="min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-control transition text-left"
+            >
+              <div className="font-medium">Select Predefined Template</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                Choose from templates like Hydration, Nutrition, and more
+              </div>
+            </button>
+            <button
+              type="button"
+              onClick={() => setStep('create-custom')}
+              className="min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-control transition text-left"
+            >
+              <div className="font-medium">Create Custom Goal</div>
+              <div className="text-sm text-muted-foreground mt-1">
+                Create a new goal with your own details
+              </div>
             </button>
           </div>
-        </Modal.Footer>
-      </Modal>
+        </div>
+      </GoalSheetShell>
     );
   }
 
   // Render template selection screen
   if (step === 'select-template') {
     return (
-      <Modal isOpen={isOpen} closeModal={closeModal}>
-        <Modal.Title>
-          Select Goal Template
-        </Modal.Title>
-        <Modal.Body>
-          <div className="space-y-4 mt-4">
-            {allTemplates.length > 0 ? (
-              <div className="space-y-2 max-h-96 overflow-y-auto">
-                {allTemplates.map((template) => (
-                  <button
-                    key={template.id}
-                    type="button"
-                    onClick={() => handleSelectTemplate(template)}
-                    className="w-full min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg transition text-left flex items-center gap-3"
-                  >
-                    <div className="text-2xl flex-shrink-0">{template.icon}</div>
-                    {template.color && (
-                      <div className={`w-4 h-4 rounded-full ${template.color} flex-shrink-0`} />
-                    )}
-                    <div className="flex-1">
-                      <div className="font-medium">{template.name}</div>
-                      {template.description && (
-                        <div className="text-sm text-muted-foreground mt-1 line-clamp-1">
-                          {template.description}
-                        </div>
-                      )}
-                    </div>
-                  </button>
-                ))}
-              </div>
-            ) : (
-              <p className="text-sm text-muted-foreground text-center py-8">
-                No templates found. Create a custom goal instead.
-              </p>
-            )}
-          </div>
-        </Modal.Body>
-        <Modal.Footer>
-          <div className="flex gap-2 justify-end">
-            <button
+      <GoalSheetShell
+        isOpen={isOpen}
+        onClose={closeModal}
+        title="Select Goal Template"
+        footer={
+          <div className="flex w-full gap-2 justify-end">
+            <Button
               type="button"
-              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              variant="secondary"
               onClick={() => setStep('choice')}
             >
               Back
-            </button>
-            <button
+            </Button>
+            <Button
               type="button"
-              className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+              variant="secondary"
               onClick={closeModal}
             >
               Cancel
-            </button>
+            </Button>
           </div>
-        </Modal.Footer>
-      </Modal>
+        }
+      >
+        <div className="space-y-4">
+          {allTemplates.length > 0 ? (
+            <div className="space-y-2">
+              {allTemplates.map((template) => (
+                <button
+                  key={template.id}
+                  type="button"
+                  onClick={() => handleSelectTemplate(template)}
+                  className="w-full min-h-[44px] px-4 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-control transition text-left flex items-center gap-3"
+                >
+                  <div className="text-2xl flex-shrink-0">{template.icon}</div>
+                  {template.color && (
+                    <div className={`w-4 h-4 rounded-full ${template.color} flex-shrink-0`} />
+                  )}
+                  <div className="flex-1">
+                    <div className="font-medium">{template.name}</div>
+                    {template.description && (
+                      <div className="text-sm text-muted-foreground mt-1 line-clamp-1">
+                        {template.description}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-8">
+              No templates found. Create a custom goal instead.
+            </p>
+          )}
+        </div>
+      </GoalSheetShell>
     );
   }
 
   // Render create custom goal form (existing form)
   return (
-    <Modal isOpen={isOpen} closeModal={closeModal}>
-      <Modal.Title>
-        {isEdit ? "Edit Goal" : `Add Goal${categoryName ? ` to ${categoryName}` : ""}`}
-      </Modal.Title>
-      <Modal.Body>
-        <div className="space-y-4 mt-4">
+    <GoalSheetShell
+      isOpen={isOpen}
+      onClose={closeModal}
+      title={isEdit ? "Edit Goal" : `Add Goal${categoryName ? ` to ${categoryName}` : ""}`}
+      footer={
+        <div className="flex w-full gap-2 justify-end">
+          <Button
+            type="button"
+            variant="secondary"
+            onClick={closeModal}
+          >
+            Cancel
+          </Button>
+          <Button
+            type="button"
+            onClick={handleSubmit}
+          >
+            {isEdit ? "Save Changes" : "Add Goal"}
+          </Button>
+        </div>
+      }
+    >
+      <div className="space-y-4">
           {!isEdit && step === 'create-custom' && allTemplates.length > 0 && (
             <button
               type="button"
@@ -422,13 +466,13 @@ const AddGoalModal = ({
             <label className="block text-sm font-medium text-foreground mb-3">
               Color
             </label>
-            <div className="grid grid-cols-5 gap-3">
+            <div className="grid grid-cols-5 gap-2 sm:gap-3">
               {COLORS.map((color) => (
                 <button
                   key={color.value}
                   type="button"
                   onClick={() => setSelectedColor(color.value)}
-                  className={`w-full min-h-[44px] h-10 rounded-lg ${color.value} hover:opacity-80 transition ${
+                  className={`w-full min-w-0 min-h-[44px] h-10 rounded-control ${color.value} hover:opacity-80 transition ${
                     selectedColor === color.value
                       ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
                       : ""
@@ -459,19 +503,20 @@ const AddGoalModal = ({
             {showMilestones && (
               <div className="space-y-2">
                 {milestones.map((milestone, index) => (
-                  <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded-lg">
+                  <div key={index} className="flex items-center gap-2 p-2 bg-muted rounded-control">
                     <span className="text-muted-foreground text-sm w-6">{index + 1}.</span>
                     <span className="flex-1 text-sm">{milestone.name}</span>
-                    <button
+                    <Button
                       type="button"
+                      variant="ghost-destructive"
+                      size="icon"
                       onClick={() => removeMilestone(index)}
-                      className="min-h-[44px] min-w-[44px] flex items-center justify-center text-muted-foreground hover:text-destructive transition"
                       title="Remove milestone"
                     >
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                       </svg>
-                    </button>
+                    </Button>
                   </div>
                 ))}
 
@@ -484,13 +529,13 @@ const AddGoalModal = ({
                     placeholder="Add a milestone..."
                     className="flex-1"
                   />
-                  <button
+                  <Button
                     type="button"
+                    size="sm"
                     onClick={addMilestone}
-                    className="min-h-[44px] px-3 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 text-sm font-medium"
                   >
                     Add
-                  </button>
+                  </Button>
                 </div>
 
                 {milestones.length === 0 && (
@@ -502,27 +547,8 @@ const AddGoalModal = ({
             )}
           </div>
 
-        </div>
-      </Modal.Body>
-      <Modal.Footer>
-        <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-            onClick={closeModal}
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-            onClick={handleSubmit}
-          >
-            {isEdit ? "Save Changes" : "Add Goal"}
-          </button>
-        </div>
-      </Modal.Footer>
-    </Modal>
+      </div>
+    </GoalSheetShell>
   );
 };
 

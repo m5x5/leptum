@@ -197,7 +197,7 @@ export function LiveSummaryBar({
   return (
     <div className="relative">
       <div
-        className="relative flex h-8 rounded-lg overflow-hidden border border-border"
+        className="relative flex h-8 rounded-control overflow-hidden border border-border"
         onMouseMove={handleMouseMove}
         onMouseLeave={handleMouseLeave}
       >

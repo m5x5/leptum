@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
+import { defineCollection } from '../lib/query/defineCollection';
 
 export interface AffectedMetric {
   metric: string;
@@ -15,59 +16,63 @@ export interface Insight {
   createdAt: number;
 }
 
-export function useInsights() {
-  const [insights, setInsights] = useState<Insight[]>([]);
-  const [loading, setLoading] = useState(true);
+export const insightsCollection = defineCollection<Insight[]>(
+  'insights',
+  () => remoteStorageClient.getInsights(),
+  { initial: [], refreshOn: ['insightsUpdated'] }
+);
 
-  // Load insights on mount
-  useEffect(() => {
-    loadInsights();
+export function useInsights() {
+  const { data, isPending } = insightsCollection.useQuery();
+  const insights = data ?? [];
+
+  const addInsight = useCallback(async (insight: Omit<Insight, 'id' | 'createdAt'>) => {
+    const newInsight: Insight = { ...insight, id: Date.now().toString(), createdAt: Date.now() };
+    insightsCollection.markSelfWrite();
+    insightsCollection.set((prev) => [...prev, newInsight]);
+    try {
+      await remoteStorageClient.saveInsight(newInsight);
+    } catch (error) {
+      console.error('Failed to add insight:', error);
+      void insightsCollection.invalidate();
+      throw error;
+    }
+    return newInsight;
   }, []);
 
-  const loadInsights = async () => {
+  const updateInsight = useCallback(async (id: string, updates: Partial<Insight>) => {
+    const existing = insightsCollection.get().find((i) => i.id === id);
+    if (!existing) return;
+    const updated: Insight = { ...existing, ...updates };
+    insightsCollection.markSelfWrite();
+    insightsCollection.set((prev) => prev.map((i) => (i.id === id ? updated : i)));
     try {
-      const loadedInsights = await remoteStorageClient.getInsights();
-      setInsights(loadedInsights);
+      await remoteStorageClient.saveInsight(updated);
     } catch (error) {
-      console.error('Failed to load insights:', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to update insight:', error);
+      void insightsCollection.invalidate();
+      throw error;
     }
-  };
+  }, []);
 
-  const addInsight = async (insight: Omit<Insight, 'id' | 'createdAt'>) => {
-    const newInsight: Insight = {
-      ...insight,
-      id: Date.now().toString(),
-      createdAt: Date.now(),
-    };
-
-    const updatedInsights = [...insights, newInsight];
-    setInsights(updatedInsights);
-    await remoteStorageClient.saveInsights(updatedInsights);
-    return newInsight;
-  };
-
-  const updateInsight = async (id: string, updates: Partial<Insight>) => {
-    const updatedInsights = insights.map(insight =>
-      insight.id === id ? { ...insight, ...updates } : insight
-    );
-    setInsights(updatedInsights);
-    await remoteStorageClient.saveInsights(updatedInsights);
-  };
-
-  const deleteInsight = async (id: string) => {
-    const updatedInsights = insights.filter(insight => insight.id !== id);
-    setInsights(updatedInsights);
-    await remoteStorageClient.saveInsights(updatedInsights);
-  };
+  const deleteInsight = useCallback(async (id: string) => {
+    insightsCollection.markSelfWrite();
+    insightsCollection.set((prev) => prev.filter((i) => i.id !== id));
+    try {
+      await remoteStorageClient.deleteInsight(id);
+    } catch (error) {
+      console.error('Failed to delete insight:', error);
+      void insightsCollection.invalidate();
+      throw error;
+    }
+  }, []);
 
   return {
     insights,
-    loading,
+    loading: isPending,
     addInsight,
     updateInsight,
     deleteInsight,
-    refreshInsights: loadInsights,
+    refreshInsights: insightsCollection.invalidate,
   };
 }

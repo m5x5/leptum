@@ -1,0 +1,48 @@
+id: https://mpeters.dev/ns/leptum/linkml/entity
+name: leptum-entity
+description: >-
+  Mirrors Entity (lib/remoteStorage.ts) as written by entityToRdf and read by
+  extractEntity. Person uses foaf:name, Project/Context use schema:name —
+  modeled as two independent optional fields; app code coalesces them itself.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  foaf: http://xmlns.com/foaf/0.1/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Entity:
+    tree_root: true
+    class_uri: foaf:Person
+    description: >-
+      A person, project, or context. The rdf:type is one of foaf:Person,
+      schema:Project, or leptum:Context (class_uri lists the first;
+      schema:Project and leptum:Context are the alternatives). Additional
+      rdf:type values are permitted (ShEx EXTRA a).
+    attributes:
+      name:
+        slot_uri: foaf:name
+        range: string
+        description: Name for Person entities (foaf:name).
+      schema_name:
+        slot_uri: schema:name
+        range: string
+        description: >-
+          Name for Project/Context entities (schema:name) — same local name
+          as foaf:name, so prefixed with the vocabulary.
+      description:
+        slot_uri: schema:description
+        range: string
+      tag:
+        slot_uri: leptum:tag
+        range: string
+        multivalued: true
+      created:
+        slot_uri: dcterms:created
+        range: datetime

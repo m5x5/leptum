@@ -1,0 +1,56 @@
+id: https://mpeters.dev/ns/leptum/linkml/insight
+name: leptum-insight
+description: >-
+  Mirrors Insight (lib/remoteStorage.ts) as written by insightToRdf and read
+  by extractInsight. leptum:affectedMetric is an array of blank nodes
+  (AffectedMetric) that didn't round-trip through the flat Fact[] reader;
+  this is what ldo fixes.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Insight:
+    tree_root: true
+    class_uri: leptum:Insight
+    description: >-
+      A behavioral insight/pattern. Additional rdf:type values are permitted
+      (ShEx EXTRA a).
+    attributes:
+      name:
+        slot_uri: schema:name
+        range: string
+      description:
+        slot_uri: schema:description
+        range: string
+      category:
+        slot_uri: leptum:category
+        range: string
+      affectedMetric:
+        slot_uri: leptum:affectedMetric
+        range: AffectedMetric
+        inlined: true
+        multivalued: true
+      created:
+        slot_uri: dcterms:created
+        range: datetime
+  AffectedMetric:
+    description: A metric affected by the insight (blank node).
+    attributes:
+      metric:
+        slot_uri: leptum:metric
+        range: string
+      effect:
+        slot_uri: leptum:effect
+        range: string
+        description: >-
+          Should be a value-set enum ("positive"/"negative") matching
+          AffectedMetric['effect'] — left as string, same @ldo/cli
+          literal-enum crash workaround as task.shex's effort field.

@@ -1,0 +1,48 @@
+id: https://mpeters.dev/ns/leptum/linkml/image
+name: leptum-image
+description: >-
+  Mirrors PhotoAttachment (lib/remoteStorage.ts) as written by photoToRdf.
+  schema:contentUrl is an IRI to a real Solid binary resource (raw image
+  bytes), not an embedded base64 literal. No separate thumbnail resource is
+  modeled; the UI renders from the full image directly.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  PhotoAttachment:
+    tree_root: true
+    class_uri: schema:ImageObject
+    description: >-
+      Photo attachment metadata referencing a pod binary resource. Additional
+      rdf:type values are permitted (ShEx EXTRA a).
+    attributes:
+      aboutImpact:
+        slot_uri: leptum:aboutImpact
+        range: uri
+      contentUrl:
+        slot_uri: schema:contentUrl
+        range: uri
+        description: IRI of the pod binary resource holding the raw image bytes.
+      encodingFormat:
+        slot_uri: schema:encodingFormat
+        range: string
+      width:
+        slot_uri: schema:width
+        range: decimal
+      height:
+        slot_uri: schema:height
+        range: decimal
+      caption:
+        slot_uri: schema:caption
+        range: string
+      created:
+        slot_uri: dcterms:created
+        range: datetime

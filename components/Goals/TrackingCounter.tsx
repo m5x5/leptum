@@ -1,6 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Goal, GoalTrackingConfig, DailyTrackingEntry } from '../../utils/useGoals';
 import { remoteStorageClient, Routine } from '../../lib/remoteStorage';
+import { fetchActiveTasks, setTasksCache, markSelfWrite } from '../../lib/query/collections';
 import { PlusIcon } from '@heroicons/react/solid';
 import { useRoutineCompletions } from '../../utils/useRoutineCompletions';
 import { v4 as uuidv4 } from 'uuid';
@@ -57,22 +58,24 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
   
   // Count today's completions - check by routine ID first, fallback to routine name
   // (in case routine ID changed but name stayed the same)
-  const todayCompletions = linkedRoutine
-    ? completions.filter(
-        c => {
-          const matchesId = c.routineId === linkedRoutine.id;
-          const matchesName = c.routineName === linkedRoutine.name;
-          const isToday = c.completedAt >= todayStart && c.completedAt <= todayEnd;
-          return (matchesId || matchesName) && isToday;
-        }
-      )
-    : [];
+  const todayCompletions = useMemo(() => (
+    linkedRoutine
+      ? completions.filter(
+          c => {
+            const matchesId = c.routineId === linkedRoutine.id;
+            const matchesName = c.routineName === linkedRoutine.name;
+            const isToday = c.completedAt >= todayStart && c.completedAt <= todayEnd;
+            return (matchesId || matchesName) && isToday;
+          }
+        )
+      : []
+  ), [linkedRoutine, completions, todayStart, todayEnd]);
   const todayValue = todayCompletions.length;
   
   const target = config.dailyTarget || 8;
   const maxPerDay = config.maxPerDay || target * 1.5;
   
-  const addValue = async (increment: number) => {
+  const addValue = useCallback(async (increment: number) => {
     if (!linkedRoutine) return;
     
     // Handle increment (adding)
@@ -144,17 +147,17 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
         // Delete RoutineCompletion
         await remoteStorageClient.deleteRoutineCompletion(completion.routineInstanceId);
         
-        // Delete associated StandaloneTasks (batch delete to avoid conflicts)
-        const tasks = await remoteStorageClient.getStandaloneTasks();
+        // Delete the tasks that belonged to that routine instance — one DELETE
+        // each, against the cached task list.
+        const tasks = await fetchActiveTasks();
         const tasksToDelete = tasks.filter(
           (t) => t.routineInstanceId === completion.routineInstanceId
         );
-
-        // Batch delete: remove all tasks in one operation
         if (tasksToDelete.length > 0) {
-          const taskIdsToDelete = new Set(tasksToDelete.map((t) => t.id));
-          const remainingTasks = tasks.filter((t) => !taskIdsToDelete.has(t.id));
-          await remoteStorageClient.saveStandaloneTasks(remainingTasks);
+          const ids = new Set(tasksToDelete.map((t) => t.id));
+          markSelfWrite('tasks');
+          setTasksCache((prev) => prev.filter((t) => !ids.has(t.id)));
+          await Promise.all(tasksToDelete.map((t) => remoteStorageClient.deleteStandaloneTask(t.id)));
         }
       }
     }
@@ -164,9 +167,9 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
     
     // Trigger task list reload
     window.dispatchEvent(new CustomEvent('tasksUpdated'));
-    
+
     onUpdate();
-  };
+  }, [linkedRoutine, todayValue, maxPerDay, config.unit, goal.id, todayCompletions, reloadCompletions, onUpdate]);
 
   const handleCupClick = async (index: number) => {
     if (!linkedRoutine) return;
@@ -201,7 +204,7 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
       return <div className="text-sm text-muted-foreground">Loading...</div>;
     }
     return (
-      <div className="bg-card border border-border rounded-lg p-4">
+      <div className="bg-card border border-border rounded-control p-4">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-2xl">{config.icon}</span>
           <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>
@@ -221,7 +224,7 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
       );
     }
     return (
-      <div className="bg-card border border-border rounded-lg p-4">
+      <div className="bg-card border border-border rounded-control p-4">
         <div className="flex items-center gap-2 mb-3">
           <span className="text-2xl">{config.icon}</span>
           <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>
@@ -233,7 +236,7 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
     );
   }
   
-  const containerClass = embedded ? "" : "bg-card border border-border rounded-lg p-4";
+  const containerClass = embedded ? "" : "bg-card border border-border rounded-control p-4";
   const titleSection = embedded ? null : (
     <div className="flex items-center gap-2 mb-3">
       <span className="text-2xl">{config.icon}</span>
@@ -249,7 +252,7 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
         {!embedded && (
           <>
             <div className="flex items-baseline gap-2 mb-2">
-              <span className="text-2xl font-bold text-foreground">Today: {todayValue}</span>
+              <span className="text-2xl font-semibold text-foreground">Today: {todayValue}</span>
               <span className="text-muted-foreground">/ {target} {config.unit}</span>
             </div>
 
@@ -293,7 +296,7 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
                 key={increment}
                 onClick={() => addValue(increment)}
                 disabled={todayValue >= maxPerDay}
-                className={`min-h-[44px] ${embedded ? 'px-2 py-1 text-xs' : 'px-3 py-1.5'} bg-primary/10 text-primary rounded-lg hover:bg-primary/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
+                className={`min-h-[44px] ${embedded ? 'px-2 py-1 text-xs' : 'px-3 py-1.5'} bg-primary/10 text-primary rounded-control hover:bg-primary/20 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1`}
               >
                 <PlusIcon className={embedded ? "w-3 h-3" : "w-4 h-4"} />
                 <span>+{increment}</span>
@@ -337,7 +340,7 @@ export function TrackingCounter({ goal, config, entries: _entries, onUpdate, emb
                     style={{ height: `${height}%`, minHeight: value > 0 ? '4px' : '0' }}
                     title={`${date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}: ${value} ${config.unit}`}
                   />
-                  <span className={`${embedded ? 'text-[10px]' : 'text-xs'} text-muted-foreground`}>
+                  <span className={`${embedded ? 'text-xs' : 'text-xs'} text-muted-foreground`}>
                     {date.toLocaleDateString('en-US', { day: 'numeric' })}
                   </span>
                 </div>

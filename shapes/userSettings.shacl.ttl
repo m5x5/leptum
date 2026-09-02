@@ -1,0 +1,45 @@
+@prefix ui: <http://www.w3.org/ns/ui#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+leptum:UserSettingsShape
+  a sh:NodeShape ;
+  sh:targetClass leptum:UserSettings ;
+  sh:property [
+    sh:path leptum:showKeyboardShortcuts ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path ui:colorScheme ;
+    sh:in ( ui:LightColorScheme ui:DarkColorScheme ui:SystemColorScheme ) ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:timeFormat ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Intended values: \"12h\", \"24h\", \"system\"."
+  ] ;
+  sh:property [
+    sh:path leptum:wakingStartHour ;
+    sh:datatype xsd:time ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:wakingEndHour ;
+    sh:datatype xsd:time ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:suggestContactsFrom ;
+    sh:nodeKind sh:IRI ;
+    sh:description "vcard:AddressBook whose every contact is offered as an @mention. Absent together with suggestContactsFromGroup = every address book."
+  ] ;
+  sh:property [
+    sh:path leptum:suggestContactsFromGroup ;
+    sh:nodeKind sh:IRI ;
+    sh:description "vcard:Group whose members are offered as an @mention."
+  ] .

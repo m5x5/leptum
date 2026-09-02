@@ -1,0 +1,36 @@
+id: https://mpeters.dev/ns/leptum/linkml/patternNote
+name: leptum-patternNote
+description: >-
+  Mirrors PatternNote (lib/remoteStorage.ts) as written by patternNoteToRdf
+  and read by extractPatternNote.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  as: https://www.w3.org/ns/activitystreams#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  PatternNote:
+    tree_root: true
+    class_uri: leptum:PatternNote
+    description: >-
+      A note attached to a detected behavioral pattern/activity. Additional
+      rdf:type values are permitted (ShEx EXTRA a).
+    attributes:
+      activity:
+        slot_uri: leptum:activity
+        range: string
+      content:
+        slot_uri: as:content
+        range: string
+      created:
+        slot_uri: dcterms:created
+        range: datetime
+      modified:
+        slot_uri: dcterms:modified
+        range: datetime

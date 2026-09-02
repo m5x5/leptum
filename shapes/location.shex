@@ -1,0 +1,14 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors LocationUpdate (types/grocery.ts) as written by locationToRdf and
+# read by extractLocation (lib/solidRdf/transform.ts / fromRdf.ts).
+leptum:LocationShape EXTRA a {
+  a [ schema:GeoCoordinates ] ;
+  schema:latitude xsd:decimal ? ;
+  schema:longitude xsd:decimal ? ;
+  leptum:accuracy xsd:decimal ? ;
+  dcterms:created xsd:dateTime ?
+}

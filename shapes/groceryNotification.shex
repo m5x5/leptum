@@ -1,0 +1,33 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors GroceryNotification (types/grocery.ts) as written by
+# groceryNotificationToRdf and read by extractGroceryNotification.
+# leptum:item is an array of blank nodes (GroceryShoppingBriefItem) — the
+# first array-of-shape-typed-blank-nodes field in this codebase; storeName/
+# distance/totalEstimatedPrice/totalEstimatedWeightKg aren't written by
+# groceryNotificationToRdf at all (computed client-side, not persisted), so
+# they're not modeled here — same v1 gap extractGroceryNotification() has today.
+leptum:GroceryNotificationShape EXTRA a {
+  a [ leptum:GroceryNotification ] ;
+  schema:about IRI ? ;
+  leptum:status xsd:string ? ;
+  leptum:score xsd:decimal ? ;
+  leptum:item @leptum:GroceryItemShape * ;
+  dcterms:created xsd:dateTime ?
+}
+
+leptum:GroceryItemShape {
+  leptum:itemName xsd:string ? ;
+  leptum:itemQuantity xsd:decimal ? ;
+  leptum:itemUnit xsd:string ? ;
+  leptum:itemEstimatedPrice xsd:decimal ? ;
+  leptum:itemPricePerUnit xsd:decimal ? ;
+  leptum:itemIsOnSale xsd:boolean ? ;
+  leptum:itemSalePrice xsd:decimal ? ;
+  leptum:itemIsRecurring xsd:boolean ? ;
+  leptum:itemDaysOverdue xsd:decimal ? ;
+  leptum:itemEstimatedWeightKg xsd:decimal ?
+}

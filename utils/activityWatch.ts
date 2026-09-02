@@ -7,26 +7,10 @@ import {
   BucketMetadata,
   EventGroup,
 } from '../activity-watch.d';
+import { activityBucketColors, activityBucketSpecialColors } from '../lib/designColors';
 
-// Color palette for activity coloring (matching goal colors)
-const ACTIVITY_COLORS = [
-  'bg-blue-500',
-  'bg-green-500',
-  'bg-purple-500',
-  'bg-orange-500',
-  'bg-pink-500',
-  'bg-yellow-500',
-  'bg-indigo-500',
-  'bg-red-500',
-  'bg-teal-500',
-  'bg-cyan-500',
-];
-
-// Special colors for specific categories
-const SPECIAL_COLORS = {
-  afk: 'bg-gray-400',
-  idle: 'bg-gray-300',
-};
+const ACTIVITY_COLORS = activityBucketColors;
+const SPECIAL_COLORS = activityBucketSpecialColors;
 
 // Configuration constants
 export const DEFAULT_DAYS_BACK = 7;

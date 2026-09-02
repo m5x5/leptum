@@ -1,0 +1,39 @@
+id: https://mpeters.dev/ns/leptum/linkml/routineCompletion
+name: leptum-routineCompletion
+description: >-
+  Mirrors RoutineCompletion (lib/remoteStorage.ts) as written by
+  routineCompletionToRdf and read by extractRoutineCompletion.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  RoutineCompletion:
+    tree_root: true
+    class_uri: schema:CompleteAction
+    description: >-
+      A routine completion record. The rdf:type must include
+      schema:CompleteAction; additional rdf:type values are permitted
+      (ShEx EXTRA a semantics).
+    attributes:
+      object:
+        slot_uri: schema:object
+        range: uri
+      name:
+        slot_uri: schema:name
+        range: string
+      endTime:
+        slot_uri: schema:endTime
+        range: datetime
+      routineInstanceId:
+        slot_uri: leptum:routineInstanceId
+        range: string
+      taskCount:
+        slot_uri: leptum:taskCount
+        range: decimal

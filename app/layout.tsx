@@ -1,7 +1,10 @@
 import type { Metadata, Viewport } from "next";
 import "../styles/global.css";
 import "../styles/rich-text-editor.css";
+import { Agentation } from "agentation";
 import { AppShell } from "../components/AppShell";
+import { WebMCPGate } from "../components/WebMCPGate";
+import { APPLICATION_CAPABILITY_PROFILE } from "../lib/applicationCapability";
 
 const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://leptum.mpeters.dev";
 
@@ -65,6 +68,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <meta name="theme-color" media="(prefers-color-scheme: light)" content="#ffffff" />
         <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#020818" />
+        {/* The Application Capability description is embedded as RDFa on the
+            homepage itself (see ApplicationCapabilityRdfa) — this just
+            declares which profile the document conforms to, no separate
+            content-negotiated resource needed. */}
+        <link rel="profile" href={APPLICATION_CAPABILITY_PROFILE} />
         <script
           type="application/ld+json"
           dangerouslySetInnerHTML={{
@@ -79,7 +87,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body>
+        <WebMCPGate />
         <AppShell>{children}</AppShell>
+        {process.env.NODE_ENV === "development" && <Agentation />}
       </body>
     </html>
   );

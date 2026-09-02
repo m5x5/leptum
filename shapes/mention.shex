@@ -1,0 +1,18 @@
+PREFIX oa: <http://www.w3.org/ns/oa#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors Mention (lib/remoteStorage.ts) as written by mentionToRdf and read
+# by extractMention. sourceType can't be recovered from oa:hasTarget alone
+# (which container it's in tells you the entity type, not the source's own
+# type) — left as 'unknown', same as extractMention() today.
+leptum:MentionShape EXTRA a {
+  a [ oa:Annotation ] ;
+  oa:hasTarget IRI ? ;
+  oa:hasBody IRI ? ;
+  leptum:fieldName xsd:string ? ;
+  leptum:context xsd:string ? ;
+  leptum:position xsd:decimal ? ;
+  dcterms:created xsd:dateTime ?
+}

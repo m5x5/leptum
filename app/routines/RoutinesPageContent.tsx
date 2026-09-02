@@ -1,15 +1,53 @@
 "use client";
 
-import { PlusIcon, TrashIcon, CheckCircleIcon, PencilIcon, PlayIcon, DotsVerticalIcon } from "@heroicons/react/solid";
+import {
+  PlusIcon,
+  TrashIcon,
+  CheckCircleIcon,
+  PencilIcon,
+  PlayIcon,
+  DotsVerticalIcon,
+  FireIcon,
+  StarIcon,
+} from "@heroicons/react/solid";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuLabel, DropdownMenuTrigger } from "../../components/ui/dropdown-menu";
 import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { remoteStorageClient } from "../../lib/remoteStorage";
-import { Routine } from "../../components/Job/api";
+import { fetchCompletions } from '../../lib/query/collections';
+import { LocationTrigger, Routine } from "../../components/Job/api";
+import LocationTriggerInput from "../../components/LocationTriggerInput";
 import Modal from "../../components/Modal";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetFooter } from "../../components/ui/sheet";
+import Select, {
+  components as selectComponents,
+  type DropdownIndicatorProps,
+  type ClearIndicatorProps,
+  type MultiValueRemoveProps,
+} from "react-select";
+import { ChevronDownIcon, XIcon } from "@heroicons/react/solid";
+import { MenuIcon } from "@heroicons/react/outline";
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  closestCenter,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  verticalListSortingStrategy,
+  useSortable,
+  arrayMove,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { getDescription } from "../../utils/cron";
+import { cronToRRule, rruleToCron } from "../../lib/solidRdf/cronToRrule";
+import { useTimeFormat } from "../../utils/useTimeFormat";
 import { RoutineCompletion, useRoutineCompletions } from "../../utils/useRoutineCompletions";
 import RoutineHeatmap from "../../components/RoutineHeatmap";
 import { Goal, useGoals } from "../../utils/useGoals";
+import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { GoalTrackingWidget } from "../../components/Goals/GoalTrackingWidget";
 import { RichTextEditor } from "../../components/ui/rich-text-editor";
@@ -49,84 +87,187 @@ const RoutineCard = memo(function RoutineCard({
       ? goals.find((g) => routine.goalIds?.includes(g.id) && g.templateId && g.trackingConfig)
       : undefined;
   const streakInfo = getStreaksForRoutine(routine.id);
+  const checklistLinked = linkedGoal?.trackingConfig?.type === "checklist";
+  const { use24Hour } = useTimeFormat();
 
-  return (
-    <div className="bg-card border border-border rounded-lg p-4 relative flex-1 min-w-72">
-      <div className="flex items-center justify-between mb-2">
-        <div className="flex items-center gap-2 min-w-0">
-          <h3 className="text-lg font-semibold text-foreground truncate">{routine.name}</h3>
-          {streakInfo.currentStreak > 0 && (
-            <span className="shrink-0 inline-flex items-center gap-1 px-2 py-0.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 rounded-md text-xs font-medium border border-orange-500/20">
-              🔥 {streakInfo.currentStreak}d
-            </span>
-          )}
-        </div>
-        <div className="flex items-center gap-2 shrink-0">
-          {onPlay && !routine.cron && (
-            <button
-              onClick={() => onPlay(routine)}
-              className="p-2 hover:bg-muted rounded-lg transition-colors"
-              aria-label="Trigger routine"
-            >
-              <PlayIcon className="h-5 w-5 text-muted-foreground hover:text-green-500" />
-            </button>
-          )}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <button className="p-2 hover:bg-muted rounded-lg transition-colors" aria-label="More options">
-                <DotsVerticalIcon className="h-5 w-5 text-muted-foreground" />
-              </button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => onEdit(routine)}>
-                <PencilIcon className="h-4 w-4 mr-2" />
-                Edit
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onDelete(routine)} className="text-destructive focus:text-destructive">
-                <TrashIcon className="h-4 w-4 mr-2" />
-                Delete
-              </DropdownMenuItem>
-              {streakInfo.longestStreak > 0 && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuLabel className="text-xs text-muted-foreground font-normal">
-                    🏆 Best streak: {streakInfo.longestStreak} day{streakInfo.longestStreak !== 1 ? "s" : ""}
-                  </DropdownMenuLabel>
-                </>
-              )}
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
+  const titleBlock = (
+    <div className="min-w-0 flex-1">
+      <div className="flex min-w-0 items-center gap-2">
+        <h3 className="text-base font-semibold leading-tight text-foreground line-clamp-2 break-words">{routine.name}</h3>
+        {streakInfo.currentStreak > 0 && (
+          <span className="inline-flex shrink-0 items-center gap-1 rounded-chip border border-orange-500/20 bg-orange-500/10 px-2 py-0.5 text-xs font-medium text-orange-600 dark:text-orange-400">
+            <FireIcon className="h-3.5 w-3.5 shrink-0 text-orange-500" />
+            {streakInfo.currentStreak}d
+          </span>
+        )}
       </div>
       {routine.cron && (
-        <p className="text-sm text-muted-foreground mb-2">{getDescription(routine.cron)}</p>
-      )}
-      {linkedGoal && (
-        <div className="mb-4">
-          <GoalTrackingWidget
-            goal={linkedGoal}
-            onUpdate={() => window.dispatchEvent(new CustomEvent("goalUpdated"))}
-            embedded={true}
-            routineName={routine.name}
-            showHistory={false}
-            showQuickAdd={false}
-          />
-        </div>
-      )}
-      {routineCompletions.length > 0 && (
-        <div className="mb-4">
-          <RoutineHeatmap completions={routineCompletions} compact />
-        </div>
-      )}
-      {(routine.tasks?.length ?? 0) > 0 && (
-        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-          <CheckCircleIcon className="h-4 w-4" />
-          {routine.tasks.length} task{routine.tasks.length !== 1 ? "s" : ""}
-        </div>
+        <p className="mt-0.5 text-xs leading-snug text-muted-foreground">{getDescription(routine.cron, { use24Hour })}</p>
       )}
     </div>
   );
+
+  const headerActions = (
+    <>
+      {(routine.tasks?.length ?? 0) > 0 && (
+        <div className="flex items-center gap-1 text-sm text-muted-foreground">
+          <CheckCircleIcon className="h-4 w-4" />
+          {routine.tasks.length}
+        </div>
+      )}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button type="button" variant="ghost" size="icon" aria-label="More options">
+            <DotsVerticalIcon className="text-muted-foreground" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem onClick={() => onEdit(routine)}>
+            <PencilIcon className="mr-2 h-4 w-4" />
+            Edit
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => onDelete(routine)} className="text-destructive focus:text-destructive">
+            <TrashIcon className="mr-2 h-4 w-4" />
+            Delete
+          </DropdownMenuItem>
+          {routine.locationTrigger && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">
+                📍 {routine.locationTrigger.label || `${routine.locationTrigger.lat.toFixed(4)}, ${routine.locationTrigger.lon.toFixed(4)}`}
+                {" · "}
+                {routine.locationTrigger.radius}m radius
+              </DropdownMenuLabel>
+            </>
+          )}
+          {streakInfo.longestStreak > 0 && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuLabel className="flex items-center gap-1.5 text-xs font-normal text-muted-foreground">
+                <StarIcon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" aria-hidden />
+                Best streak: {streakInfo.longestStreak} day{streakInfo.longestStreak !== 1 ? "s" : ""}
+              </DropdownMenuLabel>
+            </>
+          )}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
+  return (
+    <div className="relative flex min-w-72 flex-1 flex-col gap-4 rounded-card border border-border bg-card px-5 py-5">
+      {checklistLinked && linkedGoal ? (
+        <GoalTrackingWidget
+          goal={linkedGoal}
+          onUpdate={() => window.dispatchEvent(new CustomEvent("goalUpdated"))}
+          embedded={true}
+          routineName={routine.name}
+          showHistory={false}
+          showQuickAdd={false}
+          routineCardHeader={titleBlock}
+          routineCardActions={headerActions}
+        />
+      ) : (
+        <>
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex min-w-0 flex-1 items-center gap-3">
+              {onPlay && !routine.cron && !routine.locationTrigger && (
+                <button
+                  type="button"
+                  onClick={() => onPlay(routine)}
+                  className="inline-flex shrink-0 items-center justify-center bg-transparent p-0 text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label="Trigger routine"
+                >
+                  <PlayIcon className="h-6 w-6" />
+                </button>
+              )}
+              {titleBlock}
+            </div>
+            <div className="flex shrink-0 items-center gap-2">{headerActions}</div>
+          </div>
+          {linkedGoal && (
+            <GoalTrackingWidget
+              goal={linkedGoal}
+              onUpdate={() => window.dispatchEvent(new CustomEvent("goalUpdated"))}
+              embedded={true}
+              routineName={routine.name}
+              showHistory={false}
+              showQuickAdd={false}
+            />
+          )}
+        </>
+      )}
+      {routineCompletions.length > 0 && <RoutineHeatmap completions={routineCompletions} compact />}
+    </div>
+  );
 });
+
+// ---- SortableTaskRow ----
+
+interface SortableTaskRowProps {
+  id: string;
+  name: string;
+  onRemove: () => void;
+}
+
+function SortableTaskRow({ id, name, onRemove }: SortableTaskRowProps) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 10 : undefined,
+  };
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className="flex items-center gap-2 rounded-control border border-border bg-card px-3 py-2"
+    >
+      <button
+        type="button"
+        className="cursor-grab touch-none text-muted-foreground hover:text-foreground"
+        aria-label="Drag to reorder"
+        {...attributes}
+        {...listeners}
+      >
+        <MenuIcon className="h-4 w-4" />
+      </button>
+      <span className="flex-1 text-sm text-foreground">{name}</span>
+      <Button
+        type="button"
+        variant="ghost-destructive"
+        size="icon"
+        onClick={onRemove}
+        aria-label="Remove task"
+      >
+        <TrashIcon />
+      </Button>
+    </div>
+  );
+}
+
+// ---- React-select custom indicator components ----
+
+type SelectOption = { value: string; label: string };
+
+const selectIconOverrides = {
+  DropdownIndicator: (props: DropdownIndicatorProps<SelectOption, true>) => (
+    <selectComponents.DropdownIndicator {...props}>
+      <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
+    </selectComponents.DropdownIndicator>
+  ),
+  ClearIndicator: (props: ClearIndicatorProps<SelectOption, true>) => (
+    <selectComponents.ClearIndicator {...props}>
+      <XIcon className="h-4 w-4 text-muted-foreground" />
+    </selectComponents.ClearIndicator>
+  ),
+  MultiValueRemove: (props: MultiValueRemoveProps<SelectOption, true>) => (
+    <selectComponents.MultiValueRemove {...props}>
+      <XIcon className="h-3 w-3" />
+    </selectComponents.MultiValueRemove>
+  ),
+  IndicatorSeparator: () => null,
+};
 
 // ---- RoutineModals (owns all modal state — changes here don't re-render the card list) ----
 
@@ -144,22 +285,96 @@ interface RoutineModalsProps {
   onDeleted: (routineId: string) => void;
 }
 
+interface FormTask {
+  id: string;
+  name: string;
+}
+
 const emptyForm = {
   name: "",
-  cron: "",
+  rrule: "",
   description: "",
   goalIds: [] as string[],
-  tasks: [] as string[],
+  tasks: [] as FormTask[],
   newTask: "",
+  locationTrigger: null as LocationTrigger | null,
 };
+
+function normalizeRRule(input: string): string {
+  return input.trim().replace(/^RRULE:/i, "").toUpperCase();
+}
+
+function scheduleFromRRule(input: string): { rrule?: string; cron?: string; error?: string } {
+  const rrule = normalizeRRule(input);
+  if (!rrule) return {};
+  const cron = rruleToCron(rrule);
+  return cron ? { rrule, cron } : { rrule, error: "Unsupported RRULE for scheduling" };
+}
+
+type ScheduleFrequency = "NONE" | "DAILY" | "WEEKLY" | "MONTHLY";
+type RRuleParts = {
+  frequency: ScheduleFrequency;
+  hour: string;
+  minute: string;
+  byDay: string[];
+  monthDay: string;
+};
+
+const WEEKDAYS = [
+  { value: "MO", label: "Mon" },
+  { value: "TU", label: "Tue" },
+  { value: "WE", label: "Wed" },
+  { value: "TH", label: "Thu" },
+  { value: "FR", label: "Fri" },
+  { value: "SA", label: "Sat" },
+  { value: "SU", label: "Sun" },
+];
+
+function parseRRuleParts(input: string): RRuleParts {
+  const parts: Record<string, string> = {};
+  for (const part of normalizeRRule(input).split(";")) {
+    const [key, value] = part.split("=");
+    if (key && value) parts[key] = value;
+  }
+  const freq = parts.FREQ as ScheduleFrequency | undefined;
+  return {
+    frequency: freq && ["DAILY", "WEEKLY", "MONTHLY"].includes(freq) ? freq : "NONE",
+    hour: parts.BYHOUR?.split(",")[0] ?? "8",
+    minute: parts.BYMINUTE?.split(",")[0] ?? "0",
+    byDay: parts.BYDAY ? parts.BYDAY.split(",").filter(Boolean) : ["MO"],
+    monthDay: parts.BYMONTHDAY?.split(",")[0] ?? "1",
+  };
+}
+
+function buildRRule(parts: RRuleParts): string {
+  if (parts.frequency === "NONE") return "";
+  const hour = Math.max(0, Math.min(23, Number(parts.hour) || 0));
+  const minute = Math.max(0, Math.min(59, Number(parts.minute) || 0));
+  const rule = [`FREQ=${parts.frequency}`, `BYHOUR=${hour}`, `BYMINUTE=${minute}`];
+  if (parts.frequency === "WEEKLY") rule.push(`BYDAY=${(parts.byDay.length ? parts.byDay : ["MO"]).join(",")}`);
+  if (parts.frequency === "MONTHLY") rule.push(`BYMONTHDAY=${Math.max(1, Math.min(31, Number(parts.monthDay) || 1))}`);
+  return rule.join(";");
+}
 
 const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
   function RoutineModals({ goals, routineCount, onCreated, onUpdated, onDeleted }, ref) {
+    const { use24Hour } = useTimeFormat();
+    const taskSensors = useSensors(
+      useSensor(PointerSensor, { activationConstraint: { distance: 5 } })
+    );
     const [selectedRoutine, setSelectedRoutine] = useState<Routine | null>(null);
     const [showCreateModal, setShowCreateModal] = useState(false);
     const [showEditModal, setShowEditModal] = useState(false);
     const [showDeleteModal, setShowDeleteModal] = useState(false);
     const [formData, setFormData] = useState(emptyForm);
+    const [developerMode, setDeveloperMode] = useState(false);
+
+    useEffect(() => {
+      const syncDeveloperMode = () => setDeveloperMode(localStorage.getItem("developerMode") === "true");
+      syncDeveloperMode();
+      window.addEventListener("developerModeChanged", syncDeveloperMode);
+      return () => window.removeEventListener("developerModeChanged", syncDeveloperMode);
+    }, []);
 
     useImperativeHandle(ref, () => ({
       openCreate: () => {
@@ -171,11 +386,12 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
         const goalIds = routine.goalIds || (routine.goalId ? [routine.goalId] : []);
         setFormData({
           name: routine.name,
-          cron: routine.cron || "",
+          rrule: routine.rrule || (routine.cron ? cronToRRule(routine.cron).rrule : ""),
           description: routine.description || "",
           goalIds,
-          tasks: (routine.tasks ?? []).map((t) => t.name),
+          tasks: (routine.tasks ?? []).map((t) => ({ id: t.id, name: t.name })),
           newTask: "",
+          locationTrigger: routine.locationTrigger || null,
         });
         setShowEditModal(true);
       },
@@ -190,18 +406,25 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
         alert("Please enter a routine name");
         return;
       }
+      const schedule = scheduleFromRRule(formData.rrule);
+      if (schedule.error) {
+        alert(`${schedule.error}. Try a DAILY, WEEKLY, MONTHLY, HOURLY, or MINUTELY rule with BYHOUR/BYMINUTE as needed.`);
+        return;
+      }
       const id = `routine-${Date.now()}`;
       const newRoutine: Routine = {
         id,
         name: formData.name,
-        cron: formData.cron || undefined,
-        status: formData.cron ? "pending" : undefined,
+        rrule: schedule.rrule,
+        cron: schedule.cron,
+        status: schedule.rrule ? "pending" : undefined,
+        locationTrigger: formData.locationTrigger || undefined,
         index: routineCount,
         description: formData.description.trim() || undefined,
         goalIds: formData.goalIds.length > 0 ? formData.goalIds : undefined,
-        tasks: formData.tasks.map((taskName, index) => ({
-          id: `task-${Date.now()}-${index}`,
-          name: taskName,
+        tasks: formData.tasks.map((t, index) => ({
+          id: t.id,
+          name: t.name,
           routineId: id,
           index,
           status: "pending",
@@ -215,20 +438,30 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
 
     const updateRoutine = async () => {
       if (!selectedRoutine) return;
+      const schedule = scheduleFromRRule(formData.rrule);
+      if (schedule.error) {
+        alert(`${schedule.error}. Try a DAILY, WEEKLY, MONTHLY, HOURLY, or MINUTELY rule with BYHOUR/BYMINUTE as needed.`);
+        return;
+      }
       const updatedRoutine: Routine = {
         ...selectedRoutine,
         name: formData.name,
-        cron: formData.cron || undefined,
+        rrule: schedule.rrule,
+        cron: schedule.cron,
+        locationTrigger: formData.locationTrigger || undefined,
         description: formData.description.trim() || undefined,
         goalIds: formData.goalIds.length > 0 ? formData.goalIds : undefined,
-        tasks: formData.tasks.map((taskName, index) => {
-          const existingTask = selectedRoutine.tasks.find((t) => t.name === taskName);
-          return existingTask || {
-            id: `task-${Date.now()}-${index}`,
-            name: taskName,
+        tasks: formData.tasks.map((t, index) => {
+          const existingTask = selectedRoutine.tasks.find((st) => st.id === t.id);
+          if (existingTask) {
+            return { ...existingTask, name: t.name, index };
+          }
+          return {
+            id: t.id,
+            name: t.name,
             routineId: selectedRoutine.id,
             index,
-            status: "pending",
+            status: "pending" as const,
           };
         }),
       };
@@ -247,9 +480,9 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
       try {
         await remoteStorageClient.deleteRoutine(selectedRoutine.id);
         try {
-          const completions = await remoteStorageClient.getRoutineCompletions();
-          const filtered = completions.filter((c) => c.routineId !== selectedRoutine.id);
-          await remoteStorageClient.saveRoutineCompletions(filtered);
+          const completions = await fetchCompletions();
+          const toDelete = completions.filter((c) => c.routineId === selectedRoutine.id);
+          await Promise.all(toDelete.map((c) => remoteStorageClient.deleteRoutineCompletion(c.routineInstanceId)));
         } catch (err) {
           console.error("Failed to delete routine completions:", err);
         }
@@ -267,30 +500,48 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
 
     const addTaskToForm = () => {
       if (!formData.newTask.trim()) return;
-      setFormData({ ...formData, tasks: [...formData.tasks, formData.newTask.trim()], newTask: "" });
+      setFormData({
+        ...formData,
+        tasks: [...formData.tasks, { id: uuidv4(), name: formData.newTask.trim() }],
+        newTask: "",
+      });
     };
 
-    const removeTaskFromForm = (index: number) => {
-      setFormData({ ...formData, tasks: formData.tasks.filter((_, i) => i !== index) });
+    const removeTaskFromForm = (id: string) => {
+      setFormData({ ...formData, tasks: formData.tasks.filter((t) => t.id !== id) });
+    };
+
+    const updateSchedule = (updates: Partial<RRuleParts>) => {
+      const current = parseRRuleParts(formData.rrule);
+      setFormData({ ...formData, rrule: buildRRule({ ...current, ...updates }) });
+    };
+
+    const scheduleParts = parseRRuleParts(formData.rrule);
+    const schedule = scheduleFromRRule(formData.rrule);
+
+    const isFormOpen = showCreateModal || showEditModal;
+    const closeForm = () => {
+      setShowCreateModal(false);
+      setShowEditModal(false);
+      setSelectedRoutine(null);
     };
 
     return (
       <>
-        {/* Create/Edit Modal */}
-        <Modal
-          isOpen={showCreateModal || showEditModal}
-          closeModal={() => {
-            setShowCreateModal(false);
-            setShowEditModal(false);
-            setSelectedRoutine(null);
-          }}
-        >
-          <Modal.Title>{showEditModal ? "Edit Routine" : "Create Routine"}</Modal.Title>
-          <Modal.Body>
-            <div className="space-y-4 mt-4">
+        {/* Create/Edit Sheet */}
+        <Sheet open={isFormOpen} onOpenChange={(open) => { if (!open) closeForm(); }}>
+          <SheetContent
+            side="right"
+            className="flex w-full flex-col gap-0 p-0 sm:max-w-md md:max-w-lg"
+          >
+            <SheetHeader className="border-b border-border px-6 py-4">
+              <SheetTitle>{showEditModal ? "Edit Routine" : "Create Routine"}</SheetTitle>
+            </SheetHeader>
+            <div className="flex-1 overflow-y-auto px-6 py-4">
+            <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Routine Name
+                  Routine Name <span className="text-destructive" aria-hidden>*</span>
                 </label>
                 <Input
                   type="text"
@@ -303,7 +554,7 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Description <span className="text-muted-foreground font-normal">(optional)</span>
+                  Description
                 </label>
                 <RichTextEditor
                   value={formData.description}
@@ -315,89 +566,187 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Schedule (optional)
+                  Schedule
                 </label>
-                <Input
-                  type="text"
-                  value={formData.cron}
-                  onChange={(e) => setFormData({ ...formData, cron: e.target.value })}
-                  placeholder="0 8 * * * (CRON expression) - leave empty for no schedule"
-                />
-                {formData.cron && (
-                  <p className="text-xs text-muted-foreground mt-1">
-                    {getDescription(formData.cron) || "Invalid CRON expression"}
-                  </p>
-                )}
+                <div className="space-y-3 rounded-control border border-border p-3">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Repeat</label>
+                      <select
+                        value={scheduleParts.frequency}
+                        onChange={(e) => updateSchedule({ frequency: e.target.value as ScheduleFrequency })}
+                        className="h-10 w-full rounded border border-input bg-background px-3 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      >
+                        <option value="NONE">No schedule</option>
+                        <option value="DAILY">Daily</option>
+                        <option value="WEEKLY">Weekly</option>
+                        <option value="MONTHLY">Monthly</option>
+                      </select>
+                    </div>
+                    {scheduleParts.frequency !== "NONE" && (
+                      <div>
+                        <label className="mb-1 block text-xs font-medium text-muted-foreground">Time</label>
+                        <div className="flex items-center gap-2">
+                          <Input
+                            type="number"
+                            min={0}
+                            max={23}
+                            value={scheduleParts.hour}
+                            onChange={(e) => updateSchedule({ hour: e.target.value })}
+                            aria-label="Hour"
+                          />
+                          <span className="text-muted-foreground">:</span>
+                          <Input
+                            type="number"
+                            min={0}
+                            max={59}
+                            value={scheduleParts.minute}
+                            onChange={(e) => updateSchedule({ minute: e.target.value })}
+                            aria-label="Minute"
+                          />
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {scheduleParts.frequency === "WEEKLY" && (
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Days</label>
+                      <div className="flex flex-wrap gap-1.5">
+                        {WEEKDAYS.map((day) => {
+                          const selected = scheduleParts.byDay.includes(day.value);
+                          return (
+                            <button
+                              key={day.value}
+                              type="button"
+                              onClick={() => {
+                                const byDay = selected
+                                  ? scheduleParts.byDay.filter((value) => value !== day.value)
+                                  : [...scheduleParts.byDay, day.value];
+                                updateSchedule({ byDay });
+                              }}
+                              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                                selected
+                                  ? "border-primary bg-primary text-primary-foreground"
+                                  : "border-border bg-background text-muted-foreground hover:bg-accent"
+                              }`}
+                            >
+                              {day.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {scheduleParts.frequency === "MONTHLY" && (
+                    <div>
+                      <label className="mb-1 block text-xs font-medium text-muted-foreground">Day of month</label>
+                      <Input
+                        type="number"
+                        min={1}
+                        max={31}
+                        value={scheduleParts.monthDay}
+                        onChange={(e) => updateSchedule({ monthDay: e.target.value })}
+                      />
+                    </div>
+                  )}
+
+                  {formData.rrule && (
+                    <div className="space-y-1 text-xs text-muted-foreground">
+                      <p>{schedule.cron ? getDescription(schedule.cron, { use24Hour }) : "Unsupported RRULE for scheduling"}</p>
+                      {developerMode && (
+                        <code className="block break-all rounded bg-muted px-2 py-1 font-mono text-[11px] text-muted-foreground">
+                          {normalizeRRule(formData.rrule)}
+                        </code>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
+
+              <LocationTriggerInput
+                value={formData.locationTrigger}
+                onChange={(locationTrigger) => setFormData({ ...formData, locationTrigger })}
+              />
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">
-                  Goals (optional) - Select multiple
+                  Goals
                 </label>
-                <select
-                  multiple
-                  value={formData.goalIds}
-                  onChange={(e) => {
-                    const selectedIds = Array.from(e.target.selectedOptions, (option) => option.value);
-                    setFormData({ ...formData, goalIds: selectedIds });
+                <Select
+                  isMulti
+                  options={goals.map((g) => ({ value: g.id, label: g.name }))}
+                  value={formData.goalIds
+                    .map((id) => {
+                      const goal = goals.find((g) => g.id === id);
+                      return goal ? { value: goal.id, label: goal.name } : null;
+                    })
+                    .filter((opt): opt is { value: string; label: string } => opt !== null)}
+                  onChange={(selected) =>
+                    setFormData({
+                      ...formData,
+                      goalIds: selected.map((opt) => opt.value),
+                    })
+                  }
+                  placeholder="Select goals..."
+                  classNamePrefix="react-select"
+                  components={selectIconOverrides}
+                  unstyled
+                  classNames={{
+                    control: () =>
+                      "w-full rounded-chip border border-input bg-background px-2 py-1 text-sm min-h-[44px] hover:border-ring focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2 ring-offset-background",
+                    valueContainer: () => "gap-1 flex-wrap",
+                    multiValue: () =>
+                      "bg-primary/10 text-primary rounded-full pl-2 pr-1 py-0.5 flex items-center gap-1 text-sm",
+                    multiValueLabel: () => "text-primary text-sm",
+                    multiValueRemove: () =>
+                      "hover:text-primary/70 cursor-pointer rounded-full ml-0.5",
+                    placeholder: () => "text-muted-foreground",
+                    input: () => "text-foreground",
+                    menu: () =>
+                      "mt-1 rounded-control border border-input bg-popover text-popover-foreground shadow-md overflow-hidden",
+                    menuList: () => "py-1",
+                    option: ({ isFocused, isSelected }) =>
+                      [
+                        "px-3 py-2 text-sm cursor-pointer",
+                        isFocused ? "bg-accent text-accent-foreground" : "",
+                        isSelected ? "bg-primary/10 text-primary" : "",
+                      ].join(" "),
+                    noOptionsMessage: () => "px-3 py-2 text-sm text-muted-foreground",
                   }}
-                  className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none min-h-[100px]"
-                  size={Math.min(goals.length + 1, 6)}
-                >
-                  {goals.map((goal) => (
-                    <option key={goal.id} value={goal.id}>
-                      {goal.name}
-                    </option>
-                  ))}
-                </select>
-                {formData.goalIds.length > 0 && (
-                  <div className="mt-2 flex flex-wrap gap-2">
-                    {formData.goalIds.map((goalId) => {
-                      const goal = goals.find((g) => g.id === goalId);
-                      return goal ? (
-                        <span
-                          key={goalId}
-                          className="px-2 py-1 bg-primary/10 text-primary rounded-full text-sm flex items-center gap-1"
-                        >
-                          {goal.name}
-                          <button
-                            type="button"
-                            onClick={() =>
-                              setFormData({
-                                ...formData,
-                                goalIds: formData.goalIds.filter((id) => id !== goalId),
-                              })
-                            }
-                            className="hover:text-primary/70"
-                          >
-                            ×
-                          </button>
-                        </span>
-                      ) : null;
-                    })}
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground mt-1">
-                  Hold Ctrl/Cmd to select multiple goals
-                </p>
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-foreground mb-2">Tasks</label>
                 <div className="space-y-2">
-                  {formData.tasks.map((task, index) => (
-                    <div key={index} className="flex items-center gap-2">
-                      <span className="flex-grow px-3 py-2 bg-muted border border-border rounded-lg text-foreground">
-                        {task}
-                      </span>
-                      <button
-                        onClick={() => removeTaskFromForm(index)}
-                        className="p-2 text-muted-foreground hover:text-destructive"
-                      >
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                  ))}
+                  <DndContext
+                    sensors={taskSensors}
+                    collisionDetection={closestCenter}
+                    onDragEnd={(event: DragEndEvent) => {
+                      const { active, over } = event;
+                      if (!over || active.id === over.id) return;
+                      const oldIndex = formData.tasks.findIndex((t) => t.id === active.id);
+                      const newIndex = formData.tasks.findIndex((t) => t.id === over.id);
+                      if (oldIndex < 0 || newIndex < 0) return;
+                      setFormData({ ...formData, tasks: arrayMove(formData.tasks, oldIndex, newIndex) });
+                    }}
+                  >
+                    <SortableContext
+                      items={formData.tasks.map((t) => t.id)}
+                      strategy={verticalListSortingStrategy}
+                    >
+                      {formData.tasks.map((task) => (
+                        <SortableTaskRow
+                          key={task.id}
+                          id={task.id}
+                          name={task.name}
+                          onRemove={() => removeTaskFromForm(task.id)}
+                        />
+                      ))}
+                    </SortableContext>
+                  </DndContext>
                   <div className="flex items-center gap-2">
                     <Input
                       type="text"
@@ -407,48 +756,37 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
                       placeholder="Add a task..."
                       className="grow"
                     />
-                    <button
-                      onClick={addTaskToForm}
-                      className="p-2.5 bg-primary text-primary-foreground rounded-lg hover:opacity-90"
-                    >
-                      <PlusIcon className="h-5 w-5" />
-                    </button>
+                    <Button type="button" size="icon" onClick={addTaskToForm}>
+                      <PlusIcon />
+                    </Button>
                   </div>
                 </div>
               </div>
             </div>
-          </Modal.Body>
-          <Modal.Footer>
-            <div className="flex gap-2 justify-between">
-              {showEditModal && (
-                <button
-                  onClick={() => { setShowEditModal(false); setShowDeleteModal(true); }}
-                  className="px-4 py-2 bg-red-500 text-white rounded-lg hover:opacity-90 font-semibold"
-                >
-                  Delete
-                </button>
-              )}
-              <div className="flex gap-2 ml-auto">
-                <button
-                  onClick={() => {
-                    setShowCreateModal(false);
-                    setShowEditModal(false);
-                    setSelectedRoutine(null);
-                  }}
-                  className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={showEditModal ? updateRoutine : createRoutine}
-                  className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-                >
-                  {showEditModal ? "Save Changes" : "Create Routine"}
-                </button>
-              </div>
             </div>
-          </Modal.Footer>
-        </Modal>
+            <SheetFooter className="border-t border-border px-6 py-4">
+              <div className="flex w-full gap-2 justify-between">
+                {showEditModal && (
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => { setShowEditModal(false); setShowDeleteModal(true); }}
+                  >
+                    Delete
+                  </Button>
+                )}
+                <div className="flex gap-2 ml-auto">
+                  <Button type="button" variant="secondary" onClick={closeForm}>
+                    Cancel
+                  </Button>
+                  <Button type="button" onClick={showEditModal ? updateRoutine : createRoutine}>
+                    {showEditModal ? "Save Changes" : "Create Routine"}
+                  </Button>
+                </div>
+              </div>
+            </SheetFooter>
+          </SheetContent>
+        </Sheet>
 
         {/* Delete Confirmation Modal */}
         <Modal isOpen={showDeleteModal} closeModal={() => setShowDeleteModal(false)}>
@@ -464,18 +802,12 @@ const RoutineModals = forwardRef<RoutineModalsHandle, RoutineModalsProps>(
           </Modal.Body>
           <Modal.Footer>
             <div className="flex gap-2 justify-end">
-              <button
-                onClick={() => setShowDeleteModal(false)}
-                className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-              >
+              <Button type="button" variant="secondary" onClick={() => setShowDeleteModal(false)}>
                 Cancel
-              </button>
-              <button
-                onClick={deleteRoutine}
-                className="px-4 py-2 bg-red-500 text-white rounded-lg hover:opacity-90 font-semibold"
-              >
+              </Button>
+              <Button type="button" variant="destructive" onClick={deleteRoutine}>
                 Delete
-              </button>
+              </Button>
             </div>
           </Modal.Footer>
         </Modal>
@@ -498,17 +830,6 @@ export default function RoutinesPageContent() {
     return () => window.removeEventListener("goalUpdated", handleGoalUpdate);
   }, [reloadGoals]);
 
-  useEffect(() => {
-    loadRoutines();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    const handleOpenCreateRoutine = () => modalsRef.current?.openCreate();
-    window.addEventListener("openCreateRoutine", handleOpenCreateRoutine);
-    return () => window.removeEventListener("openCreateRoutine", handleOpenCreateRoutine);
-  }, []);
-
   const loadRoutines = async () => {
     try {
       const loaded = await remoteStorageClient.getRoutines();
@@ -520,6 +841,28 @@ export default function RoutinesPageContent() {
       console.error("Failed to load routines:", error);
     }
   };
+
+  useEffect(() => {
+    (async () => {
+      await loadRoutines();
+    })();
+  }, []);
+
+  useEffect(() => {
+    const handleOpenCreateRoutine = () => modalsRef.current?.openCreate();
+    window.addEventListener("openCreateRoutine", handleOpenCreateRoutine);
+    return () => window.removeEventListener("openCreateRoutine", handleOpenCreateRoutine);
+  }, []);
+
+  // Deep link from the Home page's "+ New routine" button (?create=1).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("create") !== "1") return;
+    modalsRef.current?.openCreate();
+    params.delete("create");
+    const query = params.toString();
+    window.history.replaceState(null, "", query ? `/routines?${query}` : "/routines");
+  }, []);
 
   const handleDelete = useCallback((routine: Routine) => {
     modalsRef.current?.openDelete(routine);
@@ -559,24 +902,27 @@ export default function RoutinesPageContent() {
     return map;
   }, [completions]);
 
-  const scheduledRoutines = routines.filter((r) => r.cron);
-  const unscheduledRoutines = routines.filter((r) => !r.cron);
+  const scheduledRoutines = routines.filter((r) => r.cron || r.locationTrigger);
+  const unscheduledRoutines = routines.filter((r) => !r.cron && !r.locationTrigger);
 
   return (
     <>
       {/* Mobile New Routine Button */}
-      <button
+      <Button
+        size="lg"
         onClick={() => modalsRef.current?.openCreate()}
-        className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+        className="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] gap-2 shadow-lg"
       >
-        <PlusIcon className="w-5 h-5" />
+        <PlusIcon />
         <span>New Routine</span>
-      </button>
+      </Button>
 
       {/* Scheduled Routines */}
       {scheduledRoutines.length > 0 && (
         <div className="mb-8">
-          <h2 className="text-xl font-semibold text-foreground mb-4">Scheduled Routines</h2>
+          <div className="-mx-4 px-4 border-b border-border pb-3 mb-4">
+            <h2 className="text-sm font-semibold text-foreground">Scheduled Routines</h2>
+          </div>
           <div className="flex flex-wrap gap-4">
             {scheduledRoutines.map((routine) => (
               <RoutineCard
@@ -596,7 +942,15 @@ export default function RoutinesPageContent() {
       {/* Unscheduled Routines */}
       {unscheduledRoutines.length > 0 && (
         <div>
-          <h2 className="text-xl font-semibold text-foreground mb-4">Unscheduled Routines</h2>
+          <div
+            className={
+              scheduledRoutines.length > 0
+                ? "-mx-4 px-4 border-t border-b border-border py-3 mb-4"
+                : "-mx-4 px-4 border-b border-border pb-3 mb-4"
+            }
+          >
+            <h2 className="text-sm font-semibold text-foreground">Unscheduled Routines</h2>
+          </div>
           <div className="flex flex-wrap gap-4">
             {unscheduledRoutines.map((routine) => (
               <RoutineCard
@@ -620,12 +974,9 @@ export default function RoutinesPageContent() {
           <p className="text-sm text-muted-foreground mb-6">
             Create your first routine to get started
           </p>
-          <button
-            onClick={() => modalsRef.current?.openCreate()}
-            className="px-6 py-3 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
-          >
+          <Button type="button" onClick={() => modalsRef.current?.openCreate()}>
             Create Your First Routine
-          </button>
+          </Button>
         </div>
       )}
 

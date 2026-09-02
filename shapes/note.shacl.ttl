@@ -1,0 +1,60 @@
+@prefix as: <https://www.w3.org/ns/activitystreams#> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:NoteShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors the shared 'notes' container — QuickNote and WeekReflection both write as:Note (see containers.ts). Disambiguated the same way extractQuickNote()/extractWeekReflection() do today: leptum:weekStart present means WeekReflection, not QuickNote." ;
+  sh:targetClass as:Note ;
+  sh:property [
+    sh:path as:content ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path as:published ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path as:updated ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path as:attachment ;
+    sh:nodeKind sh:IRI ;
+  ] ;
+  sh:property [
+    sh:path schema:audio ;
+    sh:node leptum:NoteAudioShape ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:weekStart ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] .
+
+leptum:NoteAudioShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( schema:AudioObject ) ] ;
+    sh:qualifiedMinCount 0 ;
+  ] ;
+  sh:property [
+    sh:path schema:contentUrl ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+    sh:description "A real Solid binary resource (raw audio bytes, its own Content-Type) — not a local file path like RemoteStorage used. See noteBackend audio helpers for the PUT/GET side." ;
+  ] ;
+  sh:property [
+    sh:path schema:duration ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1 ;
+  ] .

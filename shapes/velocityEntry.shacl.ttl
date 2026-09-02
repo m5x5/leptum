@@ -1,0 +1,42 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:VelocityEntryShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors VelocityEntry (lib/remoteStorage.ts) as written by velocityEntryToRdf and read by extractVelocityEntry." ;
+  sh:targetClass leptum:VelocityEntry ;
+  sh:property [
+    sh:path schema:about ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:endTime ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:effort ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Intended value set: \"XS\" \"S\" \"M\" \"L\" \"XL\" (VelocityEntry['effort']). Kept as plain xsd:string to stay faithful to the ShEx contract, which uses plain xsd:string due to an @ldo/cli 1.0.0-alpha.51 generator bug with literal value-sets."
+  ] ;
+  sh:property [
+    sh:path leptum:numericEstimate ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:period ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .

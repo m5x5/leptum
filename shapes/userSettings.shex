@@ -1,0 +1,19 @@
+PREFIX ui: <http://www.w3.org/ns/ui#>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+leptum:UserSettingsShape EXTRA a {
+  a [ leptum:UserSettings ] ;
+  leptum:showKeyboardShortcuts xsd:boolean ? ;
+  # Ids of enabled experimental features, e.g. "wellbeing", "dayView", "health".
+  leptum:enabledExperiment xsd:string * ;
+  ui:colorScheme [ ui:LightColorScheme ui:DarkColorScheme ui:SystemColorScheme ] ? ;
+  # Intended values: "12h", "24h", "system".
+  leptum:timeFormat xsd:string ? ;
+  leptum:wakingStartHour xsd:time ? ;
+  leptum:wakingEndHour xsd:time ? ;
+  # Contact sources for @mention suggestions: whole vcard:AddressBooks and/or
+  # single vcard:Groups. Neither present = suggest from every address book.
+  leptum:suggestContactsFrom IRI * ;
+  leptum:suggestContactsFromGroup IRI *
+}

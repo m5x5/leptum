@@ -12,10 +12,6 @@ export function useVelocity() {
   const [velocityData, setVelocityData] = useState<VelocityData[]>([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    loadVelocityData();
-  }, []);
-
   const loadVelocityData = async () => {
     try {
       const data = await remoteStorageClient.getWeeklyVelocity();
@@ -26,6 +22,12 @@ export function useVelocity() {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    (async () => {
+      await loadVelocityData();
+    })();
+  }, []);
 
   return {
     velocityData,

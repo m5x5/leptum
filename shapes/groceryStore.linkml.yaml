@@ -1,0 +1,52 @@
+id: https://mpeters.dev/ns/leptum/linkml/groceryStore
+name: leptum-groceryStore
+description: >-
+  Mirrors GroceryStore (types/grocery.ts) as written by groceryStoreToRdf and
+  read by extractGroceryStore. GeoCoordinates duplicated locally (not shared
+  with task.shex's leptum:GeoCoordinatesShape) because cross-file type
+  references don't resolve in the ldo build.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  GroceryStore:
+    tree_root: true
+    class_uri: schema:GroceryStore
+    description: >-
+      A saved grocery store location. Additional rdf:type values are permitted
+      (ShEx EXTRA a).
+    attributes:
+      name:
+        slot_uri: schema:name
+        range: string
+      address:
+        slot_uri: schema:address
+        range: string
+      openingHours:
+        slot_uri: schema:openingHours
+        range: string
+      geo:
+        slot_uri: schema:geo
+        range: GroceryStoreGeo
+        inlined: true
+  GroceryStoreGeo:
+    class_uri: schema:GeoCoordinates
+    description: >-
+      Geographic coordinates of the store. The rdf:type schema:GeoCoordinates
+      is optional in the source ShEx shape.
+    attributes:
+      latitude:
+        slot_uri: schema:latitude
+        range: decimal
+        required: true
+      longitude:
+        slot_uri: schema:longitude
+        range: decimal
+        required: true

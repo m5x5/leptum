@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import Modal from './index';
 import {
   getClientId,
@@ -16,6 +16,7 @@ import {
   GCalEvent,
 } from '../../lib/googleCalendar';
 import { remoteStorageClient, Impact } from '../../lib/remoteStorage';
+import { Button } from '../ui/button';
 
 interface Props {
   isOpen: boolean;
@@ -67,8 +68,11 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
   const [importError, setImportError] = useState('');
 
   // Reset to correct initial step when modal opens
+  const resetKeyRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!isOpen) return;
+    const key = `${isOpen}|${hasClientId}`;
+    if (resetKeyRef.current === key || !isOpen) return;
+    resetKeyRef.current = key;
     setStep(getStoredToken() && hasClientId ? 'pick' : 'auth');
     setAuthError('');
     setImportError('');
@@ -77,14 +81,25 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
   }, [isOpen, hasClientId]);
 
   // Sync date inputs when weekStart/weekEnd props change
+  const prevWeekStartRef = useRef(weekStart);
   useEffect(() => {
-    if (weekStart) setRangeStart(toInputDate(weekStart));
-    if (weekEnd)   setRangeEnd(toInputDate(new Date(weekEnd.getTime() - 1)));
-  }, [weekStart, weekEnd]);
+    if (prevWeekStartRef.current === weekStart || !weekStart) return;
+    prevWeekStartRef.current = weekStart;
+    setRangeStart(toInputDate(weekStart));
+  }, [weekStart]);
+
+  const prevWeekEndRef = useRef(weekEnd);
+  useEffect(() => {
+    if (prevWeekEndRef.current === weekEnd || !weekEnd) return;
+    prevWeekEndRef.current = weekEnd;
+    setRangeEnd(toInputDate(new Date(weekEnd.getTime() - 1)));
+  }, [weekEnd]);
 
   // Load calendars once authenticated
+  const calStepRef = useRef<Step | null>(null);
   useEffect(() => {
-    if (step !== 'pick') return;
+    if (calStepRef.current === step || step !== 'pick') return;
+    calStepRef.current = step;
     setCalLoading(true);
     setCalError('');
     getOrRequestToken()
@@ -222,7 +237,7 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
         <Modal.Body>
           <div className="mt-4 space-y-4">
             {!hasClientId && (
-              <div className="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-400">
+              <div className="p-3 rounded-control bg-amber-500/10 border border-amber-500/30 text-sm text-amber-700 dark:text-amber-400">
                 No Google Client ID configured. Go to{' '}
                 <a href="/settings" className="underline font-medium">Settings → Integrations</a>{' '}
                 to add one first.
@@ -234,13 +249,13 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
             {authError && (
               <p className="text-sm text-destructive">{authError}</p>
             )}
-            <button
+            <Button
+              variant="outline"
               onClick={handleSignIn}
               disabled={authLoading || !hasClientId}
-              className="flex items-center gap-2.5 px-4 py-2.5 rounded-lg border border-border bg-background hover:bg-muted transition-colors text-sm font-medium disabled:opacity-50"
             >
               {authLoading ? (
-                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                <svg className="animate-spin" fill="none" viewBox="0 0 24 24">
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                 </svg>
@@ -248,7 +263,7 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
                 <GoogleIcon />
               )}
               Sign in with Google
-            </button>
+            </Button>
           </div>
         </Modal.Body>
       )}
@@ -270,7 +285,7 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
                   <select
                     value={selectedCalId}
                     onChange={e => setSelectedCalId(e.target.value)}
-                    className="w-full text-sm px-3 py-2 border border-input rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   >
                     {calendars.map(cal => (
                       <option key={cal.id} value={cal.id}>
@@ -287,7 +302,7 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
                       type="date"
                       value={rangeStart}
                       onChange={e => setRangeStart(e.target.value)}
-                      className="w-full text-sm px-3 py-2 border border-input rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                     />
                   </div>
                   <div>
@@ -296,7 +311,7 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
                       type="date"
                       value={rangeEnd}
                       onChange={e => setRangeEnd(e.target.value)}
-                      className="w-full text-sm px-3 py-2 border border-input rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                     />
                   </div>
                 </div>
@@ -317,27 +332,26 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
                 Disconnect
               </button>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={closeModal}
-                  className="px-4 py-2 text-sm border border-border rounded hover:bg-muted transition-colors"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={handleFetchEvents}
                   disabled={!selectedCalId || eventsLoading || calLoading}
-                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {eventsLoading && (
-                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                     </svg>
                   )}
                   Load events
-                </button>
+                </Button>
               </div>
             </div>
           </Modal.Footer>
@@ -371,7 +385,7 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
                     return (
                       <label
                         key={ev.id}
-                        className="flex items-start gap-2.5 px-3 py-2.5 rounded-lg border border-border hover:bg-muted/40 cursor-pointer transition-colors"
+                        className="flex items-start gap-2.5 px-3 py-2.5 rounded-control border border-border hover:bg-muted/40 cursor-pointer transition-colors"
                       >
                         <input
                           type="checkbox"
@@ -409,27 +423,26 @@ export function ImportGoogleCalendarModal({ isOpen, closeModal, weekStart, weekE
                 ← Back
               </button>
               <div className="flex gap-2">
-                <button
+                <Button
                   type="button"
+                  variant="outline"
                   onClick={closeModal}
-                  className="px-4 py-2 text-sm border border-border rounded hover:bg-muted transition-colors"
                 >
                   Cancel
-                </button>
-                <button
+                </Button>
+                <Button
                   type="button"
                   onClick={handleImport}
                   disabled={selected.size === 0 || importing}
-                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors disabled:opacity-50 flex items-center gap-2"
                 >
                   {importing && (
-                    <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
+                    <svg className="animate-spin" fill="none" viewBox="0 0 24 24">
                       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                       <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4l3-3-3-3v4a8 8 0 00-8 8h4z" />
                     </svg>
                   )}
                   Import {selected.size > 0 ? `${selected.size} event${selected.size !== 1 ? 's' : ''}` : ''}
-                </button>
+                </Button>
               </div>
             </div>
           </Modal.Footer>

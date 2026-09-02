@@ -1,0 +1,155 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:DailyHealthMetricsShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors DailyHealthData (lib/remoteStorage.ts) as written by healthDataToRdf. Read-only from this app's perspective — populated by an external tool; this shape only needs a reader." ;
+  sh:targetClass leptum:DailyHealthMetrics ;
+  sh:property [
+    sh:path leptum:date ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:steps ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:distanceMeters ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:activeCalories ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:totalCalories ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:sleepMinutes ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:heartRateAvg ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:heartRateMin ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:heartRateMax ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:restingHeartRate ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:hrvRmssd ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:weightKg ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:bodyFatPct ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:bloodPressureSystolic ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:bloodPressureDiastolic ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:bloodGlucoseMmol ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:oxygenSaturationPct ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:floorsClimbed ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:exerciseSession ;
+    sh:node leptum:ExerciseSessionShape
+  ] ;
+  sh:property [
+    sh:path leptum:sleepSession ;
+    sh:node leptum:SleepSessionShape
+  ] .
+
+leptum:ExerciseSessionShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path leptum:exerciseType ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:startTime ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:endTime ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:durationMinutes ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] .
+
+leptum:SleepSessionShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path schema:startTime ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:endTime ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:durationMinutes ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] .

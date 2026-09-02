@@ -1,0 +1,61 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors Goal (lib/remoteStorage.ts) as written by goalToRdf and read by
+# extractGoal. milestones/trackingConfig/trackingData didn't round-trip
+# through the flat Fact[] reader (extractGoal only reads flat top-level
+# fields, hardcoding milestones/trackingData away) — this is the
+# highest-value fix in the whole ldo migration.
+leptum:GoalShape EXTRA a {
+  a [ schema:Action leptum:Goal ] ;
+  schema:name xsd:string ? ;
+  schema:description xsd:string ? ;
+  schema:color xsd:string ? ;
+  schema:additionalType IRI ? ;
+  schema:actionStatus
+    [ schema:CompletedActionStatus
+      schema:ActiveActionStatus
+      schema:PotentialActionStatus
+      schema:FailedActionStatus
+    ] ? ;
+  schema:endTime xsd:dateTime ? ;
+  dcterms:created xsd:dateTime ? ;
+  leptum:completedAt xsd:dateTime ? ;
+  leptum:milestone @leptum:MilestoneShape * ;
+  leptum:trackingConfig @leptum:TrackingConfigShape ? ;
+  leptum:trackingEntry @leptum:TrackingEntryShape *
+}
+
+leptum:MilestoneShape {
+  schema:name xsd:string ? ;
+  schema:endTime xsd:dateTime ? ;
+  schema:actionStatus
+    [ schema:CompletedActionStatus
+      schema:PotentialActionStatus
+    ] ? ;
+  leptum:completedAt xsd:dateTime ? ;
+  leptum:order xsd:decimal ?
+}
+
+leptum:TrackingConfigShape {
+  # Should be a value-set enum (["counter" "checklist" "timer" "amount"])
+  # matching GoalTrackingConfig['type'] — left as xsd:string, same @ldo/cli
+  # literal-enum crash workaround as task.shex's effort field.
+  leptum:trackingType xsd:string ? ;
+  leptum:unit xsd:string ? ;
+  leptum:icon xsd:string ? ;
+  leptum:dailyTarget xsd:decimal ? ;
+  leptum:maxPerDay xsd:decimal ? ;
+  leptum:increments xsd:decimal * ;
+  leptum:options xsd:string *
+}
+
+leptum:TrackingEntryShape {
+  leptum:date xsd:string ? ;
+  leptum:value xsd:decimal ? ;
+  leptum:completed xsd:boolean ? ;
+  leptum:notes xsd:string ? ;
+  leptum:timestamp xsd:dateTime ?
+}

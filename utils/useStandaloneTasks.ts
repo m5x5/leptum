@@ -1,53 +1,105 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { remoteStorageClient, StandaloneTask } from '../lib/remoteStorage';
 import { v4 as uuidv4 } from 'uuid';
 import { Emotion } from '../components/ui/emotion-selector';
+import { useResource } from '@ldo/solid-react';
+import {
+  useTasksQuery,
+  fetchActiveTasks,
+  fetchRoutines,
+  getActiveTasksCache,
+  setTasksCache,
+  setCompletionsCache,
+  invalidate,
+  markSelfWrite,
+  isRecentSelfWrite,
+} from '../lib/query/collections';
 
 export type { StandaloneTask };
 
+const ONE_WEEK_MS = 7 * 24 * 60 * 60 * 1000;
+const NOTIFICATION_DEBOUNCE_MS = 2_000;
+
+// Auto-archiving runs at most once per page load — it used to run on every
+// refetch, and each run PUT every task it touched.
+let autoArchiveRan = false;
+
 export function useStandaloneTasks() {
-  const [tasks, setTasks] = useState<StandaloneTask[]>([]);
-  const [loading, setLoading] = useState(true);
+  const query = useTasksQuery();
+  const allTasks = query.data;
 
-  // Load home tasks: migrate once if needed, then read from home-tasks.
-  // Auto-archive tasks created more than a week ago.
-  const loadTasks = useCallback(async () => {
-    if (typeof window === 'undefined') return;
-    try {
-      await remoteStorageClient.migrateToHomeAndArchivedIfNeeded();
-      const remoteTasks = (await remoteStorageClient.getHomeTasks()) as StandaloneTask[];
+  // "Home" tasks = not archived. Memoised so consumers get a stable array
+  // between refetches that return structurally-equal data.
+  const tasks = useMemo(() => (allTasks ?? []).filter((t) => !t.archivedAt), [allTasks]);
+  const loading = query.isPending;
 
-      const oneWeekAgo = Date.now() - 7 * 24 * 60 * 60 * 1000;
-      const recent = remoteTasks.filter((t: StandaloneTask) => t.createdAt > oneWeekAgo);
-      const toArchive = remoteTasks.filter((t: StandaloneTask) => t.createdAt <= oneWeekAgo);
-      if (toArchive.length > 0) {
-        await remoteStorageClient.saveHomeTasks(recent);
-        await remoteStorageClient.appendArchivedTasks(toArchive);
-        setTasks(recent);
-      } else {
-        setTasks(remoteTasks);
-      }
-    } catch (error) {
-      console.error('Failed to load standalone tasks:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  // Initial load
+  // Auto-archive tasks created more than a week ago (once per session).
   useEffect(() => {
-    loadTasks();
-    
-    // Listen for task updates from other components (e.g., TrackingCounter)
+    if (autoArchiveRan || !allTasks) return;
+    const cutoff = Date.now() - ONE_WEEK_MS;
+    const toArchive = allTasks.filter((t) => !t.archivedAt && t.createdAt <= cutoff);
+    autoArchiveRan = true;
+    if (toArchive.length === 0) return;
+    const ids = new Set(toArchive.map((t) => t.id));
+    const now = Date.now();
+    markSelfWrite('tasks');
+    setTasksCache((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, archivedAt: t.archivedAt ?? now } : t)));
+    remoteStorageClient.appendArchivedTasks(toArchive).catch((error) => {
+      console.error('Failed to auto-archive tasks:', error);
+      void invalidate('tasks');
+    });
+  }, [allTasks]);
+
+  // Same-tab writes from components that don't go through this hook.
+  useEffect(() => {
     const handleTasksUpdated = () => {
-      loadTasks();
+      void invalidate('tasks');
     };
     window.addEventListener('tasksUpdated', handleTasksUpdated);
-    
+    return () => window.removeEventListener('tasksUpdated', handleTasksUpdated);
+  }, []);
+
+  // Live refresh via Solid Notifications on the tasks container. The LDO
+  // resource is used purely as a change signal — data always comes from the
+  // query cache. Notifications caused by our own writes are ignored (we already
+  // updated the cache optimistically), and the rest are debounced so a burst
+  // of pod changes costs one re-list.
+  const [tasksContainerUrl, setTasksContainerUrl] = useState<string | undefined>(undefined);
+  useEffect(() => {
+    let cancelled = false;
+    remoteStorageClient.getTasksContainerUrl().then((url) => {
+      if (!cancelled && url) setTasksContainerUrl(url);
+    });
     return () => {
-      window.removeEventListener('tasksUpdated', handleTasksUpdated);
+      cancelled = true;
     };
-  }, [loadTasks]);
+  }, []);
+
+  // `{ subscribe: true }` keys its subscription on the stable underlying
+  // resource, so this doesn't loop even though the returned proxy identity
+  // changes on every update (that identity change is our signal).
+  const tasksContainerResource = useResource(tasksContainerUrl, { subscribe: true });
+  const debounceRef = useRef<number | null>(null);
+  const firstSignalSeen = useRef(false);
+  useEffect(() => {
+    if (!tasksContainerResource) return;
+    // The first identity is the initial read, not a change.
+    if (!firstSignalSeen.current) {
+      firstSignalSeen.current = true;
+      return;
+    }
+    if (isRecentSelfWrite('tasks')) return;
+    if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    debounceRef.current = window.setTimeout(() => {
+      debounceRef.current = null;
+      void invalidate('tasks');
+    }, NOTIFICATION_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current !== null) window.clearTimeout(debounceRef.current);
+    };
+  }, [tasksContainerResource]);
+
+  const reload = useCallback(() => invalidate('tasks'), []);
 
   // Add a new standalone task
   const addTask = useCallback(async (name: string, description?: string, options?: { effort?: 'XS' | 'S' | 'M' | 'L' | 'XL', numericEstimate?: number }) => {
@@ -61,37 +113,42 @@ export function useStandaloneTasks() {
       numericEstimate: options?.numericEstimate
     };
 
+    markSelfWrite('tasks');
+    setTasksCache((prev) => [...prev, newTask]);
     try {
       await remoteStorageClient.addStandaloneTask(newTask);
-      setTasks(prev => [...prev, newTask]);
       return newTask;
     } catch (error) {
       console.error('Failed to add standalone task:', error);
+      setTasksCache((prev) => prev.filter((t) => t.id !== newTask.id));
       throw error;
     }
   }, []);
 
   // Update a task
   const updateTask = useCallback(async (taskId: string, updates: Partial<StandaloneTask>) => {
+    const previous = getActiveTasksCache().find((t) => t.id === taskId);
+    markSelfWrite('tasks');
+    setTasksCache((prev) => prev.map((t) => (t.id === taskId ? { ...t, ...updates } : t)));
     try {
       await remoteStorageClient.updateStandaloneTask(taskId, updates);
-      
-      setTasks(prev => prev.map(task => 
-        task.id === taskId ? { ...task, ...updates } : task
-      ));
     } catch (error) {
       console.error('Failed to update standalone task:', error);
+      if (previous) setTasksCache((prev) => prev.map((t) => (t.id === taskId ? previous : t)));
       throw error;
     }
   }, []);
 
   // Delete a task
   const deleteTask = useCallback(async (taskId: string) => {
+    const previous = getActiveTasksCache().find((t) => t.id === taskId);
+    markSelfWrite('tasks');
+    setTasksCache((prev) => prev.filter((t) => t.id !== taskId));
     try {
       await remoteStorageClient.deleteStandaloneTask(taskId);
-      setTasks(prev => prev.filter(task => task.id !== taskId));
     } catch (error) {
       console.error('Failed to delete standalone task:', error);
+      if (previous) setTasksCache((prev) => [...prev, previous]);
       throw error;
     }
   }, []);
@@ -99,25 +156,18 @@ export function useStandaloneTasks() {
   // Check if all tasks for a routine instance are completed
   const checkRoutineCompletion = useCallback(async (routineInstanceId: string, routineId?: string) => {
     try {
-      const allTasks = await remoteStorageClient.getStandaloneTasks();
-      const routineTasks = allTasks.filter((t: StandaloneTask) => t.routineInstanceId === routineInstanceId);
-
+      const allActive = await fetchActiveTasks();
+      const routineTasks = allActive.filter((t) => t.routineInstanceId === routineInstanceId);
       if (routineTasks.length === 0) return;
 
-      // Check if all tasks are completed
-      const allCompleted = routineTasks.every((t: StandaloneTask) => t.status === 'completed');
-
+      const allCompleted = routineTasks.every((t) => t.status === 'completed');
       if (allCompleted && routineId) {
-        // Get routine name
-        const routines = await remoteStorageClient.getRoutines();
-        const routine = routines.find(r => r.id === routineId);
-
+        const routines = await fetchRoutines();
+        const routine = routines.find((r) => r.id === routineId);
         if (routine) {
           // Use the creation date of the routine tasks (when they were scheduled)
           // rather than when they were completed
           const routineCreatedAt = routineTasks[0]?.createdAt || Date.now();
-
-          // Save the completion
           const completion = {
             routineId,
             routineInstanceId,
@@ -125,7 +175,8 @@ export function useStandaloneTasks() {
             completedAt: routineCreatedAt,
             taskCount: routineTasks.length
           };
-
+          markSelfWrite('completions');
+          setCompletionsCache((prev) => [...prev, completion]);
           await remoteStorageClient.addRoutineCompletion(completion);
         }
       }
@@ -140,16 +191,14 @@ export function useStandaloneTasks() {
       status: 'completed' as const,
       completedAt: Date.now()
     };
-    
-    // Add emotions if provided
     if (emotions && emotions.length > 0) {
       updates.emotions = emotions;
     }
-    
+
+    const task = getActiveTasksCache().find((t) => t.id === taskId);
     await updateTask(taskId, updates);
 
     // Record velocity data for completed task
-    const task = tasks.find(t => t.id === taskId);
     if (task) {
       const completedTask = { ...task, ...updates };
       await remoteStorageClient.recordTaskCompletionForVelocity(completedTask);
@@ -159,54 +208,56 @@ export function useStandaloneTasks() {
     if (task && task.routineInstanceId) {
       await checkRoutineCompletion(task.routineInstanceId, task.routineId);
     }
-  }, [updateTask, tasks, checkRoutineCompletion]);
+  }, [updateTask, checkRoutineCompletion]);
 
   // Mark task as incomplete
   const uncompleteTask = useCallback(async (taskId: string) => {
-    const updates = {
-      status: 'due' as const,
-    };
-    await updateTask(taskId, updates);
+    const task = getActiveTasksCache().find((t) => t.id === taskId);
+    await updateTask(taskId, { status: 'due' as const });
 
     // If this task is part of a routine, delete the routine completion
-    const task = tasks.find(t => t.id === taskId);
     if (task && task.routineInstanceId) {
+      const instanceId = task.routineInstanceId;
       try {
-        await remoteStorageClient.deleteRoutineCompletion(task.routineInstanceId);
+        markSelfWrite('completions');
+        setCompletionsCache((prev) => prev.filter((c) => c.routineInstanceId !== instanceId));
+        await remoteStorageClient.deleteRoutineCompletion(instanceId);
       } catch (error) {
         console.error('Failed to delete routine completion:', error);
+        void invalidate('completions');
       }
     }
-  }, [updateTask, tasks]);
+  }, [updateTask]);
 
-  // Archive all tasks for a specific day: move from home to archived bucket
+  // Archive all home tasks that belong to a given day.
   const archiveDay = useCallback(async (dateKey: string) => {
     const [year, month, day] = dateKey.split('-').map(Number);
     const dayStart = new Date(year, month - 1, day, 0, 0, 0, 0).getTime();
     const dayEnd = new Date(year, month - 1, day, 23, 59, 59, 999).getTime();
 
+    const toArchive = getActiveTasksCache().filter((task) => {
+      const taskDate = task.completedAt || task.createdAt;
+      return taskDate >= dayStart && taskDate <= dayEnd;
+    });
+    if (toArchive.length === 0) return;
+    const ids = new Set(toArchive.map((t) => t.id));
+    const now = Date.now();
+
+    markSelfWrite('tasks');
+    setTasksCache((prev) => prev.map((t) => (ids.has(t.id) ? { ...t, archivedAt: t.archivedAt ?? now } : t)));
     try {
-      const homeTasks = await remoteStorageClient.getHomeTasks();
-      const toArchive = homeTasks.filter((task: StandaloneTask) => {
-        const taskDate = task.completedAt || task.createdAt;
-        return taskDate >= dayStart && taskDate <= dayEnd;
-      });
-      if (toArchive.length === 0) return;
-      const remaining = homeTasks.filter((task: StandaloneTask) => {
-        const taskDate = task.completedAt || task.createdAt;
-        return taskDate < dayStart || taskDate > dayEnd;
-      });
-      await remoteStorageClient.saveHomeTasks(remaining);
       await remoteStorageClient.appendArchivedTasks(toArchive);
-      setTasks(remaining);
     } catch (error) {
       console.error('Failed to archive day:', error);
+      void invalidate('tasks');
       throw error;
     }
   }, []);
 
   return {
     tasks,
+    /** Every task including archived ones (for the archive view). */
+    allTasks: allTasks ?? [],
     loading,
     addTask,
     updateTask,
@@ -214,6 +265,6 @@ export function useStandaloneTasks() {
     completeTask,
     uncompleteTask,
     archiveDay,
-    reload: loadTasks
+    reload
   };
-} 
+}

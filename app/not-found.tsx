@@ -6,10 +6,10 @@ export default function NotFound() {
       <h2 className="text-xl font-semibold text-foreground">Not Found</h2>
       <p className="text-muted-foreground">Could not find the requested resource.</p>
       <Link
-        href="/"
+        href="/app"
         className="text-primary hover:underline"
       >
-        Return Home
+        Open app
       </Link>
     </div>
   );

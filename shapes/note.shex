@@ -1,0 +1,27 @@
+PREFIX as: <https://www.w3.org/ns/activitystreams#>
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors the shared 'notes' container — QuickNote and WeekReflection both
+# write as:Note (see containers.ts). Disambiguated the same way
+# extractQuickNote()/extractWeekReflection() do today: leptum:weekStart
+# present means WeekReflection, not QuickNote.
+leptum:NoteShape EXTRA a {
+  a [ as:Note ] ;
+  as:content xsd:string ? ;
+  as:published xsd:dateTime ? ;
+  as:updated xsd:dateTime ? ;
+  as:attachment IRI * ;
+  schema:audio @leptum:NoteAudioShape ? ;
+  leptum:weekStart xsd:string ?
+}
+
+leptum:NoteAudioShape {
+  a [ schema:AudioObject ] ? ;
+  # A real Solid binary resource (raw audio bytes, its own Content-Type) —
+  # not a local file path like RemoteStorage used. See noteBackend audio
+  # helpers for the PUT/GET side.
+  schema:contentUrl IRI ? ;
+  schema:duration xsd:decimal ?
+}

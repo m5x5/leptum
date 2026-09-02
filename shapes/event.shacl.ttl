@@ -1,0 +1,126 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:EventShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors the shared 'events' container — LifeEvent and Impact both write schema:Event (see containers.ts). Disambiguated as extractEventResource() does: schema:startDate holding a bare YYYY-MM-DD date (not a full datetime) means LifeEvent, not Impact. Additional rdf:type values are permitted (ShEx EXTRA a)." ;
+  sh:targetClass schema:Event ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:startDate ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:endDate ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:color ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path dcterms:created ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Impact-only field — absent on LifeEvent resources."
+  ] ;
+  sh:property [
+    sh:path schema:url ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Impact-only field — absent on LifeEvent resources."
+  ] ;
+  sh:property [
+    sh:path schema:about ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+    sh:description "Impact-only field — absent on LifeEvent resources."
+  ] ;
+  sh:property [
+    sh:path schema:image ;
+    sh:nodeKind sh:IRI ;
+    sh:description "Impact-only field — absent on LifeEvent resources."
+  ] ;
+  sh:property [
+    sh:path leptum:allDay ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:dismissed ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:requiresOnlineTime ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:stress ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Impact.{stress,fulfillment,...} are `string | number` app-side — modeled as xsd:string (same convention as task.shex's effort/emotions fields)."
+  ] ;
+  sh:property [
+    sh:path leptum:fulfillment ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:motivation ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:cleanliness ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:happiness ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:confidence ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:energy ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:focus ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:shame ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:guilt ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .

@@ -1,0 +1,25 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors Insight (lib/remoteStorage.ts) as written by insightToRdf and read
+# by extractInsight. leptum:affectedMetric is an array of blank nodes
+# (AffectedMetric) — didn't round-trip through the flat Fact[] reader
+# (extractInsight hardcodes affectedMetrics: []); this is what ldo fixes.
+leptum:InsightShape EXTRA a {
+  a [ leptum:Insight ] ;
+  schema:name xsd:string ? ;
+  schema:description xsd:string ? ;
+  leptum:category xsd:string ? ;
+  leptum:affectedMetric @leptum:AffectedMetricShape * ;
+  dcterms:created xsd:dateTime ?
+}
+
+leptum:AffectedMetricShape {
+  leptum:metric xsd:string ? ;
+  # Should be a value-set enum (["positive" "negative"]) matching
+  # AffectedMetric['effect'] — left as xsd:string, same @ldo/cli
+  # literal-enum crash workaround as task.shex's effort field.
+  leptum:effect xsd:string ?
+}

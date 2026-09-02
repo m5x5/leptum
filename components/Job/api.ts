@@ -1,37 +1,21 @@
-export type DbJob = {
-  id: string;
-  cron: string;
-  status: string;
-  index: number;
-  name: string;
-  lastEndTime: number;
-  habits: Habit[];
-};
-
-export type Habit = {
-  id: string;
-  name: string;
-  jobId: string;
-  job?: DbJob;
-  index: number;
-  status: string;
-  description?: string;
-  completedAt?: number;
-};
-
-export type DraftHabit = {
-  name: string;
-  jobId: string;
-  status?: string;
-  description?: string;
-  completedAt?: number;
+// This file used to also hold the legacy Job feature's types (DbJob, Habit,
+// DraftHabit) — removed along with that feature. Kept at this path (rather
+// than moved) since Routine/RoutineTask/LocationTrigger are imported from
+// here by ~13 other files across the app.
+export type LocationTrigger = {
+  lat: number;
+  lon: number;
+  radius: number; // meters
+  cooldownHours: number; // minimum hours between triggers
+  label?: string; // human-readable name like "Office", "Gym"
 };
 
 // Unified Routine type (combines Jobs and Stacks)
 export type Routine = {
   id: string;
   name: string;
-  cron?: string; // Optional - if provided, routine is scheduled
+  rrule?: string; // Optional RFC 5545 RRULE - if provided, routine is scheduled
+  cron?: string; // Derived from rrule for scheduler compatibility; legacy routines may only have cron
   status?: string;
   lastEndTime?: number;
   index: number;
@@ -39,6 +23,7 @@ export type Routine = {
   goalIds?: string[]; // Optional - array of goal IDs this routine supports (many-to-many)
   goalId?: string; // DEPRECATED: Use goalIds instead. Kept for backward compatibility during migration
   isShowUpRoutine?: boolean; // Special flag for "Show Up" routine
+  locationTrigger?: LocationTrigger; // Optional - trigger when near a location
   tasks: RoutineTask[];
 };
 
@@ -50,15 +35,7 @@ export type RoutineTask = {
   status: string;
   description?: string;
   completedAt?: number;
+  effort?: 'XS' | 'S' | 'M' | 'L' | 'XL';
+  numericEstimate?: number;
 };
 
-export type DraftRoutineTask = {
-  name: string;
-  routineId: string;
-  status?: string;
-  description?: string;
-  completedAt?: number;
-};
-
-// These functions are now handled by RemoteStorage client
-// Keeping the types for compatibility

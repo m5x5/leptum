@@ -1,20 +1,29 @@
 "use client";
 
 import { useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { useActivityWatch } from '../../utils/useActivityWatch';
 import { remoteStorageClient } from '../../lib/remoteStorage';
-import { LoginButtons } from '../../lib/remotestorage-widget';
+import { solidHandleRedirect, solidRestore, solidLogin, solidLogout, getLastSolidIdp, consumeSolidReturnPath } from '../../lib/solidAuth';
+import type { Session as SolidSessionInstance } from '@uvdsl/solid-oidc-client-browser';
+import { Spinner } from '../../components/ui/spinner';
+import { Button } from '../../components/ui/button';
 import { serviceWorkerManager, isOfflineModeEnabled, setOfflineModeEnabled, ServiceWorkerState } from '../../utils/serviceWorker';
 import { likelyWithKeyboard } from 'keyux';
 import { useEntities, Entity } from '../../utils/useEntities';
 import { useMentions } from '../../utils/useMentions';
 import { extractMentionedEntityIds } from '../../components/ui/mention-input';
 import { Separator } from '../../components/ui/separator';
+import Modal from '../../components/Modal';
+import { ContactSourcesPicker } from '../../components/Settings/ContactSourcesPicker';
 import { Switch } from '../../components/ui/switch';
 import { isHapticsEnabled, setHapticsEnabled } from '../../utils/haptics';
+import { getStoredTimeFormat, setStoredTimeFormat, resolveUse24Hour } from '../../utils/useTimeFormat';
+import type { ThemePreference, TimeFormat } from '../../lib/remoteStorage';
+import { EXPERIMENTS, getEnabledExperiments, setEnabledExperimentsLocal, type ExperimentId } from '../../lib/experiments';
+import { fetchSolidProfile } from '../../utils/solidProfile';
 import {
   DownloadIcon,
-  UploadIcon,
   RefreshIcon,
   ExclamationIcon,
   DotsVerticalIcon,
@@ -22,8 +31,11 @@ import {
   TrashIcon,
   XIcon,
   PlusIcon,
+  UserCircleIcon,
+  CloudUploadIcon,
+  ExternalLinkIcon,
+  LogoutIcon,
 } from '@heroicons/react/solid';
-
 export default function SettingsPageContent() {
   const { duplicateCount } = useActivityWatch();
   const { entities, loading: entitiesLoading, addEntity, updateEntity, deleteEntity } = useEntities();
@@ -41,9 +53,24 @@ export default function SettingsPageContent() {
   const [isServiceWorkerSupported, setIsServiceWorkerSupported] = useState(false);
   const [offlineModeEnabled, setOfflineModeEnabledState] = useState(false);
   const [showKeyboardShortcuts, setShowKeyboardShortcutsState] = useState(false);
+  const [developerMode, setDeveloperMode] = useState(false);
+  const [enabledExperiments, setEnabledExperimentsState] = useState<ExperimentId[]>([]);
   const [hapticsEnabled, setHapticsEnabledState] = useState(false);
+  const [themePreference, setThemePreference] = useState<ThemePreference>('system');
+  const [timeFormat, setTimeFormatState] = useState<TimeFormat>('system');
   const [dob, setDob] = useState('');
   const [googleClientId, setGoogleClientId] = useState('');
+  // Solid Pod connection state
+  const solidSessionRef = useRef<SolidSessionInstance | null>(null);
+  const [solidWebId, setSolidWebId] = useState<string | null>(null);
+  const [solidIdpInput, setSolidIdpInput] = useState('');
+  const [solidConnecting, setSolidConnecting] = useState(false);
+  const [solidError, setSolidError] = useState<string | null>(null);
+  const [solidSyncing, setSolidSyncing] = useState(false);
+  const [solidSyncMessage, setSolidSyncMessage] = useState<string | null>(null);
+  const [solidProfileName, setSolidProfileName] = useState<string | null>(null);
+  const [solidProfilePhoto, setSolidProfilePhoto] = useState<string | null>(null);
+  const [solidModalOpen, setSolidModalOpen] = useState(false);
 
   // Entity management state
   const [entityModalOpen, setEntityModalOpen] = useState(false);
@@ -66,10 +93,44 @@ export default function SettingsPageContent() {
       setIsServiceWorkerSupported('serviceWorker' in navigator);
       setOfflineModeEnabledState(isOfflineModeEnabled());
       const storedKb = localStorage.getItem('showKeyboardShortcuts');
-      setShowKeyboardShortcutsState(storedKb !== null ? storedKb === 'true' : likelyWithKeyboard(window));
+      setShowKeyboardShortcutsState(storedKb !== null ? storedKb === 'true' : false);
+      setEnabledExperimentsState(getEnabledExperiments());
       setDob(localStorage.getItem('leptum_dob') ?? '');
+      setThemePreference((localStorage.getItem('theme') as ThemePreference | null) ?? 'system');
+      // Load settings from Solid (overrides localStorage if present)
+      remoteStorageClient.getUserSettings().then(settings => {
+        if (settings.dateOfBirth) {
+          setDob(settings.dateOfBirth);
+          localStorage.setItem('leptum_dob', settings.dateOfBirth);
+        }
+        if (settings.showKeyboardShortcuts != null) {
+          setShowKeyboardShortcutsState(settings.showKeyboardShortcuts);
+          localStorage.setItem('showKeyboardShortcuts', settings.showKeyboardShortcuts.toString());
+          window.dispatchEvent(new Event('keyboardShortcutsChanged'));
+        }
+        if (settings.enabledExperiments != null) {
+          setEnabledExperimentsState(settings.enabledExperiments);
+          setEnabledExperimentsLocal(settings.enabledExperiments);
+        }
+        if (settings.developerMode != null) {
+          setDeveloperMode(settings.developerMode);
+          localStorage.setItem('developerMode', settings.developerMode.toString());
+          window.dispatchEvent(new Event('developerModeChanged'));
+        }
+        if (settings.theme) {
+          setThemePreference(settings.theme);
+          localStorage.setItem('theme', settings.theme);
+          window.dispatchEvent(new Event('themeChanged'));
+        }
+        if (settings.timeFormat) {
+          setTimeFormatState(settings.timeFormat);
+          localStorage.setItem('timeFormat', settings.timeFormat);
+          window.dispatchEvent(new Event('timeFormatChanged'));
+        }
+      });
       setGoogleClientId(localStorage.getItem('leptum_google_client_id') ?? '');
       setHapticsEnabledState(isHapticsEnabled());
+      setTimeFormatState(getStoredTimeFormat());
     });
 
     const unsubscribe = serviceWorkerManager.subscribe((state) => {
@@ -80,6 +141,74 @@ export default function SettingsPageContent() {
       unsubscribe();
     };
   }, []);
+
+  // Solid Pod session init: consume the OIDC redirect if we just came back from
+  // login, otherwise try to restore a previous session via the refresh token grant.
+  useEffect(() => {
+    queueMicrotask(() => setSolidIdpInput(getLastSolidIdp()));
+    let cancelled = false;
+    const cameFromLogin =
+      typeof window !== 'undefined' && new URLSearchParams(window.location.search).has('code');
+    (async () => {
+      try {
+        const session = await solidHandleRedirect();
+        if (!session.isActive) {
+          await solidRestore();
+        }
+        if (cancelled) return;
+        solidSessionRef.current = session;
+        setSolidWebId(session.isActive ? session.webId ?? null : null);
+        session.addEventListener('sessionStateChange', () => {
+          setSolidWebId(session.isActive ? session.webId ?? null : null);
+        });
+        // If we just consumed a login redirect and the user started the
+        // connect flow from another route, send them back there.
+        if (cameFromLogin && session.isActive) {
+          const returnTo = consumeSolidReturnPath();
+          if (returnTo && returnTo !== '/settings') {
+            window.location.replace(returnTo);
+            return;
+          }
+        }
+      } catch (error) {
+        console.error('Failed to initialize Solid session:', error);
+        if (!cancelled) setSolidError(error instanceof Error ? error.message : String(error));
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // Fetch the WebID profile document for the pod owner's real name/photo —
+  // falls back to the URL-derived display name / generic icon when a field
+  // is missing or the document doesn't parse (profile docs vary a lot).
+  useEffect(() => {
+    let cancelled = false;
+    if (!solidWebId) {
+      queueMicrotask(() => {
+        if (cancelled) return;
+        setSolidProfileName(null);
+        setSolidProfilePhoto(null);
+      });
+      return () => {
+        cancelled = true;
+      };
+    }
+    (async () => {
+      const { name, photo, birthDate } = await fetchSolidProfile(solidWebId, solidSessionRef.current);
+      if (cancelled) return;
+      setSolidProfileName(name);
+      setSolidProfilePhoto(photo);
+      if (birthDate) {
+        setDob(birthDate);
+        localStorage.setItem('leptum_dob', birthDate);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [solidWebId]);
 
   // Close context menu on outside click
   useEffect(() => {
@@ -125,10 +254,38 @@ export default function SettingsPageContent() {
     }
   };
 
-  const handleToggleKeyboardShortcuts = (enabled: boolean) => {
+  const handleToggleKeyboardShortcuts = async (enabled: boolean) => {
     localStorage.setItem('showKeyboardShortcuts', enabled.toString());
     setShowKeyboardShortcutsState(enabled);
     window.dispatchEvent(new Event('keyboardShortcutsChanged'));
+    const settings = await remoteStorageClient.getUserSettings();
+    await remoteStorageClient.saveUserSettings({ ...settings, showKeyboardShortcuts: enabled });
+  };
+
+  const handleToggleExperiment = async (id: ExperimentId, enabled: boolean) => {
+    const next = enabled
+      ? [...enabledExperiments.filter((e) => e !== id), id]
+      : enabledExperiments.filter((e) => e !== id);
+    setEnabledExperimentsState(next);
+    setEnabledExperimentsLocal(next);
+    const settings = await remoteStorageClient.getUserSettings();
+    await remoteStorageClient.saveUserSettings({ ...settings, enabledExperiments: next });
+  };
+
+  const handleToggleDeveloperMode = async (enabled: boolean) => {
+    localStorage.setItem('developerMode', enabled.toString());
+    setDeveloperMode(enabled);
+    window.dispatchEvent(new Event('developerModeChanged'));
+    const settings = await remoteStorageClient.getUserSettings();
+    await remoteStorageClient.saveUserSettings({ ...settings, developerMode: enabled });
+  };
+
+  const handleThemeChange = async (value: ThemePreference) => {
+    localStorage.setItem('theme', value);
+    setThemePreference(value);
+    window.dispatchEvent(new Event('themeChanged'));
+    const settings = await remoteStorageClient.getUserSettings();
+    await remoteStorageClient.saveUserSettings({ ...settings, theme: value });
   };
 
   const handleMigrateMentions = async () => {
@@ -155,25 +312,22 @@ export default function SettingsPageContent() {
   const handleExportData = async () => {
     try {
       const [
-        jobs, goals, goalTypes, impacts, stacks, routines,
-        standaloneTasks, routineCompletions, weeklyGoals, activityWatchData
+        goals, goalTypes, impacts, routines,
+        standaloneTasks, routineCompletions, activityWatchData
       ] = await Promise.all([
-        remoteStorageClient.getJobs(),
         remoteStorageClient.getGoals(),
         remoteStorageClient.getGoalTypes(),
         remoteStorageClient.getImpacts(),
-        remoteStorageClient.getStacks(),
         remoteStorageClient.getRoutines(),
         remoteStorageClient.getStandaloneTasks(),
         remoteStorageClient.getRoutineCompletions(),
-        remoteStorageClient.getAllWeeklyGoals(),
         remoteStorageClient.getActivityWatchData(),
       ]);
 
       const exportData = {
         version: '1.0',
         exportedAt: new Date().toISOString(),
-        data: { jobs, goals, goalTypes, impacts, stacks, routines, standaloneTasks, routineCompletions, weeklyGoals, activityWatchData },
+        data: { goals, goalTypes, impacts, routines, standaloneTasks, routineCompletions, activityWatchData },
       };
 
       const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
@@ -191,21 +345,98 @@ export default function SettingsPageContent() {
     }
   };
 
-  const handleImportFromTodonna = async () => {
-    if (!confirm('Import tasks from Todonna into Leptum?')) return;
+  const handleOpenSolidModal = () => {
+    setSolidError(null);
+    setSolidModalOpen(true);
+  };
+
+  const handleSolidConnect = async () => {
+    const idp = solidIdpInput.trim();
+    if (!idp) {
+      setSolidError('Enter your Solid Identity Provider URL (e.g. https://your-pod-server/)');
+      return;
+    }
+    setSolidError(null);
+    setSolidConnecting(true);
     try {
-      const { importedCount } = await remoteStorageClient.importFromTodonna();
-      if (typeof window !== 'undefined') {
-        window.dispatchEvent(new Event('tasksUpdated'));
-      }
-      if (importedCount > 0) {
-        alert(`Imported ${importedCount} task(s) from Todonna.`);
-      } else {
-        alert('No new tasks found in Todonna.');
-      }
+      await solidLogin(idp); // redirects the page to the IDP; does not return on success
     } catch (error) {
-      console.error('Failed to import from Todonna:', error);
-      alert('Failed to import from Todonna. Please try again.');
+      console.error('Solid login failed:', error);
+      setSolidError(error instanceof Error ? error.message : String(error));
+      setSolidConnecting(false);
+    }
+  };
+
+  const handleSolidDisconnect = async () => {
+    try {
+      await solidLogout();
+    } finally {
+      setSolidWebId(null);
+      setSolidSyncMessage(null);
+    }
+  };
+
+  // Pod root is derived from the WebID's first path segment, e.g.
+  // https://pod.example/alice/profile/card#me -> https://pod.example/alice/
+  const solidPodRoot = (webId: string): string => {
+    const url = new URL(webId);
+    const firstSegment = url.pathname.split('/').filter(Boolean)[0] ?? '';
+    return `${url.origin}/${firstSegment}/`;
+  };
+
+  // Same first-path-segment as solidPodRoot, title-cased for display in place
+  // of a generic "Solid Pod" label — falls back to the hostname if the WebID
+  // has no path segment (e.g. https://pod.example/#me).
+  const solidDisplayName = (webId: string): string => {
+    const url = new URL(webId);
+    const firstSegment = url.pathname.split('/').filter(Boolean)[0];
+    const raw = firstSegment || url.hostname;
+    return raw.charAt(0).toUpperCase() + raw.slice(1);
+  };
+
+  const handleSolidBackup = async () => {
+    const session = solidSessionRef.current;
+    if (!session || !solidWebId) return;
+    setSolidSyncing(true);
+    setSolidSyncMessage(null);
+    try {
+      const [
+        goals, goalTypes, impacts, routines,
+        standaloneTasks, routineCompletions
+      ] = await Promise.all([
+        remoteStorageClient.getGoals(),
+        remoteStorageClient.getGoalTypes(),
+        remoteStorageClient.getImpacts(),
+        remoteStorageClient.getRoutines(),
+        remoteStorageClient.getStandaloneTasks(),
+        remoteStorageClient.getRoutineCompletions(),
+      ]);
+
+      const backup = {
+        version: '1.0',
+        exportedAt: new Date().toISOString(),
+        data: { goals, goalTypes, impacts, routines, standaloneTasks, routineCompletions },
+      };
+
+      const resourceUrl = `${solidPodRoot(solidWebId)}leptum/backup.json`;
+      const putRes = await session.authFetch(resourceUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(backup, null, 2),
+      });
+      if (!putRes.ok) {
+        throw new Error(`Pod responded ${putRes.status} ${putRes.statusText}`);
+      }
+
+      // Read back to confirm the write actually landed on the pod.
+      const getRes = await session.authFetch(resourceUrl);
+      const savedText = await getRes.text();
+      setSolidSyncMessage(`Saved ${savedText.length} bytes to ${resourceUrl}`);
+    } catch (error) {
+      console.error('Solid backup failed:', error);
+      setSolidSyncMessage(error instanceof Error ? `Failed: ${error.message}` : 'Failed to save to pod');
+    } finally {
+      setSolidSyncing(false);
     }
   };
 
@@ -284,16 +515,77 @@ export default function SettingsPageContent() {
         <div>
           <h2 className="text-lg font-semibold mb-4">Storage</h2>
           <div className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground mb-4">Connect your RemoteStorage account to sync your data across devices.</p>
-              {mounted && remoteStorageClient.getRS() && (
-                <LoginButtons rs={remoteStorageClient.getRS()!} />
+            <div className="border border-border rounded-control p-3 bg-muted/30 space-y-3">
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex items-center gap-2 min-w-0">
+                  {mounted && solidWebId && solidProfilePhoto ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={solidProfilePhoto}
+                      alt=""
+                      className="h-8 w-8 rounded-full object-cover shrink-0"
+                    />
+                  ) : (
+                    <UserCircleIcon className="h-8 w-8 text-muted-foreground shrink-0" aria-hidden="true" />
+                  )}
+                  <div className="flex flex-col min-w-0">
+                    <span
+                      className="text-sm font-medium text-foreground truncate"
+                      title={mounted && solidWebId ? solidWebId : undefined}
+                    >
+                      {mounted && solidWebId ? (solidProfileName ?? solidDisplayName(solidWebId)) : 'Solid Pod'}
+                    </span>
+                    {developerMode && mounted && solidWebId && (
+                      <span className="text-xs text-muted-foreground break-all">{solidWebId}</span>
+                    )}
+                    {mounted && !solidWebId && (
+                      <span className="text-xs text-muted-foreground">Not connected</span>
+                    )}
+                  </div>
+                </div>
+                {mounted && solidWebId ? (
+                  <div className="flex flex-wrap items-center gap-2 shrink-0">
+                    <a
+                      href={solidWebId}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-4 py-2 text-sm bg-primary text-primary-foreground rounded-full font-medium hover:bg-primary/90 transition-colors"
+                    >
+                      Open profile
+                      <ExternalLinkIcon className="h-4 w-4" />
+                    </a>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      onClick={handleSolidDisconnect}
+                      aria-label="Disconnect"
+                      title="Disconnect"
+                    >
+                      <LogoutIcon aria-hidden="true" />
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    type="button"
+                    size="sm"
+                    onClick={handleOpenSolidModal}
+                    className="shrink-0"
+                  >
+                    Connect
+                  </Button>
+                )}
+              </div>
+
+              {/* Session errors surface on the card while the connect dialog is closed. */}
+              {mounted && !solidWebId && !solidModalOpen && solidError && (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">{solidError}</p>
               )}
             </div>
 
             <button
               onClick={handleExportData}
-              className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left group"
+              className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors text-left group"
             >
               <div className="flex flex-col gap-0.5">
                 <span className="text-sm text-foreground group-hover:text-primary transition-colors">Export Data</span>
@@ -302,16 +594,27 @@ export default function SettingsPageContent() {
               <DownloadIcon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
             </button>
 
-            <button
-              onClick={handleImportFromTodonna}
-              className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left group"
-            >
-              <div className="flex flex-col gap-0.5">
-                <span className="text-sm text-foreground group-hover:text-primary transition-colors">Import from Todonna</span>
-                <span className="text-xs text-muted-foreground">One-time import of tasks from your Todonna storage</span>
+            {mounted && solidWebId && (
+              <div>
+                <button
+                  onClick={handleSolidBackup}
+                  disabled={solidSyncing}
+                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors text-left group disabled:opacity-50"
+                >
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-foreground group-hover:text-primary transition-colors">
+                      {solidSyncing ? 'Saving…' : 'Save backup to Pod'}
+                    </span>
+                    <span className="text-xs text-muted-foreground">Write a full backup of your data to your Solid pod</span>
+                  </div>
+                  <CloudUploadIcon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
+                </button>
+                {solidSyncMessage && (
+                  <p className="text-xs text-muted-foreground break-all px-1">{solidSyncMessage}</p>
+                )}
               </div>
-              <UploadIcon className="h-5 w-5 text-muted-foreground group-hover:text-primary transition-colors shrink-0" />
-            </button>
+            )}
+
           </div>
         </div>
 
@@ -322,12 +625,12 @@ export default function SettingsPageContent() {
           <h2 className="text-lg font-semibold mb-4">Application</h2>
           <div className="space-y-4">
             {!mounted ? (
-              <div className="py-2 h-10 animate-pulse bg-muted/20 rounded-lg" />
+              <div className="py-2 h-10 animate-pulse bg-muted/20 rounded-control" />
             ) : (
               <div className="space-y-4">
                 <div
                   onClick={() => handleToggleKeyboardShortcuts(!showKeyboardShortcuts)}
-                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors cursor-pointer"
                 >
                   <span className="text-sm text-foreground">Show keyboard shortcut hints</span>
                   <span className="pointer-events-none shrink-0">
@@ -339,8 +642,21 @@ export default function SettingsPageContent() {
                 </div>
 
                 <div
+                  onClick={() => handleToggleDeveloperMode(!developerMode)}
+                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors cursor-pointer"
+                >
+                  <span className="text-sm text-foreground">Use Leptum as a developer</span>
+                  <span className="pointer-events-none shrink-0">
+                    <Switch
+                      checked={developerMode}
+                      onCheckedChange={handleToggleDeveloperMode}
+                    />
+                  </span>
+                </div>
+
+                <div
                   onClick={() => { setHapticsEnabled(!hapticsEnabled); setHapticsEnabledState(!hapticsEnabled); }}
-                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors cursor-pointer"
+                  className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors cursor-pointer"
                 >
                   <span className="text-sm text-foreground">Haptic feedback on task completion</span>
                   <span className="pointer-events-none shrink-0">
@@ -353,25 +669,75 @@ export default function SettingsPageContent() {
 
                 <div className="flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1">
                   <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-foreground">Theme</span>
+                    <span className="text-xs text-muted-foreground">Choose light, dark, or system appearance</span>
+                  </div>
+                  <select
+                    value={themePreference}
+                    onChange={(e) => handleThemeChange(e.target.value as ThemePreference)}
+                    className="px-2 py-1.5 border border-input rounded bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="system">System</option>
+                    <option value="light">Light</option>
+                    <option value="dark">Dark</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="text-sm text-foreground">Time format</span>
+                    <span className="text-xs text-muted-foreground">
+                      System uses your locale ({resolveUse24Hour('system') ? '24-hour' : '12-hour'})
+                    </span>
+                  </div>
+                  <select
+                    value={timeFormat}
+                    onChange={(e) => {
+                      const value = e.target.value as TimeFormat;
+                      setTimeFormatState(value);
+                      setStoredTimeFormat(value);
+                    }}
+                    className="px-2 py-1.5 border border-input rounded bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                  >
+                    <option value="system">System</option>
+                    <option value="12h">12-hour (1:30 PM)</option>
+                    <option value="24h">24-hour (13:30)</option>
+                  </select>
+                </div>
+
+                <div className="flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1">
+                  <div className="flex flex-col gap-0.5">
                     <span className="text-sm text-foreground">Date of birth</span>
                     <span className="text-xs text-muted-foreground">Used to calculate your Life in Weeks view</span>
                   </div>
-                  <input
-                    type="date"
-                    value={dob}
-                    onChange={e => {
-                      setDob(e.target.value);
-                      localStorage.setItem('leptum_dob', e.target.value);
-                    }}
-                    className="px-2 py-1.5 border border-input rounded bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
+                  {mounted && solidWebId ? (
+                    <a
+                      href={solidWebId}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-sm border border-border rounded-full font-medium hover:bg-accent transition-colors text-foreground"
+                    >
+                      Edit in profile
+                      <ExternalLinkIcon className="h-4 w-4" />
+                    </a>
+                  ) : (
+                    <input
+                      type="date"
+                      value={dob}
+                      onChange={e => {
+                        setDob(e.target.value);
+                        localStorage.setItem('leptum_dob', e.target.value);
+                      }}
+                      className="px-2 py-1.5 border border-input rounded bg-background text-foreground text-sm focus:outline-none focus:ring-1 focus:ring-primary"
+                    />
+                  )}
                 </div>
 
                 {isServiceWorkerSupported ? (
                   <>
                     <div
                       onClick={() => !isChecking && handleToggleOfflineMode(!offlineModeEnabled)}
-                      className={`w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors cursor-pointer ${isChecking ? 'opacity-70 pointer-events-none' : ''}`}
+                      className={`w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors cursor-pointer ${isChecking ? 'opacity-70 pointer-events-none' : ''}`}
                     >
                       <div className="flex items-center gap-3">
                         <span className="text-sm text-foreground">Application ready for offline use</span>
@@ -392,16 +758,13 @@ export default function SettingsPageContent() {
                     </div>
 
                     {swState.updateAvailable && (
-                      <div className="border border-blue-500/30 bg-blue-500/10 rounded-lg p-3">
+                      <div className="border border-blue-500/30 bg-blue-500/10 rounded-control p-3">
                         <p className="text-sm text-blue-700 dark:text-blue-400 mb-2">
                           <strong>Update available!</strong> A new version of the application is ready to install.
                         </p>
-                        <button
-                          onClick={handleUpdateApp}
-                          className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors text-sm"
-                        >
+                        <Button onClick={handleUpdateApp}>
                           Update Now
-                        </button>
+                        </Button>
                       </div>
                     )}
 
@@ -409,7 +772,7 @@ export default function SettingsPageContent() {
                       type="button"
                       onClick={handleCheckForUpdates}
                       disabled={isChecking || !offlineModeEnabled}
-                      className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-lg transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="w-full flex items-center justify-between min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors text-left disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <span className="text-sm text-foreground">Check for updates</span>
                       <span className="text-sm text-muted-foreground">
@@ -432,18 +795,47 @@ export default function SettingsPageContent() {
         <Separator />
 
         {/* Integrations Section */}
+        <div id="experiments">
+          <h2 className="text-lg font-semibold mb-1">Experiments</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Features still in development. They&apos;re off by default and hidden from navigation until enabled.
+          </p>
+          {!mounted ? (
+            <div className="py-2 h-10 animate-pulse bg-muted/20 rounded-control" />
+          ) : (
+            <div className="space-y-4">
+              {EXPERIMENTS.map((experiment) => {
+                const isOn = enabledExperiments.includes(experiment.id);
+                return (
+                  <div
+                    key={experiment.id}
+                    onClick={() => handleToggleExperiment(experiment.id, !isOn)}
+                    className="w-full flex items-center justify-between gap-4 min-h-[44px] py-3 px-1 -mx-1 hover:bg-accent/50 rounded-full transition-colors cursor-pointer"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm text-foreground">{experiment.label}</span>
+                      <span className="block text-xs text-muted-foreground">{experiment.description}</span>
+                    </span>
+                    <span className="pointer-events-none shrink-0">
+                      <Switch
+                        checked={isOn}
+                        onCheckedChange={(checked) => handleToggleExperiment(experiment.id, checked)}
+                      />
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <Separator />
+
         <div>
-          <h2 className="text-lg font-semibold mb-1">Integrations</h2>
-          <p className="text-sm text-muted-foreground mb-4">Connect third-party services to import data.</p>
+          <h2 className="text-lg font-semibold mb-4">Integrations</h2>
           <div className="space-y-4">
             <div>
               <div className="flex items-center gap-2 mb-1.5">
-                <svg className="w-4 h-4" viewBox="0 0 24 24" aria-hidden="true">
-                  <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4"/>
-                  <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853"/>
-                  <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05"/>
-                  <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335"/>
-                </svg>
                 <span className="text-sm font-medium">Google Calendar</span>
               </div>
               <p className="text-xs text-muted-foreground mb-2">
@@ -466,27 +858,28 @@ export default function SettingsPageContent() {
                   placeholder="xxxx.apps.googleusercontent.com"
                   className="flex-1 text-sm px-3 py-2 border border-input rounded bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary font-mono"
                 />
-                <button
+                <Button
                   type="button"
+                  size="sm"
                   onClick={() => { localStorage.setItem('leptum_google_client_id', googleClientId.trim()); }}
-                  className="px-4 py-2 text-sm bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors whitespace-nowrap"
                 >
                   Save
-                </button>
+                </Button>
                 {googleClientId && (
-                  <button
+                  <Button
                     type="button"
+                    variant="outline"
+                    size="icon"
                     onClick={() => {
                       setGoogleClientId('');
                       localStorage.removeItem('leptum_google_client_id');
                       sessionStorage.removeItem('leptum_google_token');
                       sessionStorage.removeItem('leptum_google_token_exp');
                     }}
-                    className="px-3 py-2 text-sm border border-border rounded hover:bg-muted transition-colors text-muted-foreground"
                     aria-label="Clear"
                   >
-                    <XIcon className="h-4 w-4" />
-                  </button>
+                    <XIcon />
+                  </Button>
                 )}
               </div>
             </div>
@@ -500,23 +893,34 @@ export default function SettingsPageContent() {
           <div className="flex flex-wrap gap-y-2 justify-between items-center mb-4">
             <h2 className="text-lg font-semibold">Entity Management</h2>
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={handleMigrateMentions}
-                className="flex items-center gap-1.5 px-3 py-2 border border-border text-foreground text-sm rounded hover:bg-accent transition-colors"
+                className="gap-1.5"
                 title="Extract mentions from existing insights"
               >
-                <RefreshIcon className="h-4 w-4" />
+                <RefreshIcon />
                 Migrate Mentions
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={() => handleOpenEntityModal()}
-                className="flex items-center gap-1.5 px-4 py-2 border border-border text-foreground rounded hover:bg-accent transition-colors text-sm"
+                className="gap-1.5"
               >
-                <PlusIcon className="h-4 w-4" />
+                <PlusIcon />
                 Add Entity
-              </button>
+              </Button>
             </div>
           </div>
+
+          {/* Which Solid address books / groups feed @mention suggestions */}
+          {mounted && solidWebId && (
+            <div className="mb-4">
+              <ContactSourcesPicker />
+            </div>
+          )}
 
           {/* Type Filter Tabs */}
           <div className="flex gap-2 mb-4 flex-wrap">
@@ -524,7 +928,7 @@ export default function SettingsPageContent() {
               <button
                 key={type}
                 onClick={() => setEntityTypeFilter(type)}
-                className={`px-3 py-1 rounded text-sm transition-colors border ${
+                className={`px-3 py-1 rounded-full font-medium text-sm transition-colors border ${
                   entityTypeFilter === type
                     ? 'bg-primary text-primary-foreground border-primary'
                     : 'border-border text-foreground hover:bg-accent'
@@ -537,7 +941,7 @@ export default function SettingsPageContent() {
 
           {/* Entity List */}
           {entitiesLoading ? (
-            <p className="text-sm text-muted-foreground py-2">Loading entities...</p>
+            <Spinner className="h-5 w-5 text-muted-foreground my-2" />
           ) : filteredEntities.length === 0 ? (
             <p className="text-sm text-muted-foreground py-2">
               No entities found. Add your first entity to start using @mentions!
@@ -547,7 +951,7 @@ export default function SettingsPageContent() {
               {filteredEntities.map(entity => (
                 <div
                   key={entity.id}
-                  className="border border-border rounded-lg p-3 bg-background hover:bg-accent/50 transition-colors"
+                  className="border border-border rounded-control p-3 bg-background hover:bg-accent/50 transition-colors"
                 >
                   <div className="flex justify-between items-start gap-4">
                     <div className="flex-1 min-w-0">
@@ -583,15 +987,17 @@ export default function SettingsPageContent() {
 
                     {/* 3-dot context menu */}
                     <div className="relative shrink-0" ref={openMenuId === entity.id ? menuRef : null}>
-                      <button
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         onClick={() => setOpenMenuId(openMenuId === entity.id ? null : entity.id)}
-                        className="p-1.5 rounded hover:bg-muted transition-colors text-muted-foreground"
+                        className="text-muted-foreground"
                         aria-label="More options"
                       >
-                        <DotsVerticalIcon className="h-4 w-4" />
-                      </button>
+                        <DotsVerticalIcon />
+                      </Button>
                       {openMenuId === entity.id && (
-                        <div className="absolute right-0 top-8 z-10 bg-popover border border-border rounded-lg shadow-lg py-1 min-w-[120px]">
+                        <div className="absolute right-0 top-8 z-10 bg-popover border border-border rounded-control shadow-lg py-1 min-w-[120px]">
                           <button
                             onClick={() => { setOpenMenuId(null); handleOpenEntityModal(entity); }}
                             className="w-full flex items-center gap-2 px-3 py-2 text-sm text-foreground hover:bg-accent transition-colors text-left"
@@ -623,13 +1029,14 @@ export default function SettingsPageContent() {
           <h2 className="text-lg font-semibold mb-4">About</h2>
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Leptum is an open-source personal productivity tracker with local-first, user-owned data storage.
+              Leptum is an open-source personal productivity tracker with local-first, user-owned data storage.{' '}
+              <Link href="/about" className="underline text-foreground">Where your data lives</Link>
             </p>
             <a
               href="https://github.com/m5x5/leptum"
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-2 px-4 py-2 border border-border rounded hover:bg-accent transition-colors text-sm"
+              className="inline-flex items-center gap-2 px-4 py-2 border border-border rounded-full font-medium hover:bg-accent transition-colors text-sm"
             >
               <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path fillRule="evenodd" d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.019 10.019 0 0022 12.017C22 6.484 17.522 2 12 2z" clipRule="evenodd" />
@@ -660,10 +1067,61 @@ export default function SettingsPageContent() {
         )}
       </div>
 
+      {/* Solid Pod connect dialog — the card only exposes a Connect button. */}
+      <Modal isOpen={solidModalOpen} closeModal={() => setSolidModalOpen(false)}>
+        <Modal.Title>Connect Solid Pod</Modal.Title>
+        <Modal.Body>
+          <div className="space-y-4 mt-4">
+            <p className="text-sm text-muted-foreground">
+              Leptum stores your data in your own Solid pod. Enter the Identity Provider that hosts it
+              and you&apos;ll be sent there to sign in.
+            </p>
+            <div className="space-y-2">
+              <label htmlFor="solid-idp" className="text-sm font-medium text-foreground block">
+                Identity Provider URL
+              </label>
+              <input
+                id="solid-idp"
+                type="text"
+                value={solidIdpInput}
+                onChange={(e) => setSolidIdpInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !solidConnecting) handleSolidConnect();
+                }}
+                placeholder="https://your-pod-server/"
+                autoFocus
+                className="px-3 py-2.5 w-full h-10 border border-gray-300 dark:border-gray-700 rounded-lg bg-gray-100 dark:bg-gray-900 text-inherit outline-none focus:outline focus:outline-2 focus:outline-offset-2 focus:outline-solid focus:outline-gray-900 dark:focus:outline-white box-border text-sm"
+              />
+              {solidError && (
+                <p role="alert" className="text-xs text-red-600 dark:text-red-400">{solidError}</p>
+              )}
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <div className="flex gap-2 justify-end">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setSolidModalOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={handleSolidConnect}
+              disabled={solidConnecting}
+            >
+              {solidConnecting ? 'Connecting…' : 'Connect with Solid'}
+            </Button>
+          </div>
+        </Modal.Footer>
+      </Modal>
+
       {/* Entity Add/Edit Modal */}
       {entityModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-          <div className="bg-card border border-border rounded-lg p-6 max-w-md w-full">
+          <div className="bg-card border border-border rounded-card p-5 max-w-md w-full max-h-[90dvh] overflow-y-auto">
             <h2 className="text-xl font-semibold mb-4">
               {editingEntity ? 'Edit Entity' : 'Add Entity'}
             </h2>
@@ -677,7 +1135,7 @@ export default function SettingsPageContent() {
                   type="text"
                   value={entityFormData.name}
                   onChange={(e) => setEntityFormData({ ...entityFormData, name: e.target.value })}
-                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                  className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   placeholder="e.g., John Doe, Leptum, Work"
                   autoFocus
                 />
@@ -691,7 +1149,7 @@ export default function SettingsPageContent() {
                     ...entityFormData,
                     type: e.target.value === '' ? null : e.target.value as 'person' | 'project' | 'context',
                   })}
-                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                  className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                 >
                   <option value="">Untyped</option>
                   <option value="person">Person</option>
@@ -705,7 +1163,7 @@ export default function SettingsPageContent() {
                 <textarea
                   value={entityFormData.description}
                   onChange={(e) => setEntityFormData({ ...entityFormData, description: e.target.value })}
-                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                  className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   placeholder="Optional description..."
                   rows={3}
                 />
@@ -717,7 +1175,7 @@ export default function SettingsPageContent() {
                   type="text"
                   value={entityFormData.tags}
                   onChange={(e) => setEntityFormData({ ...entityFormData, tags: e.target.value })}
-                  className="w-full px-3 py-2 border border-input rounded bg-background text-foreground text-sm"
+                  className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   placeholder="comma, separated, tags"
                 />
                 <p className="text-xs text-muted-foreground mt-1">Enter tags separated by commas</p>
@@ -725,18 +1183,12 @@ export default function SettingsPageContent() {
             </div>
 
             <div className="flex gap-2 mt-6">
-              <button
-                onClick={handleSaveEntity}
-                className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors"
-              >
+              <Button onClick={handleSaveEntity} className="flex-1">
                 {editingEntity ? 'Update' : 'Add'}
-              </button>
-              <button
-                onClick={handleCloseEntityModal}
-                className="flex-1 px-4 py-2 border border-border text-foreground rounded hover:bg-accent transition-colors"
-              >
+              </Button>
+              <Button variant="outline" onClick={handleCloseEntityModal} className="flex-1">
                 Cancel
-              </button>
+              </Button>
             </div>
           </div>
         </div>

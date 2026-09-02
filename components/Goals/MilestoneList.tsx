@@ -4,6 +4,7 @@ import { GoalMilestone } from '../../utils/useGoals';
 import { DeadlineIndicator } from './DeadlineIndicator';
 import { getMilestoneProgress, getDeadlineStatus, dateToInputValue, inputValueToTimestamp } from '../../utils/deadlineUtils';
 import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 
 interface MilestoneListProps {
   milestones: GoalMilestone[];
@@ -96,7 +97,7 @@ export function MilestoneList({
           return (
             <div
               key={milestone.id}
-              className={`flex items-center gap-3 p-2 rounded-lg border ${
+              className={`flex items-center gap-3 p-2 rounded-control border ${
                 milestone.completed
                   ? 'bg-muted/50 border-border'
                   : status?.isOverdue
@@ -136,12 +137,9 @@ export function MilestoneList({
                       onKeyDown={(e) => handleKeyPress(e, () => handleSaveEdit(milestone.id))}
                       className="text-sm w-36"
                     />
-                    <button
-                      onClick={() => handleSaveEdit(milestone.id)}
-                      className="min-h-[44px] px-2 py-1 bg-primary text-primary-foreground rounded text-xs"
-                    >
+                    <Button size="sm" onClick={() => handleSaveEdit(milestone.id)}>
                       Save
-                    </button>
+                    </Button>
                   </div>
                 ) : (
                   <div className="flex items-center gap-2">
@@ -158,20 +156,23 @@ export function MilestoneList({
               {/* Actions */}
               {!readOnly && !isEditing && (
                 <div className="flex gap-1">
-                  <button
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     onClick={() => handleStartEdit(milestone)}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground"
+                    className="text-muted-foreground"
                     title="Edit milestone"
                   >
-                    <PencilIcon className="w-4 h-4" />
-                  </button>
-                  <button
+                    <PencilIcon />
+                  </Button>
+                  <Button
+                    variant="ghost-destructive"
+                    size="icon"
                     onClick={() => onDelete(milestone.id)}
-                    className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-red-500"
                     title="Delete milestone"
                   >
-                    <TrashIcon className="w-4 h-4" />
-                  </button>
+                    <TrashIcon />
+                  </Button>
                 </div>
               )}
             </div>
@@ -183,7 +184,7 @@ export function MilestoneList({
       {!readOnly && (
         <>
           {isAdding ? (
-            <div className="flex gap-2 p-2 bg-muted/50 rounded-lg">
+            <div className="flex gap-2 p-2 bg-muted/50 rounded-control">
               <Input
                 type="text"
                 value={newMilestoneName}
@@ -200,28 +201,19 @@ export function MilestoneList({
                 onKeyDown={(e) => handleKeyPress(e, handleAddMilestone)}
                 className="text-sm w-36"
               />
-              <button
-                onClick={handleAddMilestone}
-                disabled={!newMilestoneName.trim()}
-                className="px-3 py-1 bg-primary text-primary-foreground rounded text-sm disabled:opacity-50"
-              >
+              <Button size="sm" onClick={handleAddMilestone} disabled={!newMilestoneName.trim()}>
                 Add
-              </button>
-              <button
-                onClick={() => setIsAdding(false)}
-                className="px-3 py-1 bg-muted text-foreground rounded text-sm"
-              >
+              </Button>
+              <Button variant="secondary" size="sm" onClick={() => setIsAdding(false)}>
                 Cancel
-              </button>
+              </Button>
             </div>
           ) : (
-            <button
-              onClick={() => setIsAdding(true)}
-              className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-            >
-              <PlusIcon className="w-4 h-4" />
+            <Button variant="ghost" size="sm" onClick={() => setIsAdding(true)} className="text-muted-foreground">
+              <PlusIcon />
               Add milestone
-            </button>
+            </Button>
+
           )}
         </>
       )}
@@ -229,4 +221,3 @@ export function MilestoneList({
   );
 }
 
-export default MilestoneList;

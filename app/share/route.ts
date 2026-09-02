@@ -39,7 +39,15 @@ export async function POST(request: NextRequest) {
     };
 
     // Return HTML that stores payload in localStorage and redirects to home
+    // Escape characters that could break out of the inline <script> (e.g. a
+    // shared "</script>" string) or terminate a JS string literal.
     const payloadJson = JSON.stringify(payload);
+    const scriptSafePayload = JSON.stringify(payloadJson)
+      .replace(/</g, "\\u003c")
+      .replace(/>/g, "\\u003e")
+      .replace(/&/g, "\\u0026")
+      .replace(/\u2028/g, "\\u2028")
+      .replace(/\u2029/g, "\\u2029");
     const html = `<!DOCTYPE html>
 <html>
 <head><meta charset="utf-8"><title>Opening Leptum...</title></head>
@@ -47,7 +55,7 @@ export async function POST(request: NextRequest) {
 <script>
 (function() {
   try {
-    localStorage.setItem("${PENDING_SHARE_KEY}", ${JSON.stringify(payloadJson)});
+    localStorage.setItem("${PENDING_SHARE_KEY}", ${scriptSafePayload});
   } catch (e) {}
   window.location.replace("/");
 })();

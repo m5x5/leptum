@@ -1,0 +1,44 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors DailyHealthData (lib/remoteStorage.ts) as written by healthDataToRdf.
+# Read-only from this app's perspective — nothing in this repo writes health
+# data; it's populated by an external tool. This shape only needs a reader.
+leptum:DailyHealthMetricsShape EXTRA a {
+  a [ leptum:DailyHealthMetrics ] ;
+  leptum:date xsd:string ? ;
+  leptum:steps xsd:decimal ? ;
+  leptum:distanceMeters xsd:decimal ? ;
+  leptum:activeCalories xsd:decimal ? ;
+  leptum:totalCalories xsd:decimal ? ;
+  leptum:sleepMinutes xsd:decimal ? ;
+  leptum:heartRateAvg xsd:decimal ? ;
+  leptum:heartRateMin xsd:decimal ? ;
+  leptum:heartRateMax xsd:decimal ? ;
+  leptum:restingHeartRate xsd:decimal ? ;
+  leptum:hrvRmssd xsd:decimal ? ;
+  leptum:weightKg xsd:decimal ? ;
+  leptum:bodyFatPct xsd:decimal ? ;
+  leptum:bloodPressureSystolic xsd:decimal ? ;
+  leptum:bloodPressureDiastolic xsd:decimal ? ;
+  leptum:bloodGlucoseMmol xsd:decimal ? ;
+  leptum:oxygenSaturationPct xsd:decimal ? ;
+  leptum:floorsClimbed xsd:decimal ? ;
+  leptum:exerciseSession @leptum:ExerciseSessionShape * ;
+  leptum:sleepSession @leptum:SleepSessionShape *
+}
+
+leptum:ExerciseSessionShape {
+  leptum:exerciseType xsd:decimal ? ;
+  schema:name xsd:string ? ;
+  schema:startTime xsd:string ? ;
+  schema:endTime xsd:string ? ;
+  leptum:durationMinutes xsd:decimal ?
+}
+
+leptum:SleepSessionShape {
+  schema:startTime xsd:string ? ;
+  schema:endTime xsd:string ? ;
+  leptum:durationMinutes xsd:decimal ?
+}

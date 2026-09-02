@@ -1,0 +1,50 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:InsightShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors Insight (lib/remoteStorage.ts) as written by insightToRdf and read by extractInsight. leptum:affectedMetric is an array of blank nodes (AffectedMetric) that didn't round-trip through the flat Fact[] reader; this is what ldo fixes." ;
+  sh:targetClass leptum:Insight ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:category ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:affectedMetric ;
+    sh:node leptum:AffectedMetricShape
+  ] ;
+  sh:property [
+    sh:path dcterms:created ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] .
+
+leptum:AffectedMetricShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path leptum:metric ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:effect ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+    sh:description "Should be a value-set enum (\"positive\"/\"negative\") matching AffectedMetric['effect'] — left as xsd:string, same @ldo/cli literal-enum crash workaround as task.shex's effort field."
+  ] .

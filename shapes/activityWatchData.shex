@@ -1,0 +1,49 @@
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors ActivityWatchData (lib/remoteStorage.ts / activity-watch.d.ts) — a
+# single imported-data blob (one fixed resource, same singleton shape as
+# UserSettings/LocationUpdate), not one-per-record. No prior transform.ts
+# writer existed for this type (unlike every other type migrated this
+# session) — this shape is designed from the RS schema directly.
+leptum:ActivityWatchDataShape EXTRA a {
+  a [ leptum:ActivityWatchData ] ;
+  leptum:importedAt xsd:dateTime ? ;
+  leptum:event @leptum:AWEventShape * ;
+  leptum:bucket @leptum:BucketMetadataShape *
+}
+
+leptum:AWEventShape {
+  leptum:id xsd:string ? ;
+  leptum:bucketId xsd:string ? ;
+  leptum:bucketType xsd:string ? ;
+  leptum:timestamp xsd:dateTime ? ;
+  leptum:duration xsd:decimal ? ;
+  leptum:displayName xsd:string ? ;
+  leptum:color xsd:string ? ;
+  leptum:isHidden xsd:boolean ? ;
+  # Flattened EventData fields (activity-watch.d.ts) — all optional.
+  leptum:status xsd:string ? ;
+  leptum:file xsd:string ? ;
+  leptum:project xsd:string ? ;
+  leptum:language xsd:string ? ;
+  leptum:projectPath xsd:string ? ;
+  leptum:editor xsd:string ? ;
+  leptum:editorVersion xsd:string ? ;
+  leptum:eventType xsd:string ? ;
+  leptum:url xsd:string ? ;
+  leptum:title xsd:string ? ;
+  leptum:audible xsd:boolean ? ;
+  leptum:incognito xsd:boolean ? ;
+  leptum:tabCount xsd:decimal ? ;
+  leptum:app xsd:string ?
+}
+
+leptum:BucketMetadataShape {
+  leptum:id xsd:string ? ;
+  leptum:bucketType xsd:string ? ;
+  leptum:eventCount xsd:decimal ? ;
+  leptum:rangeStart xsd:dateTime ? ;
+  leptum:rangeEnd xsd:dateTime ? ;
+  leptum:isVisible xsd:boolean ?
+}

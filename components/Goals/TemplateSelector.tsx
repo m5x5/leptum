@@ -5,6 +5,7 @@ import { applyTemplateToGoal } from '../../utils/migrateGoalToTemplate';
 import { remoteStorageClient } from '../../lib/remoteStorage';
 import { Routine } from '../../components/Job/api';
 import Modal from '../Modal';
+import { Button } from '../ui/button';
 
 interface TemplateSelectorProps {
   goal: Goal;
@@ -63,7 +64,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
       <Modal.Body>
         <div className="space-y-4 mt-4">
           {suggestedTemplate && (
-            <div className="bg-primary/10 border border-primary rounded-lg p-4 mb-4">
+            <div className="bg-primary/10 border border-primary rounded-control p-4 mb-4">
               <p className="text-sm text-foreground mb-3">
                 💡 This looks like a {isHydration ? 'hydration' : 'nutrition'} goal! We suggest:
               </p>
@@ -77,7 +78,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
                   <select
                     value={selectedRoutineId}
                     onChange={(e) => setSelectedRoutineId(e.target.value)}
-                    className="w-full p-2 text-sm bg-card border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+                    className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
                   >
                     <option value="">Create new routine from template</option>
                     {routines.map((routine) => (
@@ -101,7 +102,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
                     key={template.id}
                     onClick={() => handleApplyTemplate(template.id)}
                     disabled={applying}
-                    className="w-full text-left p-3 bg-card border border-border rounded-lg hover:border-primary transition disabled:opacity-50"
+                    className="w-full text-left p-3 bg-card border border-border rounded-control hover:border-primary transition disabled:opacity-50"
                   >
                     <div className="flex items-center gap-3">
                       <span className="text-2xl">{template.icon}</span>
@@ -123,7 +124,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
 
           {/* Routine Selection - Show if templates need routines */}
           {GOAL_TEMPLATES_WITH_TRACKING.some(t => t.routineConfig || t.routineConfigs) && (
-            <div className="mb-4 p-4 bg-muted/50 border border-border rounded-lg">
+            <div className="mb-4 p-4 bg-muted/50 border border-border rounded-control">
               <label className="block text-sm font-medium text-foreground mb-2">
                 Routine Setup
               </label>
@@ -136,7 +137,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
                 <select
                   value={selectedRoutineId}
                   onChange={(e) => setSelectedRoutineId(e.target.value)}
-                  className="w-full p-3 bg-card border border-border text-foreground rounded-lg focus:border-primary focus:outline-none mb-2"
+                  className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm mb-2"
                 >
                   <option value="">Create new routine(s) from template</option>
                   {routines.map((routine) => (
@@ -166,7 +167,7 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
                   key={template.id}
                   onClick={() => handleApplyTemplate(template.id)}
                   disabled={applying || template.id === goal.templateId}
-                  className={`w-full text-left p-3 bg-card border rounded-lg transition ${
+                  className={`w-full text-left p-3 bg-card border rounded-control transition ${
                     template.id === goal.templateId
                       ? 'border-primary bg-primary/5 opacity-60 cursor-not-allowed'
                       : 'border-border hover:border-primary'
@@ -206,14 +207,10 @@ export function TemplateSelector({ goal, isOpen, onClose, onTemplateApplied }: T
       </Modal.Body>
       <Modal.Footer>
         <div className="flex gap-2 justify-end">
-          <button
-            type="button"
-            onClick={onClose}
-            disabled={applying}
-            className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 disabled:opacity-50"
-          >
+          <Button type="button" variant="secondary" onClick={onClose} disabled={applying}>
             Cancel
-          </button>
+          </Button>
+
         </div>
       </Modal.Footer>
     </Modal>

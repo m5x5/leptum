@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useState, useRef } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef, startTransition } from "react";
 import { PlusIcon, PlayIcon, CheckCircleIcon, ArchiveIcon, XIcon, FireIcon } from "@heroicons/react/solid";
 import { useStandaloneTasks } from "./StandaloneTasksContext";
 import type { StandaloneTask } from "../utils/useStandaloneTasks";
 import { useRoutineScheduler } from "../utils/useRoutineScheduler";
+import { fetchRoutines, fetchCompletions, fetchAllTasks } from "../lib/query/collections";
+import { useLocationTrigger } from "../utils/useLocationTrigger";
 import { useRoutineCompletions } from "../utils/useRoutineCompletions";
 import { remoteStorageClient } from "../lib/remoteStorage";
 import { Routine } from "../components/Job/api";
@@ -17,6 +19,7 @@ import { useGoalTypes } from "../utils/useGoalTypes";
 import { GoalTrackingWidget } from "../components/Goals/GoalTrackingWidget";
 import Modal from "../components/Modal";
 import { Input } from "../components/ui/input";
+import { Checkbox } from "../components/ui/checkbox";
 import TaskCompletionModal from "../components/Modal/TaskCompletionModal";
 import { Emotion } from "../components/ui/emotion-selector";
 import { toast } from "sonner";
@@ -36,11 +39,12 @@ import {
 } from "../components/ui/drawer";
 
 import OnboardingModal from "../components/Modal/OnboardingModal";
+import { Button } from "../components/ui/button";
 import QuickCapture, { type PendingSharePayload } from "../components/QuickCapture/QuickCapture";
 import { useCurrentActivity } from "../components/CurrentActivityContext";
+import { useSolidProfile } from "../utils/useSolidProfile";
 import { getCurrentTime } from "../utils/now";
 import { v4 as uuidv4 } from "uuid";
-import { useProfile } from "../utils/useProfile";
 
 // Format duration in human readable form
 function formatDurationStatic(ms: number) {
@@ -71,6 +75,136 @@ function LiveDuration({ baseMs = 0, startTime }: { baseMs?: number; startTime?: 
   return <>{formatDurationStatic(baseMs + liveOffset)}</>;
 }
 
+const ARCHIVE_INITIAL_DAYS = 5;
+const ARCHIVE_RENDER_DELAY = 2; // frames to wait before rendering content
+
+function groupTasksByDay(tasks: StandaloneTask[]) {
+  const groups: Record<string, StandaloneTask[]> = {};
+  const sortedTasks = [...tasks].sort((a, b) => {
+    const dateA = a.completedAt || a.createdAt;
+    const dateB = b.completedAt || b.createdAt;
+    return dateB - dateA;
+  });
+  sortedTasks.forEach(task => {
+    const date = new Date(task.completedAt || task.createdAt);
+    const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    if (!groups[dateKey]) {
+      groups[dateKey] = [];
+    }
+    groups[dateKey].push(task);
+  });
+  return groups;
+}
+
+function ArchiveSheetBody({
+  pastTasks,
+  formatDateTitle,
+  handleArchiveDay,
+  handleTaskComplete,
+  uncompleteStandaloneTask,
+  deleteStandaloneTask,
+  updateStandaloneTask,
+  openStartTaskModal,
+  currentActivityName,
+  handleSaveToRoutine,
+  archivedBucketIds,
+  loadedArchiveBuckets,
+  handleLoadMoreArchive,
+}: {
+  pastTasks: StandaloneTask[];
+  formatDateTitle: (dateKey: string) => string;
+  handleArchiveDay: (dateKey: string) => Promise<void>;
+  handleTaskComplete: (id: string) => void;
+  uncompleteStandaloneTask: (id: string) => void;
+  deleteStandaloneTask: (id: string) => void;
+  updateStandaloneTask: (id: string, updates: Partial<StandaloneTask>) => void;
+  openStartTaskModal: (name: string) => void;
+  currentActivityName?: string;
+  handleSaveToRoutine: (routineId: string, taskName: string, updates: { name: string; effort?: string; numericEstimate?: number }) => Promise<void>;
+  archivedBucketIds: string[];
+  loadedArchiveBuckets: number;
+  handleLoadMoreArchive: () => Promise<void>;
+}) {
+  const [visibleDays, setVisibleDays] = useState(ARCHIVE_INITIAL_DAYS);
+  const [prevPastTasksLength, setPrevPastTasksLength] = useState(pastTasks.length);
+
+  // Reset visible days when tasks change significantly (adjust state during
+  // render rather than in an effect, per https://react.dev/learn/you-might-not-need-an-effect)
+  if (pastTasks.length !== prevPastTasksLength) {
+    setPrevPastTasksLength(pastTasks.length);
+    setVisibleDays(ARCHIVE_INITIAL_DAYS);
+  }
+
+  if (pastTasks.length === 0) {
+    return (
+      <div className="overflow-y-auto pr-2 pb-4 h-full">
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">No past activity found.</p>
+        </div>
+      </div>
+    );
+  }
+
+  const grouped = groupTasksByDay(pastTasks);
+  const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
+  const visibleDates = sortedDates.slice(0, visibleDays);
+  const hasMoreDays = visibleDays < sortedDates.length;
+
+  return (
+    <div className="overflow-y-auto pr-2 pb-4 h-full">
+      <div className="space-y-6">
+        {visibleDates.map((dateKey) => (
+          <div key={dateKey} className="space-y-2">
+            <div className="flex items-center justify-between bg-muted pl-3 pr-1.5 py-1 rounded-chip sticky top-0 z-10">
+              <h3 className="font-semibold text-sm text-foreground">
+                {formatDateTitle(dateKey)}
+              </h3>
+              <Button
+                variant="ghost"
+                size="icon"
+                onClick={() => handleArchiveDay(dateKey)}
+                className="text-muted-foreground"
+                title="Archive this day"
+              >
+                <ArchiveIcon />
+              </Button>
+            </div>
+            <div className="space-y-1">
+              {grouped[dateKey].map((task) => (
+                <StandaloneTaskItem
+                  key={task.id}
+                  task={task}
+                  onComplete={handleTaskComplete}
+                  onUncomplete={uncompleteStandaloneTask}
+                  onDelete={deleteStandaloneTask}
+                  onUpdate={updateStandaloneTask}
+                  onStart={openStartTaskModal}
+                  isActive={currentActivityName === task.name}
+                  onSaveToRoutine={handleSaveToRoutine}
+                />
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+      {hasMoreDays && (
+        <div className="mt-4 flex justify-center">
+          <Button variant="secondary" onClick={() => setVisibleDays(prev => prev + 10)}>
+            Show {Math.min(10, sortedDates.length - visibleDays)} more days
+          </Button>
+        </div>
+      )}
+      {!hasMoreDays && archivedBucketIds.length > loadedArchiveBuckets && (
+        <div className="mt-4 flex justify-center">
+          <Button variant="secondary" onClick={handleLoadMoreArchive}>
+            Load older archived tasks
+          </Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Home() {
   const {
     tasks: standaloneTasks,
@@ -90,15 +224,45 @@ export default function Home() {
     tasksLoading,
   });
 
+  // Enable location-based routine triggering
+  useLocationTrigger(() => reloadTasks(), {
+    currentTasks: standaloneTasks,
+    tasksLoading,
+  });
+
+  const handleSaveToRoutine = useCallback(async (routineId: string, taskName: string, updates: { name: string; effort?: string; numericEstimate?: number }) => {
+    const routine = (await fetchRoutines()).find((r) => r.id === routineId) ?? null;
+    if (!routine) return;
+    const { effort, ...restUpdates } = updates;
+    const safeEffort =
+      effort && ["XS", "S", "M", "L", "XL"].includes(effort)
+        ? (effort as "XS" | "S" | "M" | "L" | "XL")
+        : undefined;
+    const safeUpdates = {
+      ...restUpdates,
+      ...(safeEffort ? { effort: safeEffort } : {}),
+    };
+    const updatedRoutine = {
+      ...routine,
+      tasks: routine.tasks.map(t =>
+        t.name === taskName ? { ...t, ...safeUpdates } : t
+      ),
+    };
+    await remoteStorageClient.saveRoutine(updatedRoutine);
+  }, []);
+
   const { goals, reload: loadGoals } = useGoals({ loadOnMount: false });
   const { goalTypes, reload: loadGoalTypes } = useGoalTypes({ loadOnMount: false });
   const { getStreaksForRoutine } = useRoutineCompletions();
+  const { photo: solidProfilePhoto } = useSolidProfile();
 
   const [routines, setRoutines] = useState<Routine[]>([]);
   const [activeTask, setActiveTask] = useState<string | null>(null);
   const [showPastActivity, setShowPastActivity] = useState(false);
   const [showArchiveSheet, setShowArchiveSheet] = useState(false);
   const [showTaskForm, setShowTaskForm] = useState(false);
+  const [showTaskFormDescription, setShowTaskFormDescription] = useState(false);
+  const [showTaskFormEffort, setShowTaskFormEffort] = useState(false);
   const [showMobileTaskDrawer, setShowMobileTaskDrawer] = useState(false);
   const [showStartTaskModal, setShowStartTaskModal] = useState(false);
   const [showMobileStartTaskDrawer, setShowMobileStartTaskDrawer] = useState(false);
@@ -182,8 +346,8 @@ export default function Home() {
 
   const loadRoutines = useCallback(async () => {
     try {
-      const loadedRoutines = await remoteStorageClient.getRoutines();
-      const list = (loadedRoutines as Routine[]).filter(r => r.cron).sort((a, b) => a.index - b.index);
+      const loadedRoutines = await fetchRoutines();
+      const list = loadedRoutines.filter(r => r.cron).sort((a, b) => a.index - b.index);
       setRoutines(list);
     } catch (error) {
       console.error("Failed to load routines:", error);
@@ -196,10 +360,8 @@ export default function Home() {
     const today = new Date().toISOString().split("T")[0];
     if (localStorage.getItem("leptum_show_up_date") === today) return;
     try {
-      const [showUpRaw, completions] = await Promise.all([
-        remoteStorageClient.getRoutine("show-up-routine"),
-        remoteStorageClient.getRoutineCompletions(),
-      ]);
+      const [routines, completions] = await Promise.all([fetchRoutines(), fetchCompletions()]);
+      const showUpRaw = routines.find((r) => r.id === "show-up-routine") ?? null;
       let showUp = showUpRaw;
       if (!showUp) {
         showUp = {
@@ -246,6 +408,9 @@ export default function Home() {
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting && window.innerWidth >= 768) {
+          // Fire once — loading data here can shift layout, which would
+          // otherwise re-trigger this observer and refetch forever.
+          io.disconnect();
           loadRoutines();
           loadGoals();
           loadGoalTypes();
@@ -264,6 +429,8 @@ export default function Home() {
     const io = new IntersectionObserver(
       (entries) => {
         if (entries[0]?.isIntersecting) {
+          // Fire once — see comment on the routines observer above.
+          io.disconnect();
           loadGoals();
           loadGoalTypes();
         }
@@ -369,24 +536,11 @@ export default function Home() {
     let cancelled = false;
     const loadInitialArchive = async () => {
       try {
-        const { bucketIds } = await remoteStorageClient.getArchivedIndex();
+        const archived = (await fetchAllTasks()).filter((t) => t.archivedAt);
         if (cancelled) return;
-        setArchivedBucketIds(bucketIds);
-        if (bucketIds.length === 0) {
-          setArchivedTasks([]);
-          setLoadedArchiveBuckets(0);
-          return;
-        }
-        const latestId = bucketIds[bucketIds.length - 1];
-        const bucket = await remoteStorageClient.getArchivedBucket(latestId);
-        if (cancelled) return;
-        if (bucket) {
-          setArchivedTasks(bucket.tasks);
-          setLoadedArchiveBuckets(1);
-        } else {
-          setArchivedTasks([]);
-          setLoadedArchiveBuckets(0);
-        }
+        setArchivedBucketIds(archived.length ? ["solid-archived"] : []);
+        setArchivedTasks(archived);
+        setLoadedArchiveBuckets(archived.length ? 1 : 0);
       } catch (error) {
         console.error("Failed to load archived tasks:", error);
         if (!cancelled) {
@@ -403,41 +557,19 @@ export default function Home() {
   const handleArchiveDay = async (dateKey: string) => {
     await archiveDay(dateKey);
     try {
-      const { bucketIds } = await remoteStorageClient.getArchivedIndex();
-      setArchivedBucketIds(bucketIds);
-      if (bucketIds.length === 0) {
-        setArchivedTasks([]);
-        setLoadedArchiveBuckets(0);
-        return;
-      }
-      const latestId = bucketIds[bucketIds.length - 1];
-      const bucket = await remoteStorageClient.getArchivedBucket(latestId);
-      if (bucket) {
-        setArchivedTasks(bucket.tasks);
-        setLoadedArchiveBuckets(1);
-      } else {
-        setArchivedTasks([]);
-        setLoadedArchiveBuckets(0);
-      }
+      const archived = (await fetchAllTasks()).filter((t) => t.archivedAt);
+      setArchivedBucketIds(archived.length ? ["solid-archived"] : []);
+      setArchivedTasks(archived);
+      setLoadedArchiveBuckets(archived.length ? 1 : 0);
     } catch (error) {
       console.error("Failed to refresh archived tasks after archiving day:", error);
     }
   };
 
   const handleLoadMoreArchive = async () => {
+    // Archived tasks live in one Solid container and are loaded in full above.
     if (archivedBucketIds.length <= loadedArchiveBuckets) return;
-    const nextIndex = archivedBucketIds.length - 1 - loadedArchiveBuckets;
-    if (nextIndex < 0) return;
-    try {
-      const nextId = archivedBucketIds[nextIndex];
-      const bucket = await remoteStorageClient.getArchivedBucket(nextId);
-      if (bucket && bucket.tasks?.length) {
-        setArchivedTasks(prev => [...prev, ...bucket.tasks]);
-      }
-      setLoadedArchiveBuckets(prev => prev + 1);
-    } catch (error) {
-      console.error("Failed to load older archived tasks:", error);
-    }
+    setLoadedArchiveBuckets(archivedBucketIds.length);
   };
 
   const openStartTaskModal = (taskName: string) => {
@@ -500,7 +632,7 @@ export default function Home() {
   const [completedTaskForEmotions, setCompletedTaskForEmotions] = useState<{ id: string; name: string } | null>(null);
 
   // Handle task completion - complete immediately and show toast; stop tracking if this task was active
-  const handleTaskComplete = useCallback(async (taskId: string) => {
+  const handleTaskComplete = async (taskId: string) => {
     const task = standaloneTasks.find(t => t.id === taskId);
     if (task) {
       const wasTracked = currentActivity?.name === task.name || activeTask === task.name;
@@ -556,7 +688,7 @@ export default function Home() {
         },
       });
     }
-  }, [standaloneTasks, currentActivity?.name, activeTask, completeStandaloneTask]);
+  };
 
   const handleCompleteWithEmotions = (emotions: Emotion[]) => {
     if (completedTaskForEmotions) {
@@ -571,7 +703,7 @@ export default function Home() {
         <label className="block text-sm font-medium text-foreground mb-2">
           Activity
         </label>
-        <p className="text-lg font-medium text-foreground px-3 py-2 bg-muted rounded-lg">
+        <p className="text-lg font-medium text-foreground px-3 py-2 bg-muted rounded-control">
           {taskToStart}
         </p>
       </div>
@@ -585,7 +717,7 @@ export default function Home() {
           <select
             ref={selectedGoalRef}
             id="goal-selection"
-            className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+            className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
             defaultValue=""
           >
             <option value="">No goal</option>
@@ -613,20 +745,13 @@ export default function Home() {
       )}
 
       <div className="flex gap-2 justify-end pt-2">
-        <button
-          type="button"
-          onClick={onCancel}
-          className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
-        >
+        <Button type="button" variant="secondary" onClick={onCancel}>
           Cancel
-        </button>
-        <button
-          type="submit"
-          className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold flex items-center gap-2"
-        >
-          <PlayIcon className="h-5 w-5" />
+        </Button>
+        <Button type="submit">
+          <PlayIcon />
           Start
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -690,6 +815,25 @@ export default function Home() {
     setEditingTask(null);
     setShowTaskForm(false);
     setShowMobileTaskDrawer(false);
+    setShowTaskFormDescription(false);
+    setShowTaskFormEffort(false);
+  };
+
+  // Autosaves the inline add-task row on blur (no explicit submit button) —
+  // only when focus leaves the whole form, not when it moves between the
+  // name input, chip toggles, and the description/effort fields.
+  const handleTaskFormBlur = (e: React.FocusEvent<HTMLFormElement>) => {
+    if (e.currentTarget.contains(e.relatedTarget as Node | null)) return;
+    const name = taskNameRef.current?.value.trim();
+    if (name) {
+      handleCreateTask();
+    } else {
+      setEditingTask(null);
+      setShowTaskForm(false);
+      setShowMobileTaskDrawer(false);
+      setShowTaskFormDescription(false);
+      setShowTaskFormEffort(false);
+    }
   };
 
   const handleOnboardingComplete = async (sampleData: {
@@ -773,6 +917,8 @@ export default function Home() {
       setEditingTask(null);
       setShowTaskForm(false);
       setShowMobileTaskDrawer(false);
+      setShowTaskFormDescription(false);
+      setShowTaskFormEffort(false);
       // Clear the refs
       if (taskNameRef.current) taskNameRef.current.value = "";
       if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
@@ -783,71 +929,68 @@ export default function Home() {
   };
 
   const taskFormContent = (
-    <form onSubmit={handleCreateTask} className="pt-2 space-y-3">
-      <div>
-        <label htmlFor="task-name" className="block text-sm font-medium text-foreground mb-2">
-          Task Name
-        </label>
+    <form onSubmit={handleCreateTask} onBlur={handleTaskFormBlur} className="p-1.5 rounded-control">
+      <div className="flex items-center">
+        <Checkbox checked={false} onCheckedChange={() => {}} className="mr-3" />
         <Input
           ref={taskNameRef}
-          id="task-name"
           type="text"
           onKeyDown={handleKeyDown}
-          placeholder="Enter task name..."
+          placeholder="Add a task..."
           autoFocus
+          className="h-8 flex-grow border-none bg-transparent px-0 text-sm font-medium shadow-none focus-visible:ring-0 focus-visible:ring-offset-0"
         />
+        <div className="flex items-center gap-1.5 shrink-0">
+          <button
+            type="button"
+            onClick={() => setShowTaskFormDescription((v) => !v)}
+            className={`px-3 py-1.5 min-h-[32px] text-xs rounded-full border transition-colors ${showTaskFormDescription ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+          >
+            + Description
+          </button>
+          <button
+            type="button"
+            onClick={() => setShowTaskFormEffort((v) => !v)}
+            className={`px-3 py-1.5 min-h-[32px] text-xs rounded-full border transition-colors ${showTaskFormEffort ? 'bg-primary/10 border-primary/30 text-primary' : 'border-border text-muted-foreground hover:bg-muted'}`}
+          >
+            + Effort
+          </button>
+        </div>
       </div>
-      <div className="pb-2">
-        <label htmlFor="task-description" className="block text-sm font-medium text-foreground mb-2">
-          Description <span className="text-muted-foreground font-normal">(optional)</span>
-        </label>
+      {showTaskFormDescription && (
         <Input
           ref={taskDescriptionRef}
-          id="task-description"
           type="text"
           onKeyDown={handleKeyDown}
-          placeholder="Enter description..."
+          placeholder="Description (optional)"
+          className="mt-2 ml-11 h-8 text-xs"
         />
-      </div>
-      <div className="grid grid-cols-2 gap-2 pb-2">
-        <div>
-          <label htmlFor="task-effort" className="block text-sm font-medium text-foreground mb-2">
-            Effort <span className="text-muted-foreground font-normal">(optional)</span>
-          </label>
+      )}
+      {showTaskFormEffort && (
+        <div className="mt-2 ml-11 grid grid-cols-2 gap-2 max-w-xs">
           <select
             ref={taskEffortRef}
-            id="task-effort"
-            className="w-full p-3 bg-muted border border-border text-foreground rounded-lg focus:border-primary focus:outline-none"
+            aria-label="Effort"
+            className="flex h-8 w-full rounded-chip border border-input bg-background px-2 text-xs ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <option value="">None</option>
+            <option value="">Effort</option>
             <option value="XS">XS (Extra Small)</option>
             <option value="S">S (Small)</option>
             <option value="M">M (Medium)</option>
             <option value="L">L (Large)</option>
             <option value="XL">XL (Extra Large)</option>
           </select>
-        </div>
-        <div>
-          <label htmlFor="task-numeric-estimate" className="block text-sm font-medium text-foreground mb-2">
-            Numeric Points <span className="text-muted-foreground font-normal">(optional)</span>
-          </label>
           <Input
             ref={taskNumericEstimateRef}
-            id="task-numeric-estimate"
             type="number"
             onKeyDown={handleKeyDown}
-            placeholder="e.g., 2.5"
+            placeholder="Points, e.g. 2.5"
             min="0"
             step="0.1"
+            className="h-8 text-xs"
           />
         </div>
-      </div>
-      <button
-        type="submit"
-        className="min-h-[44px] w-full px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold mt-4"
-      >
-        {editingTask ? 'Save Task' : 'Add Task'}
-      </button>
+      )}
     </form>
   );
 
@@ -856,28 +999,7 @@ export default function Home() {
     task.status !== 'completed' && task.createdAt > twoWeeksAgo
   );
 
-  const groupTasksByDay = (tasks: StandaloneTask[]) => {
-    const groups: Record<string, StandaloneTask[]> = {};
-    
-    // Sort tasks by date first (newest first)
-    const sortedTasks = [...tasks].sort((a, b) => {
-      const dateA = a.completedAt || a.createdAt;
-      const dateB = b.completedAt || b.createdAt;
-      return dateB - dateA;
-    });
-    
-    sortedTasks.forEach(task => {
-      const date = new Date(task.completedAt || task.createdAt);
-      // Use YYYY-MM-DD for stable keys
-      const dateKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-      if (!groups[dateKey]) {
-        groups[dateKey] = [];
-      }
-      groups[dateKey].push(task);
-    });
-    
-    return groups;
-  };
+  // groupTasksByDay moved to module scope
 
   const formatDateTitle = (dateKey: string) => {
     const [year, month, day] = dateKey.split('-').map(Number);
@@ -887,12 +1009,18 @@ export default function Home() {
   };
 
   // Past = home tasks that are completed or old, plus latest archived bucket (loaded when archive sheet opens)
-  const pastTasks = [...standaloneTasks.filter(task => task.status === 'completed' || task.createdAt <= twoWeeksAgo), ...archivedTasks]
-    .sort((a, b) => {
-      const dateA = a.completedAt || a.createdAt;
-      const dateB = b.completedAt || b.createdAt;
-      return dateB - dateA;
-    });
+  // Deduplicate by task ID to avoid duplicate key errors when archived tasks overlap with standalone tasks
+  const pastTasks = useMemo(() => {
+    const combined = [...standaloneTasks.filter(task => task.status === 'completed' || task.createdAt <= twoWeeksAgo), ...archivedTasks];
+    const seen = new Set<string>();
+    return combined
+      .filter(task => { if (seen.has(task.id)) return false; seen.add(task.id); return true; })
+      .sort((a, b) => {
+        const dateA = a.completedAt || a.createdAt;
+        const dateB = b.completedAt || b.createdAt;
+        return dateB - dateA;
+      });
+  }, [standaloneTasks, archivedTasks, twoWeeksAgo]);
 
   // Today's time + goal progress. Only load when Today's Progress section is in view (desktop; hidden on mobile).
   const [baseGoalProgress, setBaseGoalProgress] = useState<Record<string, number>>({});
@@ -931,7 +1059,6 @@ export default function Home() {
   }, []);
 
   const showUpStreakInfo = getStreaksForRoutine("show-up-routine");
-  const profile = useProfile();
 
   // Open streak sheet from AppShell (desktop header button)
   useEffect(() => {
@@ -946,81 +1073,64 @@ export default function Home() {
         {/* Mobile: avatar/greeting + streak button + archive */}
         <div className="md:hidden mb-6 flex items-center justify-between">
           <Link href="/settings" className="flex items-center gap-2.5 min-w-0">
-            {profile?.avatarDataUrl ? (
+            {/* Pod profile photo when there is one; no placeholder icon otherwise. */}
+            {solidProfilePhoto && (
+              // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={profile.avatarDataUrl}
-                alt={profile.displayName ?? ""}
+                src={solidProfilePhoto}
+                alt=""
                 className="w-9 h-9 rounded-full object-cover shrink-0"
               />
-            ) : (
-              <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                <span className="text-sm font-semibold text-primary">
-                  {profile?.displayName?.[0]?.toUpperCase() ?? "?"}
-                </span>
-              </div>
             )}
             <div className="flex flex-col min-w-0">
-              <span className="text-xs text-muted-foreground leading-tight">
+              <span className="text-lg font-semibold text-foreground leading-tight">
                 {(() => {
                   const h = new Date().getHours();
                   return h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
                 })()}
               </span>
-              {profile?.displayName && (
-                <span className="text-sm font-semibold text-foreground truncate leading-tight">
-                  {profile.displayName}
-                </span>
-              )}
             </div>
           </Link>
           <div className="flex items-center gap-1">
             <button
               type="button"
               onClick={() => setShowStreakSheet(true)}
-              className="min-h-[44px] flex items-center gap-1.5 px-2.5 py-2 rounded-lg bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/15 transition-colors text-foreground"
+              className="min-h-[44px] flex items-center gap-1.5 px-2.5 py-2 rounded-control bg-orange-500/10 border border-orange-500/20 hover:bg-orange-500/15 transition-colors text-foreground"
               title="Show up streak"
             >
               <FireIcon className="w-5 h-5 text-orange-500 shrink-0" />
               <span className="text-sm font-medium tabular-nums">{showUpStreakInfo.currentStreak}</span>
             </button>
-            <button
+            <Button
+              variant="ghost"
+              size="icon"
               onClick={() => setShowArchiveSheet(true)}
-              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-2 text-muted-foreground hover:text-foreground transition-colors"
+              className="text-muted-foreground"
             >
-              <ArchiveIcon className="w-6 h-6" />
-            </button>
+              <ArchiveIcon className="!w-6 !h-6" />
+            </Button>
           </div>
         </div>
 
         <div className="flex flex-col lg:flex-row gap-6">
           {/* Main Content - Tasks */}
           <div className="flex-1 space-y-6 overflow-visible">
-            {/* Active Tasks */}
-            <div className="relative overflow-visible">
-              {showTaskForm ? (
-                <div className="mb-4">
-                  {taskFormContent}
-                </div>
-              ) : (
-                <>
-                  {/* Mobile Add Task Button */}
-                  <button
-                    onClick={() => {
-                      setEditingTask(null);
-                      if (taskNameRef.current) taskNameRef.current.value = "";
-                      if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
-                      if (taskEffortRef.current) taskEffortRef.current.value = "";
-                      if (taskNumericEstimateRef.current) taskNumericEstimateRef.current.value = "";
-                      setShowMobileTaskDrawer(true);
-                    }}
-                    className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
-                  >
-                    <PlusIcon className="w-5 h-5" />
-                    <span>Add Task</span>
-                  </button>
-                </>
-              )}
-            </div>
+            {/* Mobile Add Task Button */}
+            <Button
+              size="lg"
+              onClick={() => {
+                setEditingTask(null);
+                if (taskNameRef.current) taskNameRef.current.value = "";
+                if (taskDescriptionRef.current) taskDescriptionRef.current.value = "";
+                if (taskEffortRef.current) taskEffortRef.current.value = "";
+                if (taskNumericEstimateRef.current) taskNumericEstimateRef.current.value = "";
+                setShowMobileTaskDrawer(true);
+              }}
+              className="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] shadow-lg"
+            >
+              <PlusIcon />
+              <span>Add Task</span>
+            </Button>
 
             {/* Day View - Tasks & Notes */}
             <div>
@@ -1033,18 +1143,12 @@ export default function Home() {
                 onTaskUpdate={updateStandaloneTask}
                 onTaskReorder={(orderedIds) => remoteStorageClient.reorderHomeTasks(orderedIds)}
                 onTaskStart={openStartTaskModal}
-                onTaskEdit={(t) => {
-                  setEditingTask(t);
-                  if (typeof window !== "undefined" && window.innerWidth < 768) {
-                    setShowMobileTaskDrawer(true);
-                  } else {
-                    setShowTaskForm(true);
-                  }
-                }}
                 currentActivityName={currentActivity?.name}
                 openTextNoteTrigger={quickNoteTrigger}
                 pendingShare={pendingShare}
                 onProcessedShare={handleProcessedShare}
+                onTaskSaveToRoutine={handleSaveToRoutine}
+                addTaskRow={showTaskForm ? taskFormContent : undefined}
               />
             </div>
 
@@ -1053,7 +1157,7 @@ export default function Home() {
               <div className="hidden md:block border-t border-border pt-6">
                 <button
                   onClick={() => setShowPastActivity(!showPastActivity)}
-                  className="flex min-h-[44px] items-center justify-between w-full text-left mb-4 px-2 py-2 rounded-lg hover:bg-muted transition-colors"
+                  className="flex min-h-[44px] items-center justify-between w-full text-left mb-4 px-2 py-2 rounded-control hover:bg-muted transition-colors"
                 >
                   <h2 className="text-base font-semibold text-foreground flex items-center gap-2">
                     Past Activity
@@ -1078,18 +1182,20 @@ export default function Home() {
                       const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
                       
                       return sortedDates.map((dateKey) => (
-                        <div key={dateKey} className="bg-card border border-border rounded-lg overflow-hidden flex flex-col">
-                          <div className="bg-muted/50 px-4 py-2 border-b border-border flex items-center justify-between">
+                        <div key={dateKey} className="bg-card border border-border rounded-control overflow-hidden flex flex-col">
+                          <div className="bg-muted/50 pl-4 pr-1.5 py-2 border-b border-border flex items-center justify-between">
                             <h3 className="font-semibold text-sm text-foreground">
                               {formatDateTitle(dateKey)}
                             </h3>
-                            <button
+                            <Button
+                              variant="ghost"
+                              size="icon"
                               onClick={() => handleArchiveDay(dateKey)}
-                              className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted rounded transition-colors"
+                              className="text-muted-foreground"
                               title="Archive this day"
                             >
-                              <ArchiveIcon className="w-4 h-4" />
-                            </button>
+                              <ArchiveIcon />
+                            </Button>
                           </div>
                           <div className="p-2 space-y-1 flex-1">
                             {grouped[dateKey].map((task) => (
@@ -1100,6 +1206,7 @@ export default function Home() {
                                 onUncomplete={uncompleteStandaloneTask}
                                 onDelete={deleteStandaloneTask}
                                 onUpdate={updateStandaloneTask}
+                                onSaveToRoutine={handleSaveToRoutine}
                               />
                             ))}
                           </div>
@@ -1114,11 +1221,19 @@ export default function Home() {
           </div>
 
           {/* Sidebar - Upcoming Routines */}
-          <div className="w-full lg:w-80 space-y-4">
-            <div className="hidden md:block">
-              <h2 className="text-lg font-bold text-foreground mb-4 flex items-center gap-2">
-                Upcoming Routines
-              </h2>
+          <div ref={statsSectionRef} className="w-full lg:w-80 space-y-4">
+            <div className="hidden md:block bg-card border border-border rounded-control">
+              <div className="bg-muted/80 px-4 py-2 border-b border-border rounded-t-lg flex items-center justify-between">
+                <h2 className="text-sm font-semibold text-foreground">Upcoming Routines</h2>
+                <Link
+                  href="/routines?create=1"
+                  className="flex items-center justify-center h-6 w-6 rounded-full text-muted-foreground hover:bg-muted hover:text-foreground transition-colors"
+                  title="New routine"
+                  aria-label="New routine"
+                >
+                  <PlusIcon className="h-4 w-4" />
+                </Link>
+              </div>
               {(() => {
                 // Filter routines to only show those within the next 10 hours
                 // Exclude the Show Up routine since it auto-completes
@@ -1128,15 +1243,15 @@ export default function Home() {
                     if (routine.isShowUpRoutine) return false;
                     try {
                       const nextOccurrence = getNextOccurrence(routine.cron!);
-                      return nextOccurrence.getTime() <= tenHoursFromNow;
+                      return nextOccurrence != null && nextOccurrence.getTime() <= tenHoursFromNow;
                     } catch {
                       return false;
                     }
                   })
                   .sort((a, b) => {
                     try {
-                      const aTime = getNextOccurrence(a.cron!).getTime();
-                      const bTime = getNextOccurrence(b.cron!).getTime();
+                      const aTime = getNextOccurrence(a.cron!)?.getTime() ?? Infinity;
+                      const bTime = getNextOccurrence(b.cron!)?.getTime() ?? Infinity;
                       return aTime - bTime;
                     } catch {
                       return 0;
@@ -1145,9 +1260,9 @@ export default function Home() {
                   .slice(0, 5);
 
                 return upcomingRoutines.length > 0 ? (
-                <div className="space-y-3">
+                <div className="p-3 space-y-3">
                   {upcomingRoutines.map((routine) => (
-                    <div key={routine.id} className="bg-card border border-border rounded-lg p-4">
+                    <div key={routine.id} className="bg-card border border-border rounded-control p-4">
                       <div className="flex items-start justify-between mb-2">
                         <h3 className="font-semibold text-foreground">{routine.name}</h3>
                         <span className="text-xs px-2 py-1 bg-primary/10 text-primary rounded-full whitespace-nowrap">
@@ -1191,59 +1306,41 @@ export default function Home() {
                               )}
                             </div>
                           )}
-                          <button
+                          <Button
+                            variant="secondary"
                             onClick={() => openStartTaskModal(routine.name)}
-                            className="mt-3 min-h-[44px] w-full px-3 py-1.5 bg-secondary text-secondary-foreground rounded-lg hover:opacity-90 font-semibold text-sm flex items-center justify-center gap-2"
+                            className="mt-3 w-full"
                           >
-                            <PlayIcon className="h-4 w-4" />
+                            <PlayIcon />
                             Start Routine
-                          </button>
+                          </Button>
+
                         </>
                       )}
                     </div>
                   ))}
                 </div>
                 ) : (
-                  <div className="bg-card border border-border rounded-lg p-6 text-center">
-                    <p className="text-sm text-muted-foreground mb-3">
-                      {routines.length > 0 ? "No routines in the next 10 hours" : "No scheduled routines yet"}
+                  <div className="p-6 text-center">
+                    <p className={`text-sm text-muted-foreground ${routines.length > 0 ? "mb-3" : ""}`}>
+                      {routines.length > 0 ? "No routines in the next 10 hours" : "No scheduled routines"}
                     </p>
-                    <Link
-                      href="/routines"
-                      className="text-sm text-primary hover:underline"
-                    >
-                      {routines.length > 0 ? "View all routines →" : "Create a routine →"}
-                    </Link>
+                    {routines.length > 0 && (
+                      <Link
+                        href="/routines"
+                        className="text-sm text-primary hover:underline"
+                      >
+                        View all routines →
+                      </Link>
+                    )}
                   </div>
                 );
               })()}
             </div>
 
-            {/* Quick Stats (load today's time when this section is in view) */}
-            <div ref={statsSectionRef} className="hidden md:block bg-card border border-border rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-sm font-semibold text-foreground">Today&apos;s Progress</h3>
-                <Link href="/insights" className="text-xs text-primary hover:underline">
-                  View all stats
-                </Link>
-              </div>
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Active Tasks</span>
-                  <span className="text-sm font-semibold text-foreground">{activeTasks.length}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Completed</span>
-                  <span className="text-sm font-semibold text-green-600">
-                    {standaloneTasks.filter(t => t.status === 'completed' && t.completedAt && new Date(t.completedAt).toDateString() === new Date().toDateString()).length}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             {/* Goal Progress */}
             {goals && goals.length > 0 && (Object.keys(baseGoalProgress).length > 0 || currentActivity?.goalId) && (
-              <div className="bg-card border border-border rounded-lg p-4">
+              <div className="bg-card border border-border rounded-control p-4">
                 <h3 className="text-sm font-semibold text-foreground mb-3">Goal Progress Today</h3>
                 <div className="space-y-3">
                   {(() => {
@@ -1326,63 +1423,21 @@ export default function Home() {
           <SheetHeader className="mb-4 text-left">
             <SheetTitle>Past Activity</SheetTitle>
           </SheetHeader>
-          <div className="overflow-y-auto pr-2 pb-4 h-full">
-            {pastTasks.length > 0 ? (
-              <>
-                <div className="space-y-6">
-                  {(() => {
-                    const grouped = groupTasksByDay(pastTasks);
-                    const sortedDates = Object.keys(grouped).sort((a, b) => b.localeCompare(a));
-                    
-                    return sortedDates.map((dateKey) => (
-                      <div key={dateKey} className="space-y-2">
-                        <div className="flex items-center justify-between bg-muted px-3 py-1 rounded-md sticky top-0 z-10">
-                          <h3 className="font-semibold text-sm text-foreground">
-                            {formatDateTitle(dateKey)}
-                          </h3>
-                          <button
-                            onClick={() => handleArchiveDay(dateKey)}
-                            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1.5 text-muted-foreground hover:text-foreground hover:bg-muted/80 rounded transition-colors"
-                            title="Archive this day"
-                          >
-                            <ArchiveIcon className="w-4 h-4" />
-                          </button>
-                        </div>
-                        <div className="space-y-1">
-                          {grouped[dateKey].map((task) => (
-                            <StandaloneTaskItem
-                              key={task.id}
-                              task={task}
-                              onComplete={handleTaskComplete}
-                              onUncomplete={uncompleteStandaloneTask}
-                              onDelete={deleteStandaloneTask}
-                              onUpdate={updateStandaloneTask}
-                              onStart={openStartTaskModal}
-                              isActive={currentActivity?.name === task.name}
-                            />
-                          ))}
-                        </div>
-                      </div>
-                    ));
-                  })()}
-                </div>
-                {archivedBucketIds.length > loadedArchiveBuckets && (
-                  <div className="mt-6 flex justify-center">
-                    <button
-                      onClick={handleLoadMoreArchive}
-                      className="min-h-[44px] px-4 py-2 text-sm rounded bg-secondary text-secondary-foreground hover:bg-secondary/80 transition-colors"
-                    >
-                      Load older archived tasks
-                    </button>
-                  </div>
-                )}
-              </>
-            ) : (
-              <div className="text-center py-12">
-                <p className="text-muted-foreground">No past activity found.</p>
-              </div>
-            )}
-          </div>
+          <ArchiveSheetBody
+            pastTasks={pastTasks}
+            formatDateTitle={formatDateTitle}
+            handleArchiveDay={handleArchiveDay}
+            handleTaskComplete={handleTaskComplete}
+            uncompleteStandaloneTask={uncompleteStandaloneTask}
+            deleteStandaloneTask={deleteStandaloneTask}
+            updateStandaloneTask={updateStandaloneTask}
+            openStartTaskModal={openStartTaskModal}
+            currentActivityName={currentActivity?.name}
+            handleSaveToRoutine={handleSaveToRoutine}
+            archivedBucketIds={archivedBucketIds}
+            loadedArchiveBuckets={loadedArchiveBuckets}
+            handleLoadMoreArchive={handleLoadMoreArchive}
+          />
         </SheetContent>
       </Sheet>
 
@@ -1399,13 +1454,13 @@ export default function Home() {
             </SheetDescription>
           </SheetHeader>
           <div className="mt-6 space-y-4">
-            <div className="flex items-center justify-between p-4 rounded-lg bg-orange-500/10 border border-orange-500/20">
+            <div className="flex items-center justify-between p-4 rounded-control bg-orange-500/10 border border-orange-500/20">
               <span className="text-sm font-medium text-foreground">Current streak</span>
               <span className="text-lg font-semibold text-orange-600 dark:text-orange-400">
                 {showUpStreakInfo.currentStreak} day{showUpStreakInfo.currentStreak !== 1 ? "s" : ""}
               </span>
             </div>
-            <div className="flex items-center justify-between p-4 rounded-lg bg-yellow-500/10 border border-yellow-500/20">
+            <div className="flex items-center justify-between p-4 rounded-control bg-yellow-500/10 border border-yellow-500/20">
               <span className="text-sm font-medium text-foreground">Longest streak</span>
               <span className="text-lg font-semibold text-yellow-600 dark:text-yellow-400">
                 {showUpStreakInfo.longestStreak} day{showUpStreakInfo.longestStreak !== 1 ? "s" : ""}
@@ -1453,8 +1508,10 @@ export default function Home() {
           <DrawerContent>
             <DrawerHeader className="text-left relative">
               <DrawerTitle>{editingTask ? 'Edit Task' : 'Add New Task'}</DrawerTitle>
-              <DrawerClose className="absolute right-4 top-4 min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground transition-colors">
-                <XIcon className="w-5 h-5" />
+              <DrawerClose asChild>
+                <Button variant="ghost" size="icon" className="absolute right-4 top-4 text-muted-foreground">
+                  <XIcon />
+                </Button>
               </DrawerClose>
             </DrawerHeader>
             <div className="px-4 pb-8">

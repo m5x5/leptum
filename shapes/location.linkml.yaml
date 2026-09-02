@@ -1,0 +1,36 @@
+id: https://mpeters.dev/ns/leptum/linkml/location
+name: leptum-location
+description: >-
+  Mirrors LocationUpdate (types/grocery.ts) as written by locationToRdf and
+  read by extractLocation (lib/solidRdf/transform.ts / fromRdf.ts).
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Location:
+    tree_root: true
+    class_uri: schema:GeoCoordinates
+    description: >-
+      A location update. Additional rdf:type values are permitted
+      (ShEx EXTRA a).
+    attributes:
+      latitude:
+        slot_uri: schema:latitude
+        range: decimal
+      longitude:
+        slot_uri: schema:longitude
+        range: decimal
+      accuracy:
+        slot_uri: leptum:accuracy
+        range: decimal
+      created:
+        slot_uri: dcterms:created
+        range: datetime

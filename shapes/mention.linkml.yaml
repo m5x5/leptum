@@ -1,0 +1,43 @@
+id: https://mpeters.dev/ns/leptum/linkml/mention
+name: leptum-mention
+description: >-
+  Mirrors Mention (lib/remoteStorage.ts) as written by mentionToRdf and read
+  by extractMention. sourceType can't be recovered from oa:hasTarget alone —
+  left as 'unknown', same as extractMention() today.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  oa: http://www.w3.org/ns/oa#
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Mention:
+    tree_root: true
+    class_uri: oa:Annotation
+    description: >-
+      A mention annotation linking a source resource to a mentioned entity.
+      Additional rdf:type values are permitted (ShEx EXTRA a).
+    attributes:
+      hasTarget:
+        slot_uri: oa:hasTarget
+        range: uri
+      hasBody:
+        slot_uri: oa:hasBody
+        range: uri
+      fieldName:
+        slot_uri: leptum:fieldName
+        range: string
+      context:
+        slot_uri: leptum:context
+        range: string
+      position:
+        slot_uri: leptum:position
+        range: decimal
+      created:
+        slot_uri: dcterms:created
+        range: datetime

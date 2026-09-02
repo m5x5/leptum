@@ -1,5 +1,5 @@
-import { useState, useEffect } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
+import { defineCollection } from '../lib/query/defineCollection';
 
 export interface Impact {
   id?: string;
@@ -21,37 +21,15 @@ export interface Impact {
   endTime?: number;
 }
 
+// One query for every useImpacts() consumer on the page; any component that
+// writes impacts dispatches `impactsUpdated`, which invalidates it.
+export const impactsCollection = defineCollection<Impact[]>(
+  'impacts',
+  () => remoteStorageClient.getImpacts(),
+  { initial: [], refreshOn: ['impactsUpdated'] }
+);
+
 export function useImpacts() {
-  const [impacts, setImpacts] = useState<Impact[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    const loadImpacts = async () => {
-      try {
-        const loadedImpacts = await remoteStorageClient.getImpacts();
-        setImpacts(loadedImpacts);
-      } catch (error) {
-        console.error('Failed to load impacts:', error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadImpacts();
-
-    // Listen for changes
-    const handleChange = (event: { relativePath: string }) => {
-      if (event.relativePath === 'impacts') {
-        loadImpacts();
-      }
-    };
-
-    remoteStorageClient.onChange(handleChange);
-
-    return () => {
-      remoteStorageClient.offChange(handleChange);
-    };
-  }, []);
-
-  return { impacts, loading };
+  const { data, isPending, error } = impactsCollection.useQuery();
+  return { impacts: data ?? [], loading: isPending, error, refresh: impactsCollection.invalidate };
 }

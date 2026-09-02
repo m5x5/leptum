@@ -1,15 +1,12 @@
 import { useState, useCallback } from 'react';
-import { Welcome } from '../../activity-watch.d';
 import {
-  parseActivityWatchJSON,
-  getImportPreview,
   DEFAULT_DAYS_BACK,
   DEFAULT_MIN_DURATION_SECONDS,
-  ImportPreview,
   ProcessingOptions,
 } from '../../utils/activityWatch';
 import { UploadIcon } from '@heroicons/react/outline';
 import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 
 interface ImportActivityWatchFormProps {
   onImport: (file: File, options: ProcessingOptions) => Promise<void>;
@@ -21,7 +18,6 @@ export default function ImportActivityWatchForm({
   onCancel,
 }: ImportActivityWatchFormProps) {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [clearExisting, setClearExisting] = useState(false);
@@ -29,28 +25,15 @@ export default function ImportActivityWatchForm({
   const [minDuration, setMinDuration] = useState(DEFAULT_MIN_DURATION_SECONDS);
 
   const handleFileChange = useCallback(
-    async (e: React.ChangeEvent<HTMLInputElement>) => {
+    (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
       if (!file) {
         return;
       }
-
       setSelectedFile(file);
       setError(null);
-      setIsProcessing(true);
-
-      try {
-        const welcomeData: Welcome = await parseActivityWatchJSON(file);
-        const previewData = getImportPreview(welcomeData, { daysBack, minDurationSeconds: minDuration });
-        setPreview(previewData);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to parse file');
-        setPreview(null);
-      } finally {
-        setIsProcessing(false);
-      }
     },
-    [daysBack, minDuration]
+    []
   );
 
   const handleImport = useCallback(async () => {
@@ -74,27 +57,6 @@ export default function ImportActivityWatchForm({
     }
   }, [selectedFile, onImport, daysBack, minDuration, clearExisting]);
 
-  const updatePreview = useCallback(
-    async (newDaysBack: number, newMinDuration: number) => {
-      if (!selectedFile) return;
-
-      setIsProcessing(true);
-      try {
-        const welcomeData: Welcome = await parseActivityWatchJSON(selectedFile);
-        const previewData = getImportPreview(welcomeData, {
-          daysBack: newDaysBack,
-          minDurationSeconds: newMinDuration,
-        });
-        setPreview(previewData);
-      } catch (err: unknown) {
-        setError(err instanceof Error ? err.message : 'Failed to update preview');
-      } finally {
-        setIsProcessing(false);
-      }
-    },
-    [selectedFile]
-  );
-
   return (
     <div className="space-y-4 mt-4">
       {/* File Input */}
@@ -108,14 +70,7 @@ export default function ImportActivityWatchForm({
             accept=".json,application/json"
             onChange={handleFileChange}
             disabled={isProcessing}
-            className="block w-full text-sm text-foreground
-              file:mr-4 file:py-2 file:px-4
-              file:rounded-lg file:border-0
-              file:text-sm file:font-semibold
-              file:bg-primary file:text-primary-foreground
-              hover:file:opacity-90
-              file:cursor-pointer cursor-pointer
-              disabled:opacity-50 disabled:cursor-not-allowed"
+            className="flex h-10 w-full rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm"
           />
         </div>
         {selectedFile && (
@@ -127,34 +82,8 @@ export default function ImportActivityWatchForm({
 
       {/* Error Display */}
       {error && (
-        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
+        <div className="p-3 bg-red-500/10 border border-red-500/30 rounded-control">
           <p className="text-sm text-red-500">{error}</p>
-        </div>
-      )}
-
-      {/* Preview */}
-      {preview && (
-        <div className="p-4 bg-muted rounded-lg space-y-2">
-          <h4 className="font-semibold text-foreground">Preview</h4>
-          <div className="text-sm text-muted-foreground space-y-1">
-            <p>
-              <span className="font-medium">Buckets:</span> {preview.bucketCount}
-            </p>
-            <p>
-              <span className="font-medium">Bucket types:</span>{' '}
-              {preview.bucketTypes.join(', ')}
-            </p>
-            <p>
-              <span className="font-medium">Total events:</span> {preview.totalEventCount.toLocaleString()}
-            </p>
-            <p>
-              <span className="font-medium">After filtering:</span>{' '}
-              {preview.filteredEventCount.toLocaleString()} events
-            </p>
-            <p>
-              <span className="font-medium">Date range:</span> {preview.dateRange}
-            </p>
-          </div>
         </div>
       )}
 
@@ -172,12 +101,8 @@ export default function ImportActivityWatchForm({
             min="1"
             max="90"
             value={daysBack}
-            onChange={(e) => {
-              const value = parseInt(e.target.value);
-              setDaysBack(value);
-              updatePreview(value, minDuration);
-            }}
-            disabled={isProcessing || !selectedFile}
+            onChange={(e) => setDaysBack(parseInt(e.target.value))}
+            disabled={isProcessing}
           />
           <p className="text-xs text-muted-foreground mt-1">
             Import events from the last N days (recommended: 7)
@@ -194,12 +119,8 @@ export default function ImportActivityWatchForm({
             min="0"
             max="300"
             value={minDuration}
-            onChange={(e) => {
-              const value = parseInt(e.target.value);
-              setMinDuration(value);
-              updatePreview(daysBack, value);
-            }}
-            disabled={isProcessing || !selectedFile}
+            onChange={(e) => setMinDuration(parseInt(e.target.value))}
+            disabled={isProcessing}
           />
           <p className="text-xs text-muted-foreground mt-1">
             Filter out events shorter than this (recommended: 60)
@@ -226,27 +147,26 @@ export default function ImportActivityWatchForm({
       </div>
 
       <div className="flex gap-2 justify-end pt-4">
-        <button
+        <Button
+          variant="secondary"
           onClick={onCancel}
           disabled={isProcessing}
-          className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80 disabled:opacity-50"
         >
           Cancel
-        </button>
-        <button
+        </Button>
+        <Button
           onClick={handleImport}
-          disabled={!selectedFile || isProcessing || !preview}
-          className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+          disabled={!selectedFile || isProcessing}
         >
           {isProcessing ? (
             <>Processing...</>
           ) : (
             <>
-              <UploadIcon className="w-4 h-4" />
+              <UploadIcon />
               Import
             </>
           )}
-        </button>
+        </Button>
       </div>
     </div>
   );

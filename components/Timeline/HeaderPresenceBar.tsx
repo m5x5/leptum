@@ -123,22 +123,29 @@ export const HeaderPresenceBar = memo(function HeaderPresenceBar({
 
   const handleMouseLeave = () => setHoverState(null);
 
-  if (afkEvents.length === 0 && !dayImpacts.some(i => i.requiresOnlineTime && i.endTime)) return null;
+  // Monday = first day of week; show the Active/Away legend only on Mondays.
+  const isFirstOfWeek = new Date(dayStart).getDay() === 1;
 
   return (
     <div className="mt-2">
       <div className="flex items-center gap-2 mb-1">
-        <span className="text-xs text-muted-foreground">Online {activeMs > 0 ? `(${formatActiveTime(activeMs)})` : ""}:</span>
-        <div className="flex gap-2 text-xs">
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-green-500" />
-            <span className="text-muted-foreground">Active</span>
+        <span className="text-xs text-muted-foreground">
+          {activeMs === 0
+            ? "Offline day"
+            : `Online (${formatActiveTime(activeMs)})${isFirstOfWeek ? ":" : ""}`}
+        </span>
+        {isFirstOfWeek && (
+          <div className="flex gap-2 text-xs">
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-green-500" />
+              <span className="text-muted-foreground">Active</span>
+            </div>
+            <div className="flex items-center gap-1">
+              <div className="w-2 h-2 rounded-full bg-gray-600" />
+              <span className="text-muted-foreground">Away</span>
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            <div className="w-2 h-2 rounded-full bg-gray-600" />
-            <span className="text-muted-foreground">Away</span>
-          </div>
-        </div>
+        )}
       </div>
       <div className="relative">
         <div

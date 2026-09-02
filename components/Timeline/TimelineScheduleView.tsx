@@ -1,8 +1,8 @@
 import { useMemo, useCallback } from 'react';
-import { PlusIcon } from '@heroicons/react/solid';
+import { PlusIcon, DocumentTextIcon } from '@heroicons/react/solid';
+import { Button } from '../ui/button';
 import { HighlightedMentions } from '../ui/mention-input';
 import { GCalBadge } from '../ui/gcal-badge';
-import { ImportSourceButton } from '../ui/import-source-button';
 
 interface Impact {
   id?: string;
@@ -29,6 +29,11 @@ interface TimelineScheduleViewProps {
   onAddActivity: (dateKey: string) => void;
   onImportAW?: (dateKey: string) => void;
   onImportGCal?: (dateKey: string) => void;
+  onNoteClick?: (dateKey: string, btn: HTMLButtonElement) => void;
+  dayNotesCounts?: Record<string, number>;
+  hasMoreDays?: boolean;
+  remainingDays?: number;
+  onLoadMore?: () => void;
   daysToShow: number;
 }
 
@@ -39,6 +44,11 @@ export function TimelineScheduleView({
   onAddActivity,
   onImportAW,
   onImportGCal,
+  onNoteClick,
+  dayNotesCounts,
+  hasMoreDays,
+  remainingDays,
+  onLoadMore,
   daysToShow,
 }: TimelineScheduleViewProps) {
   const formatTime = (timestamp: number) => {
@@ -146,7 +156,9 @@ export function TimelineScheduleView({
         nextDayStart.setHours(24, 0, 0, 0);
         const nextDateKey = toDateKey(nextDayStart.getTime());
 
-        if (nextDateKey === endDateKey) {
+        // Only create a continuation if the event genuinely extends past midnight
+        // (endTime strictly after midnight — not exactly at 00:00:00 which is zero duration)
+        if (nextDateKey === endDateKey && endTime > nextDayStart.getTime()) {
           const virtualImpact: Impact = {
             id: impact.id,
             activity: impact.activity,
@@ -206,30 +218,40 @@ export function TimelineScheduleView({
             <div className="sticky top-0 bg-background z-20 pb-3 border-b border-border">
               {/* Title row */}
               <div className="flex items-center justify-between mb-2">
-                <h2 className="text-xl font-semibold text-foreground">
-                  {displayDate}
-                  {isTodayFlag && (
-                    <span className="ml-2 text-sm font-normal text-primary">
-                      (Today)
-                    </span>
-                  )}
-                </h2>
                 <div className="flex items-center gap-2">
-                  {(onImportAW || onImportGCal) && (
-                    <ImportSourceButton
-                      size="sm"
-                      onActivityWatch={() => onImportAW?.(dateKey)}
-                      onGoogleCalendar={() => onImportGCal?.(dateKey)}
-                    />
+                  <h2 className="text-xl font-semibold text-foreground">
+                    {displayDate}
+                    {isTodayFlag && (
+                      <span className="ml-2 text-sm font-normal text-primary">
+                        (Today)
+                      </span>
+                    )}
+                  </h2>
+                  {onNoteClick && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => onNoteClick(dateKey, e.currentTarget)}
+                      title="View notes for this day"
+                      className={
+                        dayNotesCounts?.[dateKey]
+                          ? 'text-primary hover:text-primary/80'
+                          : 'text-muted-foreground'
+                      }
+                    >
+                      <DocumentTextIcon />
+                    </Button>
                   )}
-                  <button
-                    onClick={() => onAddActivity(dateKey)}
-                    className="flex min-h-[44px] items-center gap-1.5 px-3 py-1.5 text-sm bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition"
-                  >
-                    <PlusIcon className="w-4 h-4" />
-                    <span>Add</span>
-                  </button>
                 </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => onAddActivity(dateKey)}
+                  className="text-muted-foreground"
+                  title="Add activity"
+                >
+                  <PlusIcon />
+                </Button>
               </div>
               {/* All-day event chips */}
               {allDayImpacts.length > 0 && (
@@ -296,7 +318,7 @@ export function TimelineScheduleView({
                   return (
                     <div
                       key={`schedule-${impact.date}-${index}`}
-                      className={`flex items-center gap-4 p-4 bg-card border rounded-lg hover:shadow-md transition-shadow cursor-pointer ${
+                      className={`relative pl-4 p-3 bg-card border rounded-control hover:bg-muted/50 transition-colors cursor-pointer overflow-hidden ${
                         isLive ? 'border-primary border-2' : 'border-border'
                       }`}
                       onClick={() => {
@@ -305,34 +327,32 @@ export function TimelineScheduleView({
                         }
                       }}
                     >
-                      {/* Color indicator */}
-                      <div className={`w-1 h-12 rounded ${getActivityColor(impact)} ${isLive ? 'animate-pulse' : ''}`} />
+                      {/* Color accent strip */}
+                      <div className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getActivityColor(impact)} ${isLive ? 'animate-pulse' : ''}`} />
 
                       {/* Content */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`text-sm font-mono whitespace-nowrap ${isLive ? 'text-primary font-bold' : 'text-muted-foreground'}`}>
-                            {formatTime(displayStartTime)} → {formatTime(endTime)}
-                          </span>
-                          {isVirtualContinuation && (
-                            <span className="text-xs px-2 py-0.5 bg-amber-500/10 text-amber-700 dark:text-amber-400 rounded whitespace-nowrap border border-amber-500/20" title={`Continued from ${formatTime(impact.originalStartTime || 0)}`}>
-                              ↗ Continued
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0">
+                          <h3 className={`text-sm font-semibold truncate flex items-center gap-1.5 ${isLive ? 'text-primary' : 'text-foreground'}`}>
+                            {impact.id?.startsWith('gcal-') && <GCalBadge href={impact.sourceUrl} />}
+                            <HighlightedMentions text={impact.activity} />
+                            {isVirtualContinuation && (
+                              <span className="text-xs text-amber-600 dark:text-amber-400 shrink-0">↗</span>
+                            )}
+                          </h3>
+                          <div className="flex items-center gap-2 mt-0.5">
+                            <span className={`text-xs text-muted-foreground ${isLive ? 'text-primary font-semibold' : ''}`}>
+                              {formatTime(displayStartTime)}
                             </span>
-                          )}
-                          {isLive && <span className="text-xs text-primary whitespace-nowrap">(Live)</span>}
+                            {isLive && <span className="text-xs text-primary">(Live)</span>}
+                            {duration && (
+                              <span className="text-xs text-muted-foreground">
+                                {duration}
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <h3 className={`text-base font-semibold truncate flex items-center gap-1.5 ${isLive ? 'text-primary' : 'text-foreground'}`}>
-                          {impact.id?.startsWith('gcal-') && <GCalBadge href={impact.sourceUrl} />}
-                          <HighlightedMentions text={impact.activity} />
-                        </h3>
                       </div>
-
-                      {/* Duration */}
-                      {duration && (
-                        <span className="text-sm px-3 py-1 rounded-full font-medium bg-muted text-muted-foreground whitespace-nowrap">
-                          {duration}
-                        </span>
-                      )}
                     </div>
                   );
                 })
@@ -341,6 +361,18 @@ export function TimelineScheduleView({
           </div>
         );
       })}
+      {hasMoreDays && onLoadMore && (
+        <div className="flex items-start pt-10">
+          <button
+            onClick={onLoadMore}
+            className="flex flex-col items-center gap-1 px-3 py-6 bg-muted hover:bg-muted/80 text-foreground rounded-control font-medium text-sm transition-colors"
+          >
+            <span className="text-xs text-muted-foreground">{remainingDays}</span>
+            <span className="text-xs">more</span>
+            <span className="text-lg leading-none mt-1">→</span>
+          </button>
+        </div>
+      )}
     </div>
   );
 }

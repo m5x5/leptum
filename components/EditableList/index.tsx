@@ -41,7 +41,7 @@ export default function EditableList({
   };
 
   return (
-    <div className="p-4 bg-card border border-border rounded-lg">
+    <div className="p-4 bg-card border border-border rounded-control">
       <div className="flex flex-row justify-between items-center mb-4">
         <h2 className="text-xl text-foreground">{name}</h2>
         <div className="flex-row flex text-muted-foreground gap-1">

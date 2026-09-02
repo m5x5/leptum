@@ -1,15 +1,24 @@
 "use client";
 
+import Image from 'next/image';
 import { useState, useEffect, useRef, useCallback, useMemo, memo } from 'react';
 import { useWeekReflections, WeekReflection } from '../../utils/useWeekReflections';
 import { useQuickNotes } from '../../utils/useQuickNotes';
 import { usePhotoAttachments } from '../../utils/usePhotoAttachments';
 import { useLifeEvents, LifeEvent } from '../../utils/useLifeEvents';
-import { AudioPlayer } from '../ui/audio-player';
+import dynamic from 'next/dynamic';
+// wavesurfer is ~200KB and only needed when a note actually has audio.
+const AudioPlayer = dynamic(() => import('../ui/audio-player').then((m) => m.AudioPlayer), {
+  ssr: false,
+  loading: () => <div className="h-10 rounded-full bg-muted/40 animate-pulse" aria-hidden />,
+});
 import { Drawer, DrawerContent, DrawerHeader, DrawerTitle } from '../ui/drawer';
 import { ImportGoogleCalendarModal } from '../Modal/ImportGoogleCalendarModal';
 import { GCalBadge } from '../ui/gcal-badge';
 import { ImportSourceButton } from '../ui/import-source-button';
+import { Button } from '../ui/button';
+import { remoteStorageClient } from '../../lib/remoteStorage';
+import { CalendarIcon } from '@heroicons/react/outline';
 
 interface Impact {
   id?: string;
@@ -197,7 +206,7 @@ function LifeEventForm({ initial, currentWeekKey, onSave, onCancel }: LifeEventF
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 bg-muted/20 rounded-lg p-3 border border-border">
+    <form onSubmit={handleSubmit} className="space-y-3 bg-muted/20 rounded-control p-3 border border-border">
       <div>
         <label className="block text-xs font-medium text-muted-foreground mb-1">Label</label>
         <input
@@ -249,19 +258,21 @@ function LifeEventForm({ initial, currentWeekKey, onSave, onCancel }: LifeEventF
         </div>
       </div>
       <div className="flex gap-2 pt-1">
-        <button
+        <Button
           type="submit"
-          className="flex-1 text-xs px-3 py-1.5 bg-primary text-primary-foreground rounded hover:bg-primary/90 transition-colors font-medium"
+          size="sm"
+          className="flex-1"
         >
           {initial?.id ? 'Save changes' : 'Add event'}
-        </button>
-        <button
+        </Button>
+        <Button
           type="button"
+          variant="outline"
+          size="sm"
           onClick={onCancel}
-          className="text-xs px-3 py-1.5 border border-border rounded hover:bg-muted transition-colors"
         >
           Cancel
-        </button>
+        </Button>
       </div>
     </form>
   );
@@ -317,7 +328,9 @@ function WeekDetailPanel({
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const weekKeyRef = useRef(weekKey);
   const saveRef = useRef(saveReflection);
-  saveRef.current = saveReflection;
+  useEffect(() => {
+    saveRef.current = saveReflection;
+  });
 
   // Keep weekKeyRef up to date when weekKey changes (navigation)
   useEffect(() => {
@@ -367,21 +380,23 @@ function WeekDetailPanel({
   const weekEvents = events.filter(e => e.startWeek <= weekKey && e.endWeek >= weekKey);
 
   return (
-    <div className={inDrawer ? 'space-y-4' : 'lg:w-80 xl:w-96 shrink-0 border border-border rounded-lg p-4 space-y-4 overflow-y-auto max-h-[70vh] lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)]'}>
+    <div className={inDrawer ? 'space-y-4' : 'lg:w-80 xl:w-96 shrink-0 border border-border rounded-control p-4 space-y-4 overflow-y-auto max-h-[70vh] lg:sticky lg:top-4 lg:max-h-[calc(100vh-8rem)]'}>
       {/* Header */}
       <div className="flex items-start justify-between gap-2">
         <div className="flex items-center gap-1 min-w-0">
           {/* Prev/Next navigation */}
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => onNavigate('prev')}
-            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            className="text-muted-foreground shrink-0"
             aria-label="Previous week"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
-          </button>
+          </Button>
           <div className="min-w-0">
             <h3 className="font-semibold text-sm leading-tight">
               {formatDateShort(weekStart)} – {formatDateShort(addDays(weekStart, 6))}, {formatYear(weekStart)}
@@ -390,16 +405,18 @@ function WeekDetailPanel({
               <p className="text-xs text-muted-foreground">Age {age}</p>
             )}
           </div>
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="icon"
             onClick={() => onNavigate('next')}
-            className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground hover:text-foreground shrink-0"
+            className="text-muted-foreground shrink-0"
             aria-label="Next week"
           >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
             </svg>
-          </button>
+          </Button>
         </div>
         {!inDrawer && (
           <button
@@ -464,7 +481,7 @@ function WeekDetailPanel({
                         : `${formatDateShort(new Date(event.startWeek))} – ${formatDateShort(new Date(event.endWeek))}`}
                     </span>
                   </span>
-                  <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+                  <div className="flex gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                     <button
                       type="button"
                       onClick={() => setEditingEvent(event)}
@@ -530,10 +547,13 @@ function WeekDetailPanel({
                   {notePhotos.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {notePhotos.map(photo => (
-                        <img
+                        <Image
                           key={photo.id}
                           src={photo.thumbnail}
                           alt=""
+                          width={64}
+                          height={64}
+                          unoptimized
                           className="w-16 h-16 object-cover rounded border border-border"
                         />
                       ))}
@@ -612,12 +632,25 @@ export function LifeView({ impacts, onImportAW }: LifeViewProps) {
   }, []);
 
   useEffect(() => {
-    const raw = typeof window !== 'undefined' ? localStorage.getItem('leptum_dob') : null;
-    if (!raw) { setDobMissing(true); return; }
-    const parsed = new Date(raw);
-    if (isNaN(parsed.getTime())) { setDobMissing(true); return; }
-    setDob(parsed);
-    setDobMissing(false);
+    const applyDob = (raw: string | null) => {
+      if (!raw) { setDobMissing(true); return; }
+      const parsed = new Date(raw);
+      if (isNaN(parsed.getTime())) { setDobMissing(true); return; }
+      setDob(parsed);
+      setDobMissing(false);
+    };
+
+    // Try localStorage first for instant render
+    const localDob = typeof window !== 'undefined' ? localStorage.getItem('leptum_dob') : null;
+    applyDob(localDob);
+
+    // Then check Solid storage (may have been set on another device)
+    remoteStorageClient.getUserSettings().then(settings => {
+      if (settings.dateOfBirth) {
+        localStorage.setItem('leptum_dob', settings.dateOfBirth);
+        applyDob(settings.dateOfBirth);
+      }
+    });
   }, []);
 
   const birthMonday = useMemo(() => dob ? getMondayOfWeek(dob) : null, [dob]);
@@ -686,7 +719,7 @@ export function LifeView({ impacts, onImportAW }: LifeViewProps) {
   if (dobMissing) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
-        <div className="text-4xl">📅</div>
+        <CalendarIcon className="h-10 w-10 text-muted-foreground" aria-hidden="true" />
         <h2 className="text-xl font-semibold">Date of Birth Required</h2>
         <p className="text-muted-foreground max-w-sm">
           To show your Life in Weeks, please set your date of birth in Settings.

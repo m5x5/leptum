@@ -90,7 +90,7 @@ export default function YearViewHeatmap({ completions, routineId, routineName }:
   }
 
   return (
-    <div className="flex-shrink-0 w-full md:w-[400px] space-y-2 bg-muted/20 rounded-lg p-3 border border-border">
+    <div className="flex-shrink-0 w-full md:w-[400px] space-y-2 bg-muted/20 rounded-control p-3 border border-border">
       <div className="flex items-center justify-between mb-1">
         <div>
           <h3 className="text-sm font-semibold text-foreground">{routineName}</h3>
@@ -107,9 +107,12 @@ export default function YearViewHeatmap({ completions, routineId, routineName }:
             <div key={rowIndex} className="flex gap-1 items-center">
               {/* Month label - show at start of each month for first week in row */}
               <div className="w-8 text-xs text-muted-foreground flex-shrink-0">
-                {row[0]?.find(day => day.dateKey && new Date(day.dateKey).getDate() === 1) ? (
-                  new Date(row[0].find(day => day.dateKey)!.dateKey).toLocaleDateString('en-US', { month: 'short' })
-                ) : ''}
+                {(() => {
+                  const firstWeek = row[0];
+                  if (!firstWeek?.some(day => day.dateKey && new Date(day.dateKey).getDate() === 1)) return '';
+                  const firstKey = firstWeek.find(day => day.dateKey)?.dateKey;
+                  return firstKey ? new Date(firstKey).toLocaleDateString('en-US', { month: 'short' }) : '';
+                })()}
               </div>
 
               {/* Render 3 weeks side by side */}
@@ -118,7 +121,7 @@ export default function YearViewHeatmap({ completions, routineId, routineName }:
                   {week.map((day, dayIndex) => (
                     <div
                       key={dayIndex}
-                      className={`w-3 h-3 rounded-sm flex-shrink-0 ${
+                      className={`w-3 h-3 rounded-cell flex-shrink-0 ${
                         day.dateKey ? getColorIntensity(day.count) : 'bg-transparent'
                       }`}
                       title={
@@ -139,11 +142,11 @@ export default function YearViewHeatmap({ completions, routineId, routineName }:
       <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground pt-1 border-t border-border">
         <span>Less</span>
         <div className="flex gap-1">
-          <div className="w-3 h-3 rounded-sm bg-muted/30"></div>
-          <div className="w-3 h-3 rounded-sm bg-green-300 dark:bg-green-900"></div>
-          <div className="w-3 h-3 rounded-sm bg-green-400 dark:bg-green-800"></div>
-          <div className="w-3 h-3 rounded-sm bg-green-500 dark:bg-green-700"></div>
-          <div className="w-3 h-3 rounded-sm bg-green-600 dark:bg-green-600"></div>
+          <div className="w-3 h-3 rounded-cell bg-muted/30"></div>
+          <div className="w-3 h-3 rounded-cell bg-green-300 dark:bg-green-900"></div>
+          <div className="w-3 h-3 rounded-cell bg-green-400 dark:bg-green-800"></div>
+          <div className="w-3 h-3 rounded-cell bg-green-500 dark:bg-green-700"></div>
+          <div className="w-3 h-3 rounded-cell bg-green-600 dark:bg-green-600"></div>
         </div>
         <span>More</span>
       </div>

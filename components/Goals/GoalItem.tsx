@@ -9,6 +9,7 @@ import { Goal, GoalMilestone } from '../../utils/useGoals';
 import { DeadlineIndicator } from './DeadlineIndicator';
 import { MilestoneList } from './MilestoneList';
 import { getMilestoneProgress } from '../../utils/deadlineUtils';
+import { Button } from '../ui/button';
 
 
 interface GoalItemProps {
@@ -24,7 +25,7 @@ interface GoalItemProps {
   onSelectTemplate?: (goal: Goal) => void;
 }
 
-export function GoalItem({
+function GoalItem({
   goal,
   onDelete,
   onEdit,
@@ -41,12 +42,12 @@ export function GoalItem({
   const progress = getMilestoneProgress(goal.milestones);
 
   return (
-    <div className="bg-card border border-border rounded-xl overflow-hidden">
+    <div className="bg-card border border-border rounded-card overflow-hidden">
       {/* Main content row */}
-      <div className="p-3 flex items-center gap-3">
+      <div className="pl-3 pr-3 py-2 flex items-center gap-3">
         {/* Color indicator */}
         {goal.color && (
-          <div className={`w-3 h-3 rounded-full ${goal.color} flex-shrink-0`}></div>
+           <div className={`w-1 ${goal.color} shrink-0 self-stretch rounded-full`}></div>
         )}
 
         {/* Goal name and info */}
@@ -55,7 +56,7 @@ export function GoalItem({
           onClick={() => onEdit(goal.id, goal)}
         >
           <div className="flex items-center gap-2 flex-wrap">
-            <h3 className="text-lg font-bold text-foreground hover:text-primary transition">
+            <h3 className="text-sm font-medium text-foreground hover:text-primary transition">
               {goal.name}
             </h3>
             {goal.targetDate && (
@@ -120,25 +121,27 @@ export function GoalItem({
 
         {/* Expand/collapse button */}
         {(hasMilestones || goal.description || goal.templateId) && (
-          <button
+          <Button
+            variant="ghost"
+            size="icon"
             onClick={() => setIsExpanded(!isExpanded)}
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground"
+            className="text-muted-foreground"
             title={isExpanded ? 'Collapse' : 'Expand'}
           >
             {isExpanded ? (
-              <ChevronUpIcon className="w-5 h-5" />
+              <ChevronUpIcon />
             ) : (
-              <ChevronDownIcon className="w-5 h-5" />
+              <ChevronDownIcon />
             )}
-          </button>
+          </Button>
         )}
 
         {/* Action menu */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
-            <button className="min-h-[44px] min-w-[44px] flex items-center justify-center p-1 text-muted-foreground hover:text-foreground hover:bg-muted rounded-lg transition">
-              <DotsVerticalIcon className="w-5 h-5" />
-            </button>
+            <Button variant="ghost" size="icon" className="text-muted-foreground">
+              <DotsVerticalIcon />
+            </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuItem onClick={() => onEdit(goal.id, goal)}>
@@ -178,7 +181,7 @@ export function GoalItem({
           {/* Full description */}
           {goal.description && (
             <div 
-              className="text-sm text-muted-foreground mt-3 [&_a]:text-primary [&_a]:hover:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_li]:mb-1 [&_strong]:font-semibold [&_em]:italic [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-bold [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-bold [&_h3]:mb-1"
+              className="text-sm text-muted-foreground mt-3 [&_a]:text-primary [&_a]:hover:underline [&_p]:mb-2 [&_ul]:list-disc [&_ul]:ml-4 [&_ol]:list-decimal [&_ol]:ml-4 [&_li]:mb-1 [&_strong]:font-semibold [&_em]:italic [&_code]:bg-muted [&_code]:px-1 [&_code]:rounded [&_code]:text-xs [&_h1]:text-lg [&_h1]:font-semibold [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mb-2 [&_h3]:text-sm [&_h3]:font-semibold [&_h3]:mb-1"
               onClick={(e) => e.stopPropagation()}
             >
               <ReactMarkdown

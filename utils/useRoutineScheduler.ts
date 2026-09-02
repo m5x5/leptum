@@ -2,6 +2,8 @@ import { useEffect, useRef } from 'react';
 import { remoteStorageClient, StandaloneTask } from '../lib/remoteStorage';
 import { Routine } from '../components/Job/api';
 import cronParser from 'cron-parser';
+import { triggerRoutine } from './routineTriggerUtils';
+import { fetchRoutines, fetchActiveTasks, setTasksCache, markSelfWrite } from '../lib/query/collections';
 
 const ROUTINE_CHECK_KEY = 'routine-last-check';
 const CHECK_INTERVAL = 60000; // Check every minute
@@ -64,50 +66,6 @@ export function useRoutineScheduler(
     }
   };
 
-  const triggerRoutine = async (routine: Routine, existingTasks: StandaloneTask[]) => {
-    try {
-      const routineInstanceId = `${routine.id}-${Date.now()}`;
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
-      const todayStart = today.getTime();
-
-      for (const task of routine.tasks || []) {
-        const existingTaskByInstance = existingTasks.find(
-          t => t.routineInstanceId === routineInstanceId && t.name === task.name
-        );
-        const existingTaskToday = existingTasks.find(
-          t =>
-            t.routineId === routine.id &&
-            t.name === task.name &&
-            t.status === 'due' &&
-            t.createdAt >= todayStart
-        );
-
-        if (!existingTaskByInstance && !existingTaskToday) {
-          const goalIds = routine.goalIds || (routine.goalId ? [routine.goalId] : []);
-          const newTask = {
-            id: `${routine.id}-${task.id}-${Date.now()}`,
-            name: task.name,
-            description: task.description || `Routine: ${routine.name}`,
-            status: 'due' as const,
-            createdAt: Date.now(),
-            routineId: routine.id,
-            routineInstanceId,
-            ...(goalIds.length > 0 && { goalId: goalIds[0] })
-          };
-
-          await remoteStorageClient.addStandaloneTask(newTask);
-        }
-      }
-
-      if (onTasksCreated) {
-        onTasksCreated();
-      }
-    } catch (error) {
-      console.error('Failed to trigger routine:', routine.name, error);
-    }
-  };
-
   const checkAndTriggerRoutines = async (now: number) => {
     try {
       const opts = optionsRef.current;
@@ -118,38 +76,78 @@ export function useRoutineScheduler(
 
       if (opts?.currentTasks !== undefined && !opts?.tasksLoading) {
         existingTasks = opts.currentTasks;
-        routines = await remoteStorageClient.getRoutines() as Routine[];
+        routines = await fetchRoutines();
       } else {
-        [routines, existingTasks] = await Promise.all([
-          remoteStorageClient.getRoutines() as Promise<Routine[]>,
-          remoteStorageClient.getStandaloneTasks()
-        ]);
+        // Served from the query cache when fresh — no extra pod round trip.
+        [routines, existingTasks] = await Promise.all([fetchRoutines(), fetchActiveTasks()]);
       }
 
       const today = new Date(now);
       today.setHours(0, 0, 0, 0);
       const todayStart = today.getTime();
 
+      // Clean up stale 'due' routine tasks from previous days
+      // and deduplicate same-day routine tasks (keep newest per routine+name)
+      const toDelete: string[] = [];
+      const seen = new Map<string, { id: string; createdAt: number }>();
+
+      for (const t of existingTasks) {
+        if (!t.routineId || t.status !== 'due') continue;
+
+        // Previous day — always remove
+        if (t.createdAt < todayStart) {
+          toDelete.push(t.id);
+          continue;
+        }
+
+        // Deduplicate today's tasks by routineId+name: keep the newest
+        const key = `${t.routineId}:${t.name}`;
+        const existing = seen.get(key);
+        if (existing) {
+          // Delete the older one
+          if (t.createdAt > existing.createdAt) {
+            toDelete.push(existing.id);
+            seen.set(key, { id: t.id, createdAt: t.createdAt });
+          } else {
+            toDelete.push(t.id);
+          }
+        } else {
+          seen.set(key, { id: t.id, createdAt: t.createdAt });
+        }
+      }
+
+      for (const id of toDelete) {
+        markSelfWrite('tasks');
+        setTasksCache((prev) => prev.filter((t) => t.id !== id));
+        await remoteStorageClient.deleteStandaloneTask(id);
+      }
+      if (toDelete.length > 0) {
+        const deleteSet = new Set(toDelete);
+        existingTasks = existingTasks.filter(t => !deleteSet.has(t.id));
+      }
+
       for (const routine of routines) {
         if (!routine.cron || !routine.tasks || routine.tasks.length === 0) {
           continue;
         }
 
-        const hasTasksToday = routine.tasks.some(task =>
+        // Check if tasks for today already exist (deterministic ID or old-format)
+        const allTasksExist = routine.tasks.every(task =>
           existingTasks.some(t =>
-            t.routineId === routine.id &&
-            t.name === task.name &&
-            t.status === 'due' &&
-            t.createdAt >= todayStart
+            t.id === `${routine.id}-${task.id}-${todayStart}` ||
+            (t.routineId === routine.id && t.name === task.name && t.createdAt >= todayStart)
           )
         );
 
-        if (hasTasksToday) {
+        if (allTasksExist) {
           continue;
         }
 
-        if (shouldTrigger(routine.cron, lastCheck, now)) {
-          await triggerRoutine(routine, existingTasks);
+        // Check if the cron should have fired today (even if lastCheck missed it)
+        const shouldHaveFiredToday = shouldTrigger(routine.cron, 0, now);
+
+        if (shouldHaveFiredToday || shouldTrigger(routine.cron, lastCheck, now)) {
+          await triggerRoutine(routine, existingTasks, onTasksCreated, now);
         }
       }
 

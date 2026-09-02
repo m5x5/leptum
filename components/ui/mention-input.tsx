@@ -1,6 +1,7 @@
 
 import { Mention, MentionsInput, SuggestionDataItem } from 'react-mentions';
 import { cn } from '../../lib/utils';
+import { useAddressBookContacts } from '../../utils/useAddressBookContacts';
 import { Entity } from '../../utils/useEntities';
 
 interface MentionInputProps {
@@ -15,6 +16,7 @@ interface MentionInputProps {
   onBlur?: () => void;
   onFocus?: () => void;
   autoFocus?: boolean;
+  id?: string;
 }
 
 /**
@@ -28,17 +30,21 @@ export function MentionInput({
   placeholder = '',
   className = '',
   multiline = false,
-  rows: _rows = 1,
+  rows = 1,
   disabled = false,
   onBlur,
   onFocus,
   autoFocus = false,
+  id,
 }: MentionInputProps) {
   // Ensure value is always a string (react-mentions calls .replace() on value and markup internally)
   const safeValue = typeof value === 'string' ? value : (value != null ? String(value) : '');
 
-  // Convert entities to suggestions format; ensure id/display are never undefined (library may call .replace on them)
-  const suggestions: SuggestionDataItem[] = (entities ?? []).map(entity => ({
+  const { contacts } = useAddressBookContacts();
+  const mentionableEntities = contacts.length > 0 ? contacts : (entities ?? []).filter((entity) => entity.type === 'person' && entity.id.startsWith('http'));
+
+  // Convert address book contacts to suggestions format; ensure id/display are never undefined (library may call .replace on them)
+  const suggestions: SuggestionDataItem[] = mentionableEntities.map(entity => ({
     id: entity?.id != null ? String(entity.id) : '',
     display: entity?.name != null ? String(entity.name) : '',
   })).filter(s => s.id !== '' || s.display !== '');
@@ -51,7 +57,7 @@ export function MentionInput({
     '&multiLine': {
       control: {
         fontFamily: 'inherit',
-        minHeight: multiline ? '80px' : '40px',
+        minHeight: multiline ? `${Math.max(rows, 3) * 1.25 + 1}rem` : '2.5rem',
       },
       highlighter: {
         padding: '0.5rem 0.75rem',
@@ -87,6 +93,9 @@ export function MentionInput({
       },
     },
     suggestions: {
+      backgroundColor: 'transparent',
+      borderRadius: '0.5rem',
+      overflow: 'hidden',
       list: {
         backgroundColor: 'hsl(var(--popover))',
         border: '1px solid hsl(var(--border))',
@@ -119,6 +128,7 @@ export function MentionInput({
         onBlur={onBlur}
         onFocus={onFocus}
         autoFocus={autoFocus}
+        id={id}
         allowSuggestionsAboveCursor
       >
         <Mention

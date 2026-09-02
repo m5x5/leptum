@@ -1,0 +1,18 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors VelocityEntry (lib/remoteStorage.ts) as written by
+# velocityEntryToRdf and read by extractVelocityEntry.
+leptum:VelocityEntryShape EXTRA a {
+  a [ leptum:VelocityEntry ] ;
+  schema:about IRI ? ;
+  schema:name xsd:string ? ;
+  schema:endTime xsd:dateTime ? ;
+  # Should be a value-set enum (["XS" "S" "M" "L" "XL"]) matching
+  # VelocityEntry['effort'] — left as xsd:string: @ldo/cli 1.0.0-alpha.51's
+  # TS generator crashes on literal ShEx value-sets (see task.shex).
+  leptum:effort xsd:string ? ;
+  leptum:numericEstimate xsd:decimal ? ;
+  leptum:period xsd:string ?
+}

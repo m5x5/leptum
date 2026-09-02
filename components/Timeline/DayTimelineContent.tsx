@@ -4,6 +4,8 @@ import { ProcessedAWEvent } from "../../activity-watch.d";
 import { chunkEventsIntoTimeBlocks } from "../../utils/timeBlocks";
 import { CalendarDayColumn } from "./CalendarDayColumn";
 import { ActivityWatchCalendarColumn } from "./ActivityWatchCalendarColumn";
+import { PendingSuggestionOverlay } from "./PendingSuggestionOverlay";
+import { CALENDAR_DAY_HEIGHT, CALENDAR_PX_PER_HOUR } from "./calendarConstants";
 
 interface Impact {
   id?: string;
@@ -52,6 +54,7 @@ interface DayTimelineContentProps {
   onResizeImpact?: (impactIndex: number, newStart: number, newEnd: number) => void;
   onAWEventClick: (event: ProcessedAWEvent, anchorRect: DOMRect) => void;
   onAWHourClick: (events: ProcessedAWEvent[], anchorRect: DOMRect) => void;
+  tryCloseOpenPopups?: () => boolean;
 }
 
 const BLOCK_SIZE = 15 * 60 * 1000;
@@ -83,6 +86,7 @@ export function DayTimelineContent({
   onResizeImpact,
   onAWEventClick,
   onAWHourClick,
+  tryCloseOpenPopups,
   sharedTimeScale = false,
 }: DayTimelineContentProps) {
   const [expandedBlockStart, setExpandedBlockStart] = useState<number | null>(null);
@@ -168,44 +172,71 @@ export function DayTimelineContent({
   const hasAWColumn = filterSettings.showActivityWatch && hourlyBlocks.length > 0;
 
   return (
-    <div className={`grid grid-cols-1 gap-6 ${hasAWColumn ? "lg:grid-cols-2" : ""}`}>
-      {/* ── Calendar-style Day View (time scale + event cards) ───────────────── */}
-      {filterSettings.showManual && (
-        <CalendarDayColumn
-          dayImpacts={dayImpacts}
-          dayStart={dayStart}
-          dayEnd={dayEnd}
-          isTodayFlag={isTodayFlag}
-          impacts={impacts}
-          impactIndexMap={impactIndexMap}
-          formatTime={formatTime}
-          getDuration={getDuration}
-          getActivityColor={getActivityColor}
-          getPhotosForImpact={getPhotosForImpact}
-          roundToNearest15Minutes={roundToNearest15Minutes}
-          onOpenEditModal={onOpenEditModal}
-          onInlineGapSubmit={onInlineGapSubmit}
-          onResizeImpact={onResizeImpact}
-          editingSlot={editingSlot}
-          setEditingSlot={setEditingSlot}
-          hideTimeScale={sharedTimeScale}
-        />
+    <div className="relative">
+      {sharedTimeScale && (
+        <div
+          className="absolute pointer-events-none z-0"
+          style={{ top: 0, left: "-0.5rem", right: "-0.5rem", height: CALENDAR_DAY_HEIGHT }}
+        >
+          {Array.from({ length: 25 }, (_, i) => (
+            <div
+              key={`day-grid-${i}`}
+              className="absolute left-0 right-0 h-px bg-border/60"
+              style={{ top: i * CALENDAR_PX_PER_HOUR }}
+            />
+          ))}
+        </div>
       )}
+      <div className={`relative grid grid-cols-1 gap-6 ${hasAWColumn ? "lg:grid-cols-2" : ""}`}>
+        {/* ── Calendar-style Day View (time scale + event cards) ───────────────── */}
+        {filterSettings.showManual && (
+          <div className="relative">
+            <CalendarDayColumn
+              dayImpacts={dayImpacts}
+              dayStart={dayStart}
+              dayEnd={dayEnd}
+              isTodayFlag={isTodayFlag}
+              impacts={impacts}
+              impactIndexMap={impactIndexMap}
+              formatTime={formatTime}
+              getDuration={getDuration}
+              getActivityColor={getActivityColor}
+              getPhotosForImpact={getPhotosForImpact}
+              roundToNearest15Minutes={roundToNearest15Minutes}
+              onOpenEditModal={onOpenEditModal}
+              onInlineGapSubmit={onInlineGapSubmit}
+              onResizeImpact={onResizeImpact}
+              editingSlot={editingSlot}
+              setEditingSlot={setEditingSlot}
+              hideTimeScale={sharedTimeScale}
+              hideGridLines={sharedTimeScale}
+              tryCloseOpenPopups={tryCloseOpenPopups}
+            />
+            <PendingSuggestionOverlay
+              dateKey={dateKey}
+              dayStart={dayStart}
+              dayEnd={dayEnd}
+              formatTime={formatTime}
+            />
+          </div>
+        )}
 
-      {/* ── ActivityWatch Column (calendar cards, same style as manual) ──────── */}
-      {filterSettings.showActivityWatch && hourlyBlocks.length > 0 && (
-        <ActivityWatchCalendarColumn
-          timeBlocks={hourlyBlocks}
-          dayStart={dayStart}
-          dayEnd={dayEnd}
-          isTodayFlag={isTodayFlag}
-          formatTime={formatTime}
-          formatDuration={formatDuration}
-          onAWEventClick={onAWEventClick}
-          onAWHourClick={onAWHourClick}
-        />
-      )}
-
+        {/* ── ActivityWatch Column (calendar cards, same style as manual) ──────── */}
+        {filterSettings.showActivityWatch && hourlyBlocks.length > 0 && (
+          <ActivityWatchCalendarColumn
+            timeBlocks={hourlyBlocks}
+            dayStart={dayStart}
+            dayEnd={dayEnd}
+            isTodayFlag={isTodayFlag}
+            formatTime={formatTime}
+            formatDuration={formatDuration}
+            onAWEventClick={onAWEventClick}
+            onAWHourClick={onAWHourClick}
+            afkMap={afkMap}
+            hideGridLines={sharedTimeScale}
+          />
+        )}
+      </div>
     </div>
   );
 }

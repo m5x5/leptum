@@ -1,0 +1,36 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:RoutineCompletionShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors RoutineCompletion (lib/remoteStorage.ts) as written by routineCompletionToRdf and read by extractRoutineCompletion." ;
+  sh:targetClass schema:CompleteAction ;
+  sh:property [
+    sh:path schema:object ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:endTime ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:routineInstanceId ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:taskCount ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] .

@@ -1,0 +1,21 @@
+PREFIX foaf: <http://xmlns.com/foaf/0.1/>
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors Entity (lib/remoteStorage.ts) as written by entityToRdf and read
+# by extractEntity. Person uses foaf:name, Project/Context use schema:name
+# (see entityToRdf's nameProp) — modeled as two independent optional fields
+# (both happen to have local name "name"; @ldo/cli auto-disambiguates the
+# second as "name2" — verified: foaf:name -> `name`, schema:name -> `name2`),
+# not a ShEx OneOf (see task.shex's name/summary comment for why). App code
+# does `name ?? name2` itself, same idea extractEntity() uses today.
+leptum:EntityShape EXTRA a {
+  a [ foaf:Person schema:Project leptum:Context ] ;
+  foaf:name xsd:string ? ;
+  schema:name xsd:string ? ;
+  schema:description xsd:string ? ;
+  leptum:tag xsd:string * ;
+  dcterms:created xsd:dateTime ?
+}

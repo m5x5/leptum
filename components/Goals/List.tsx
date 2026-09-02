@@ -10,6 +10,7 @@ import { TemplateSelector } from "./TemplateSelector";
 import { remoteStorageClient } from "../../lib/remoteStorage";
 import { getTemplateById, createRoutineFromTemplate, createRoutinesFromTemplate } from "../../utils/goalTemplatesWithTracking";
 import { Routine } from "../Job/api";
+import { Button } from "../ui/button";
 
 interface IProps {
   name: string;
@@ -31,6 +32,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
     updateMilestone,
     deleteMilestone,
     completeMilestone,
+    isLoading,
     reload: reloadGoals
   } = useGoals();
   const [showArchived, setShowArchived] = useState(false);
@@ -41,14 +43,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
   const [editingGoal, setEditingGoal] = useState<Goal | null>(null);
   const [selectedTemplate, setSelectedTemplate] = useState<GoalTemplate | null>(null);
   
-  // Reload goals when updated (for template application)
-  useEffect(() => {
-    const handleGoalUpdate = () => {
-      reloadGoals();
-    };
-    window.addEventListener('goalUpdated', handleGoalUpdate);
-    return () => window.removeEventListener('goalUpdated', handleGoalUpdate);
-  }, [reloadGoals]);
+  // Note: useGoals() already listens for 'goalUpdated' events internally
 
   const handleAddGoal = async (goalName: string, color: string, options?: { description?: string; targetDate?: number; milestones?: Omit<GoalMilestone, 'id'>[]; templateId?: string }): Promise<void> => {
     const newGoal = await addGoal(goalName, id, color, options);
@@ -66,7 +61,7 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
             // Save routines sequentially with delays to prevent "maximum debt" errors
             for (let i = 0; i < newRoutines.length; i++) {
               await remoteStorageClient.saveRoutine(newRoutines[i]);
-              // Small delay between saves to prevent overwhelming RemoteStorage sync
+              // Small delay between saves to avoid overwhelming storage writes
               if (i < newRoutines.length - 1) {
                 await new Promise(resolve => setTimeout(resolve, 200));
               }
@@ -120,7 +115,6 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
         description: options?.description,
         targetDate: options?.targetDate ?? null
       });
-      setEditingGoal(null);
     }
   };
 
@@ -140,17 +134,36 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
     await completeMilestone(goalId, milestoneId);
   };
 
-  const allGoalsForType = items || [];
+  const allGoalsForType = (items || []).filter(g => {
+    const hasName = typeof g?.name === "string" && g.name.trim().length > 0;
+    if (!hasName && process.env.NODE_ENV !== "production") {
+      console.warn("[GoalList] Hiding goal with empty name:", g?.id, g);
+    }
+    return hasName;
+  });
   const goalsForThisType = allGoalsForType.filter(g => g.status !== 'archived');
   const archivedGoals = allGoalsForType.filter(g => g.status === 'archived');
 
+  if (!name || name.trim().length === 0) return null;
+
   return (
     <>
-      <div className="p-4 bg-card border border-border rounded-lg">
+      <div className="p-4 bg-card border border-border rounded-control">
         <div className="flex flex-row justify-between items-center mb-4">
-          <h2 className="text-xl text-foreground">{name}</h2>
-          <div className="flex-row flex text-muted-foreground gap-1">
+          <h2 className="text-xl font-semibold text-foreground">{name}</h2>
+          <div className="flex-row flex items-center text-muted-foreground gap-2">
             {children}
+            {archivedGoals.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setShowArchived(v => !v)}
+                className="inline-flex items-center gap-1 rounded-full border border-border px-2 py-0.5 text-xs hover:text-foreground transition-colors"
+                aria-pressed={showArchived}
+              >
+                {showArchived ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
+                {archivedGoals.length} archived
+              </button>
+            )}
             <PlusIcon className="w-5 cursor-pointer" onClick={() => setShowAddModal(true)} />
           </div>
         </div>
@@ -170,44 +183,31 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
               onSelectTemplate={handleOpenTemplateSelector}
             />
           ))}
-          {goalsForThisType.length === 0 && archivedGoals.length === 0 && (
+          {goalsForThisType.length === 0 && archivedGoals.length === 0 && !isLoading && (
             <div className="text-center py-4">
               <p className="text-muted-foreground mb-3">No goals yet in this category.</p>
-              <button
-                onClick={() => setShowTemplateGallery(true)}
-                className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-medium text-sm"
-              >
+              <Button onClick={() => setShowTemplateGallery(true)}>
                 Browse Goal Templates
-              </button>
+              </Button>
+
             </div>
           )}
-          {archivedGoals.length > 0 && (
-            <div className="mt-2">
-              <button
-                onClick={() => setShowArchived(v => !v)}
-                className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors py-1"
-              >
-                {showArchived ? <ChevronUpIcon className="h-3 w-3" /> : <ChevronDownIcon className="h-3 w-3" />}
-                {archivedGoals.length} archived
-              </button>
-              {showArchived && (
-                <div className="flex flex-col gap-2 mt-2 opacity-60">
-                  {archivedGoals.map((goal) => (
-                    <GoalItem
-                      key={goal.id}
-                      goal={goal}
-                      onDelete={deleteGoal}
-                      onEdit={handleEditGoal}
-                      onArchive={archiveGoal}
-                      onUnarchive={unarchiveGoal}
-                      onAddMilestone={handleAddMilestone}
-                      onUpdateMilestone={handleUpdateMilestone}
-                      onDeleteMilestone={handleDeleteMilestone}
-                      onCompleteMilestone={handleCompleteMilestone}
-                    />
-                  ))}
-                </div>
-              )}
+          {archivedGoals.length > 0 && showArchived && (
+            <div className="flex flex-col gap-2 mt-2 opacity-60">
+              {archivedGoals.map((goal) => (
+                <GoalItem
+                  key={goal.id}
+                  goal={goal}
+                  onDelete={deleteGoal}
+                  onEdit={handleEditGoal}
+                  onArchive={archiveGoal}
+                  onUnarchive={unarchiveGoal}
+                  onAddMilestone={handleAddMilestone}
+                  onUpdateMilestone={handleUpdateMilestone}
+                  onDeleteMilestone={handleDeleteMilestone}
+                  onCompleteMilestone={handleCompleteMilestone}
+                />
+              ))}
             </div>
           )}
         </div>
@@ -227,22 +227,22 @@ export default function GoalList({ name = "", children, id, items }: IProps) {
         initialMilestones={selectedTemplate?.milestones}
       />
 
-      {editingGoal && (
-        <AddGoalModal
-          isOpen={showEditModal}
-          onHide={() => {
-            setShowEditModal(false);
-            setEditingGoal(null);
-          }}
-          onAdd={handleSaveEdit}
-          categoryName={name}
-          initialName={editingGoal.name}
-          initialColor={editingGoal.color || "bg-blue-500"}
-          initialDescription={editingGoal.description}
-          initialTargetDate={editingGoal.targetDate}
-          isEdit={true}
-        />
-      )}
+      <AddGoalModal
+        isOpen={showEditModal}
+        onHide={() => {
+          setShowEditModal(false);
+          // Delay clearing editingGoal so Radix Dialog can finish its close animation
+          // without props changing underneath it
+          setTimeout(() => setEditingGoal(null), 200);
+        }}
+        onAdd={handleSaveEdit}
+        categoryName={name}
+        initialName={editingGoal?.name ?? ""}
+        initialColor={editingGoal?.color || "bg-blue-500"}
+        initialDescription={editingGoal?.description}
+        initialTargetDate={editingGoal?.targetDate}
+        isEdit={true}
+      />
 
       <Modal isOpen={showTemplateGallery} closeModal={() => setShowTemplateGallery(false)}>
         <Modal.Title>Choose a Goal Template</Modal.Title>

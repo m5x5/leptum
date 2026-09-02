@@ -1,0 +1,51 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:GroceryStoreShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors GroceryStore (types/grocery.ts) as written by groceryStoreToRdf and read by extractGroceryStore. GeoCoordinates duplicated locally (not shared with task.shex's leptum:GeoCoordinatesShape) because cross-file type references don't resolve in the ldo build." ;
+  sh:targetClass schema:GroceryStore ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:address ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:openingHours ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:geo ;
+    sh:node leptum:GroceryStoreGeoShape ;
+    sh:maxCount 1
+  ] .
+
+leptum:GroceryStoreGeoShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( schema:GeoCoordinates ) ] ;
+    sh:qualifiedMinCount 0
+  ] ;
+  sh:property [
+    sh:path schema:latitude ;
+    sh:datatype xsd:decimal ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:longitude ;
+    sh:datatype xsd:decimal ;
+    sh:minCount 1 ;
+    sh:maxCount 1
+  ] .

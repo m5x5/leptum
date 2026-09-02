@@ -12,7 +12,7 @@ import { Routine } from '../components/Job/api';
  * Migrate routine completions to tracking data for a goal
  * Groups completions by date and counts them (each completion = +1 unit)
  */
-export async function migrateRoutineCompletionsToTracking(routineId: string): Promise<DailyTrackingEntry[]> {
+async function migrateRoutineCompletionsToTracking(routineId: string): Promise<DailyTrackingEntry[]> {
   try {
     const completions = await remoteStorageClient.getRoutineCompletions();
     const routineCompletions = completions.filter(c => c.routineId === routineId);
@@ -51,7 +51,7 @@ export async function migrateRoutineCompletionsToTracking(routineId: string): Pr
  * Migrate impacts to tracking data for a goal
  * Groups impacts by date and counts them
  */
-export async function migrateImpactsToTracking(goalId: string): Promise<DailyTrackingEntry[]> {
+async function migrateImpactsToTracking(goalId: string): Promise<DailyTrackingEntry[]> {
   try {
     const impacts = await remoteStorageClient.getImpacts();
     const goalImpacts = impacts.filter(i => i.goalId === goalId);
@@ -159,7 +159,7 @@ export async function applyTemplateToGoal(
           // Save all routine updates in sequence with small delays to avoid debt
           for (let i = 0; i < routinesToSave.length; i++) {
             await remoteStorageClient.saveRoutine(routinesToSave[i]);
-            // Small delay between saves to prevent overwhelming RemoteStorage
+            // Small delay between saves to avoid overwhelming storage writes
             if (i < routinesToSave.length - 1) {
               await new Promise(resolve => setTimeout(resolve, 100));
             }
@@ -185,7 +185,7 @@ export async function applyTemplateToGoal(
           // Save routines sequentially with delays to prevent "maximum debt" errors
           for (let i = 0; i < newRoutines.length; i++) {
             await remoteStorageClient.saveRoutine(newRoutines[i]);
-            // Small delay between saves to prevent overwhelming RemoteStorage sync
+            // Small delay between saves to avoid overwhelming storage writes
             if (i < newRoutines.length - 1) {
               await new Promise(resolve => setTimeout(resolve, 200));
             }

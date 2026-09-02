@@ -71,8 +71,9 @@ const RoutineHeatmap = memo(function RoutineHeatmap({ completions, months, compa
         } else {
           const key = toUtcDateKey(dayMs);
           const count = completionsByDate[key] || 0;
-          const isEmpty = count < 1;
-          week.push({ className: `box-border w-3 h-3 rounded-sm shrink-0 ${isEmpty ? 'border border-muted/55 ' : ''}${getColorIntensity(count)}` });
+          week.push({
+            className: `box-border w-3 h-3 rounded-cell shrink-0 border border-muted/55 ${getColorIntensity(count)}`,
+          });
         }
       }
       weeks.push(week);
@@ -88,50 +89,53 @@ const RoutineHeatmap = memo(function RoutineHeatmap({ completions, months, compa
     return { weeks, dayLabels, monthLabel, totalCompletions, daysWithCompletions };
   }, [completions, resolvedMonths]);
 
+  const grid = (
+    <div className="inline-flex flex-col gap-1 shrink-0 min-w-min">
+      {heatmapData.dayLabels.map((label, rowIndex) => (
+        <div key={label + rowIndex} className="flex items-center gap-1">
+          {!compact && <span className="w-6 text-xs text-muted-foreground shrink-0">{label}</span>}
+          <div className="flex gap-1">
+            {heatmapData.weeks.map((week, colIndex) => {
+              const cell = week[rowIndex];
+              return (
+                <div
+                  key={colIndex}
+                  className={
+                    cell
+                      ? cell.className
+                      : 'box-border w-3 h-3 rounded-cell shrink-0 border border-muted/55 bg-muted/30'
+                  }
+                />
+              );
+            })}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
-    <div className={compact ? 'space-y-2' : 'space-y-4'}>
+    <div className={compact ? '' : 'space-y-4'}>
       {!compact && (
-        <div className="flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-semibold text-foreground">Completion History</h3>
-            <p className="text-sm text-muted-foreground">
-              {heatmapData.totalCompletions} completions over {heatmapData.daysWithCompletions} days
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-xs text-muted-foreground">
-            <span>Less</span>
-            <div className="flex gap-1">
-              <div className="w-3 h-3 rounded-sm bg-muted/30"></div>
-              <div className="w-3 h-3 rounded-sm bg-green-300 dark:bg-green-900"></div>
-              <div className="w-3 h-3 rounded-sm bg-green-400 dark:bg-green-800"></div>
-              <div className="w-3 h-3 rounded-sm bg-green-500 dark:bg-green-700"></div>
-              <div className="w-3 h-3 rounded-sm bg-green-600 dark:bg-green-600"></div>
-            </div>
-            <span>More</span>
-          </div>
+        <div>
+          <h3 className="text-lg font-semibold text-foreground">Completion History</h3>
+          <p className="text-sm text-muted-foreground">
+            {heatmapData.totalCompletions} completions over {heatmapData.daysWithCompletions} days
+          </p>
         </div>
       )}
 
-      <div className="w-full min-w-0 overflow-x-hidden flex justify-end">
-        <div className="inline-flex flex-col gap-0.5 shrink-0">
-          {heatmapData.dayLabels.map((label, rowIndex) => (
-            <div key={label + rowIndex} className="flex items-center gap-0.5">
-              <span className="w-6 text-[10px] text-muted-foreground shrink-0">{label}</span>
-              <div className="flex gap-0.5">
-                {heatmapData.weeks.map((week, colIndex) => {
-                  const cell = week[rowIndex];
-                  return (
-                    <div
-                      key={colIndex}
-                      className={cell ? cell.className : 'box-border w-3 h-3 rounded-sm shrink-0 bg-muted/30'}
-                    />
-                  );
-                })}
-              </div>
-            </div>
-          ))}
+      {compact ? (
+        <div className="w-full bg-muted/20 rounded-control p-3 border border-border">
+          <div className="overflow-x-auto pb-1" style={{ scrollbarWidth: 'thin' }}>
+            {grid}
+          </div>
         </div>
-      </div>
+      ) : (
+        <div className="w-full min-w-0 overflow-x-auto pb-2" style={{ scrollbarWidth: 'thin' }}>
+          {grid}
+        </div>
+      )}
     </div>
   );
 });

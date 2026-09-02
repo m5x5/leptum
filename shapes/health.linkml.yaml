@@ -1,0 +1,118 @@
+id: https://mpeters.dev/ns/leptum/linkml/health
+name: leptum-health
+description: >-
+  Mirrors DailyHealthData (lib/remoteStorage.ts) as written by healthDataToRdf.
+  Read-only from this app's perspective — populated by an external tool; this
+  schema only needs a reader.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  DailyHealthMetrics:
+    tree_root: true
+    class_uri: leptum:DailyHealthMetrics
+    description: >-
+      Daily health metrics for one calendar day. Additional rdf:type values
+      are permitted (ShEx EXTRA a).
+    attributes:
+      date:
+        slot_uri: leptum:date
+        range: string
+      steps:
+        slot_uri: leptum:steps
+        range: decimal
+      distanceMeters:
+        slot_uri: leptum:distanceMeters
+        range: decimal
+      activeCalories:
+        slot_uri: leptum:activeCalories
+        range: decimal
+      totalCalories:
+        slot_uri: leptum:totalCalories
+        range: decimal
+      sleepMinutes:
+        slot_uri: leptum:sleepMinutes
+        range: decimal
+      heartRateAvg:
+        slot_uri: leptum:heartRateAvg
+        range: decimal
+      heartRateMin:
+        slot_uri: leptum:heartRateMin
+        range: decimal
+      heartRateMax:
+        slot_uri: leptum:heartRateMax
+        range: decimal
+      restingHeartRate:
+        slot_uri: leptum:restingHeartRate
+        range: decimal
+      hrvRmssd:
+        slot_uri: leptum:hrvRmssd
+        range: decimal
+      weightKg:
+        slot_uri: leptum:weightKg
+        range: decimal
+      bodyFatPct:
+        slot_uri: leptum:bodyFatPct
+        range: decimal
+      bloodPressureSystolic:
+        slot_uri: leptum:bloodPressureSystolic
+        range: decimal
+      bloodPressureDiastolic:
+        slot_uri: leptum:bloodPressureDiastolic
+        range: decimal
+      bloodGlucoseMmol:
+        slot_uri: leptum:bloodGlucoseMmol
+        range: decimal
+      oxygenSaturationPct:
+        slot_uri: leptum:oxygenSaturationPct
+        range: decimal
+      floorsClimbed:
+        slot_uri: leptum:floorsClimbed
+        range: decimal
+      exerciseSession:
+        slot_uri: leptum:exerciseSession
+        range: ExerciseSession
+        inlined: true
+        multivalued: true
+      sleepSession:
+        slot_uri: leptum:sleepSession
+        range: SleepSession
+        inlined: true
+        multivalued: true
+  ExerciseSession:
+    description: A single exercise session (blank node).
+    attributes:
+      exerciseType:
+        slot_uri: leptum:exerciseType
+        range: decimal
+      name:
+        slot_uri: schema:name
+        range: string
+      startTime:
+        slot_uri: schema:startTime
+        range: string
+      endTime:
+        slot_uri: schema:endTime
+        range: string
+      durationMinutes:
+        slot_uri: leptum:durationMinutes
+        range: decimal
+  SleepSession:
+    description: A single sleep session (blank node).
+    attributes:
+      startTime:
+        slot_uri: schema:startTime
+        range: string
+      endTime:
+        slot_uri: schema:endTime
+        range: string
+      durationMinutes:
+        slot_uri: leptum:durationMinutes
+        range: decimal

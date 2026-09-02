@@ -1,0 +1,134 @@
+id: https://mpeters.dev/ns/leptum/linkml/task
+name: leptum-task
+description: >-
+  Mirrors StandaloneTask (lib/remoteStorage.ts) as written by taskToRdf and
+  read by extractTask (lib/solidRdf/transform.ts / fromRdf.ts).
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  ical: http://www.w3.org/2002/12/cal/ical#
+  dcterms: http://purl.org/dc/terms/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+  crdt: https://vocab.noeldemartin.com/crdt/
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Task:
+    tree_root: true
+    class_uri: schema:Action
+    description: >-
+      A standalone task. The rdf:type must include one of schema:Action or
+      ical:Vtodo (class_uri set to the first; in practice a Task resource
+      carries both together, and legacy Jobs also carry leptum:LegacyJob).
+      Additional rdf:type values are permitted (ShEx EXTRA a semantics).
+    attributes:
+      name:
+        slot_uri: schema:name
+        range: string
+        description: >-
+          Title. Foreign Turtle (e.g. Focus's tasks) uses ical:summary
+          instead; modeled as two independent optional fields, and the app
+          does `name ?? summary`.
+      summary:
+        slot_uri: ical:summary
+        range: string
+        description: >-
+          Alternative title predicate used by foreign Turtle (e.g. Focus's
+          tasks) instead of schema:name.
+      description:
+        slot_uri: schema:description
+        range: string
+      actionStatus:
+        slot_uri: schema:actionStatus
+        range: ActionStatusEnum
+      created:
+        slot_uri: dcterms:created
+        range: datetime
+      createdAt:
+        slot_uri: crdt:createdAt
+        range: datetime
+        description: >-
+          Fallback createdAt predicate used by other Solid apps sharing this
+          container (e.g. SoukAI-based apps).
+      completedAt:
+        slot_uri: leptum:completedAt
+        range: datetime
+      archivedAt:
+        slot_uri: leptum:archivedAt
+        range: datetime
+      about:
+        slot_uri: schema:about
+        range: uri
+        multivalued: true
+        description: >-
+          Goal(s) this task is about — written as a single IRI today but read
+          via getAll(), so zero-or-more.
+      partOfRoutine:
+        slot_uri: leptum:partOfRoutine
+        range: uri
+      routineInstanceId:
+        slot_uri: leptum:routineInstanceId
+        range: string
+      effort:
+        slot_uri: leptum:effort
+        range: string
+        description: >-
+          Intended value set: "XS", "S", "M", "L", "XL" (StandaloneTask's
+          union type). Kept as plain string range to mirror the ShEx contract
+          exactly, which uses plain xsd:string due to an @ldo/cli
+          1.0.0-alpha.51 generator bug with literal value-sets.
+      numericEstimate:
+        slot_uri: leptum:numericEstimate
+        range: decimal
+      emotions:
+        slot_uri: leptum:emotions
+        range: string
+        multivalued: true
+        description: >-
+          Intended value set: the 10 Emotion literals (StandaloneTask's union
+          type). Kept as plain string range to mirror the ShEx contract
+          exactly (same @ldo/cli generator limitation as effort).
+      geo:
+        slot_uri: schema:geo
+        range: GeoCoordinates
+        inlined: true
+      indoorX:
+        slot_uri: leptum:indoorX
+        range: decimal
+      indoorY:
+        slot_uri: leptum:indoorY
+        range: decimal
+      sortIndex:
+        slot_uri: leptum:sortIndex
+        range: decimal
+
+  GeoCoordinates:
+    class_uri: schema:GeoCoordinates
+    description: >-
+      Geographic coordinates. The schema:GeoCoordinates rdf:type is optional
+      in the ShEx shape.
+    attributes:
+      latitude:
+        slot_uri: schema:latitude
+        range: decimal
+        required: true
+      longitude:
+        slot_uri: schema:longitude
+        range: decimal
+        required: true
+
+enums:
+  ActionStatusEnum:
+    permissible_values:
+      CompletedActionStatus:
+        meaning: schema:CompletedActionStatus
+      ActiveActionStatus:
+        meaning: schema:ActiveActionStatus
+      PotentialActionStatus:
+        meaning: schema:PotentialActionStatus
+      FailedActionStatus:
+        meaning: schema:FailedActionStatus

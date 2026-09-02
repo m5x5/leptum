@@ -1,0 +1,47 @@
+id: https://mpeters.dev/ns/leptum/linkml/velocityEntry
+name: leptum-velocityEntry
+description: >-
+  Mirrors VelocityEntry (lib/remoteStorage.ts) as written by
+  velocityEntryToRdf and read by extractVelocityEntry.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  VelocityEntry:
+    tree_root: true
+    class_uri: leptum:VelocityEntry
+    description: >-
+      A task-completion velocity entry. The rdf:type must include
+      leptum:VelocityEntry; additional rdf:type values are permitted
+      (ShEx EXTRA a semantics).
+    attributes:
+      about:
+        slot_uri: schema:about
+        range: uri
+      name:
+        slot_uri: schema:name
+        range: string
+      endTime:
+        slot_uri: schema:endTime
+        range: datetime
+      effort:
+        slot_uri: leptum:effort
+        range: string
+        description: >-
+          Intended value set: "XS", "S", "M", "L", "XL" (VelocityEntry's
+          effort union type). Kept as plain string range to mirror the ShEx
+          contract exactly, which uses plain xsd:string due to an @ldo/cli
+          1.0.0-alpha.51 generator bug with literal value-sets.
+      numericEstimate:
+        slot_uri: leptum:numericEstimate
+        range: decimal
+      period:
+        slot_uri: leptum:period
+        range: string

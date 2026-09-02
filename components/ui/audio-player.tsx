@@ -101,7 +101,7 @@ export function AudioPlayer({ src, title, className, compact, onEnded }: AudioPl
   return (
     <div
       className={cn(
-        "rounded-lg border border-border bg-card p-3 text-card-foreground",
+        "rounded-control border border-border bg-card p-3 text-card-foreground",
         compact && "p-2",
         className
       )}

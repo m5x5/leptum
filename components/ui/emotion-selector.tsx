@@ -72,7 +72,7 @@ export default function EmotionSelector({
               type="button"
               onClick={() => handleToggle(emotion.id)}
               className={`
-                px-4 py-2 rounded-lg font-medium text-sm transition-all
+                px-4 py-2 rounded-control font-medium text-sm transition-all
                 flex items-center gap-2
                 ${isSelected 
                   ? `${emotion.color} text-white shadow-md scale-105` 

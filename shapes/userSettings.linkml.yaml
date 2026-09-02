@@ -1,0 +1,59 @@
+id: https://mpeters.dev/ns/leptum/linkml/userSettings
+name: leptum-userSettings
+description: User settings for Leptum (keyboard shortcuts, color scheme, time format, waking hours).
+prefixes:
+  linkml: https://w3id.org/linkml/
+  ui: http://www.w3.org/ns/ui#
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  UserSettings:
+    tree_root: true
+    class_uri: leptum:UserSettings
+    description: >-
+      User settings resource. The rdf:type must include leptum:UserSettings;
+      additional rdf:type values are permitted (ShEx EXTRA a semantics).
+    attributes:
+      showKeyboardShortcuts:
+        slot_uri: leptum:showKeyboardShortcuts
+        range: boolean
+      colorScheme:
+        slot_uri: ui:colorScheme
+        range: ColorSchemeEnum
+      timeFormat:
+        slot_uri: leptum:timeFormat
+        range: string
+        description: 'Intended values: "12h", "24h", "system".'
+      wakingStartHour:
+        slot_uri: leptum:wakingStartHour
+        range: time
+      wakingEndHour:
+        slot_uri: leptum:wakingEndHour
+        range: time
+      suggestContactsFrom:
+        slot_uri: leptum:suggestContactsFrom
+        range: uriorcurie
+        multivalued: true
+        description: >-
+          vcard:AddressBook whose every contact is offered as an @mention.
+          Absent together with suggestContactsFromGroup = every address book.
+      suggestContactsFromGroup:
+        slot_uri: leptum:suggestContactsFromGroup
+        range: uriorcurie
+        multivalued: true
+        description: vcard:Group whose members are offered as an @mention.
+
+enums:
+  ColorSchemeEnum:
+    permissible_values:
+      LightColorScheme:
+        meaning: ui:LightColorScheme
+      DarkColorScheme:
+        meaning: ui:DarkColorScheme
+      SystemColorScheme:
+        meaning: ui:SystemColorScheme

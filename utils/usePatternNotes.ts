@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
+import { defineCollection } from '../lib/query/defineCollection';
 
 export interface PatternNote {
   activity: string;
@@ -8,68 +9,59 @@ export interface PatternNote {
   updatedAt?: number;
 }
 
-export function usePatternNotes() {
-  const [patternNotes, setPatternNotes] = useState<PatternNote[]>([]);
-  const [loading, setLoading] = useState(true);
+export const patternNotesCollection = defineCollection<PatternNote[]>(
+  'patternNotes',
+  () => remoteStorageClient.getPatternNotes(),
+  { initial: [] }
+);
 
-  // Load pattern notes on mount
-  useEffect(() => {
-    loadPatternNotes();
+const EMPTY: PatternNote[] = [];
+
+export function usePatternNotes() {
+  const { data, isPending } = patternNotesCollection.useQuery();
+  const patternNotes = data ?? EMPTY;
+
+  const getPatternNote = useCallback(
+    (activity: string): PatternNote | undefined => patternNotes.find((note) => note.activity === activity),
+    [patternNotes]
+  );
+
+  const savePatternNote = useCallback(async (activity: string, notes: string) => {
+    const existing = patternNotesCollection.get().find((note) => note.activity === activity);
+    const note: PatternNote = existing
+      ? { ...existing, notes, updatedAt: Date.now() }
+      : { activity, notes, createdAt: Date.now() };
+    patternNotesCollection.markSelfWrite();
+    patternNotesCollection.set((prev) =>
+      existing ? prev.map((n) => (n.activity === activity ? note : n)) : [...prev, note]
+    );
+    try {
+      await remoteStorageClient.savePatternNote(note);
+    } catch (error) {
+      console.error('Failed to save pattern note:', error);
+      void patternNotesCollection.invalidate();
+      throw error;
+    }
   }, []);
 
-  const loadPatternNotes = async () => {
+  const deletePatternNote = useCallback(async (activity: string) => {
+    patternNotesCollection.markSelfWrite();
+    patternNotesCollection.set((prev) => prev.filter((note) => note.activity !== activity));
     try {
-      const loadedNotes = await remoteStorageClient.getPatternNotes();
-      setPatternNotes(loadedNotes);
+      await remoteStorageClient.deletePatternNote(activity);
     } catch (error) {
-      console.error('Failed to load pattern notes:', error);
-    } finally {
-      setLoading(false);
+      console.error('Failed to delete pattern note:', error);
+      void patternNotesCollection.invalidate();
+      throw error;
     }
-  };
-
-  const getPatternNote = (activity: string): PatternNote | undefined => {
-    return patternNotes.find(note => note.activity === activity);
-  };
-
-  const savePatternNote = async (activity: string, notes: string) => {
-    const existingNote = patternNotes.find(note => note.activity === activity);
-
-    let updatedNotes: PatternNote[];
-
-    if (existingNote) {
-      // Update existing note
-      updatedNotes = patternNotes.map(note =>
-        note.activity === activity
-          ? { ...note, notes, updatedAt: Date.now() }
-          : note
-      );
-    } else {
-      // Create new note
-      const newNote: PatternNote = {
-        activity,
-        notes,
-        createdAt: Date.now(),
-      };
-      updatedNotes = [...patternNotes, newNote];
-    }
-
-    setPatternNotes(updatedNotes);
-    await remoteStorageClient.savePatternNotes(updatedNotes);
-  };
-
-  const deletePatternNote = async (activity: string) => {
-    const updatedNotes = patternNotes.filter(note => note.activity !== activity);
-    setPatternNotes(updatedNotes);
-    await remoteStorageClient.savePatternNotes(updatedNotes);
-  };
+  }, []);
 
   return {
     patternNotes,
-    loading,
+    loading: isPending,
     getPatternNote,
     savePatternNote,
     deletePatternNote,
-    refreshPatternNotes: loadPatternNotes,
+    refreshPatternNotes: patternNotesCollection.invalidate,
   };
 }

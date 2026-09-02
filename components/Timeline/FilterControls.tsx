@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { FilterSettings } from '../../utils/useActivityWatch';
 import { BucketMetadata } from '../../activity-watch.d';
 import { FilterIcon, ChevronDownIcon, ChevronUpIcon } from '@heroicons/react/solid';
+import { Button } from '../ui/button';
 
 interface FilterControlsProps {
   filterSettings: FilterSettings;
@@ -48,7 +49,7 @@ export default function FilterControls({
   const isExpanded = forceExpanded || !isCollapsed;
 
   return (
-    <div className="bg-card border border-border rounded-lg p-4 mb-6">
+    <div className="bg-card border border-border rounded-control p-4 mb-6">
       {!forceExpanded && (
         <div
           className="flex items-center justify-between cursor-pointer md:cursor-default"
@@ -58,8 +59,10 @@ export default function FilterControls({
             <FilterIcon className="w-5 h-5 text-muted-foreground" />
             <h3 className="font-semibold text-foreground">Filters</h3>
           </div>
-          <button
-            className="md:hidden min-h-[44px] min-w-[44px] flex items-center justify-center p-1 hover:bg-muted rounded"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="md:hidden text-muted-foreground"
             onClick={(e) => {
               e.stopPropagation();
               setIsCollapsed(!isCollapsed);
@@ -67,11 +70,11 @@ export default function FilterControls({
             aria-label={isCollapsed ? "Expand filters" : "Collapse filters"}
           >
             {isCollapsed ? (
-              <ChevronDownIcon className="w-5 h-5 text-muted-foreground" />
+              <ChevronDownIcon />
             ) : (
-              <ChevronUpIcon className="w-5 h-5 text-muted-foreground" />
+              <ChevronUpIcon />
             )}
-          </button>
+          </Button>
         </div>
       )}
 

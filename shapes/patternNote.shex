@@ -1,0 +1,14 @@
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX as: <https://www.w3.org/ns/activitystreams#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors PatternNote (lib/remoteStorage.ts) as written by patternNoteToRdf
+# and read by extractPatternNote.
+leptum:PatternNoteShape EXTRA a {
+  a [ leptum:PatternNote ] ;
+  leptum:activity xsd:string ? ;
+  as:content xsd:string ? ;
+  dcterms:created xsd:dateTime ? ;
+  dcterms:modified xsd:dateTime ?
+}

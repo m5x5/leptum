@@ -1,8 +1,15 @@
 "use client";
-import { useEffect, useState, useMemo, useCallback, useRef, useLayoutEffect } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
+import { useSearchParams } from "next/navigation";
+import { Spinner } from "../../components/ui/spinner";
+import { toast } from "sonner";
 import { createPortal } from "react-dom";
 import { remoteStorageClient } from "../../lib/remoteStorage";
-import { PlusIcon, FilterIcon } from "@heroicons/react/solid";
+import { PlusIcon, FilterIcon, DocumentTextIcon, ChevronDownIcon, ChevronUpIcon, XIcon } from "@heroicons/react/solid";
+import { useTimeFormat } from "../../utils/useTimeFormat";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../components/ui/select";
+import { Button } from "../../components/ui/button";
+import { Popover, PopoverAnchor, PopoverContent, PopoverTrigger } from "../../components/ui/popover";
 import Modal from "../../components/Modal";
 import {
   Drawer,
@@ -10,13 +17,12 @@ import {
   DrawerHeader,
   DrawerTitle,
 } from "../../components/ui/drawer";
-import { Tabs, TabsList, TabsTrigger } from "../../components/ui/tabs";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
 import { useActivityWatch } from "../../utils/useActivityWatch";
 import { useMentions } from "../../utils/useMentions";
 import { usePhotoAttachments } from "../../utils/usePhotoAttachments";
-import { extractMentionedEntityIds } from "../../components/ui/mention-input";
+import { extractMentionedEntityIds, HighlightedMentions } from "../../components/ui/mention-input";
 import { GCalBadge } from "../../components/ui/gcal-badge";
 import FilterControls from "../../components/Timeline/FilterControls";
 
@@ -27,6 +33,7 @@ import ImportActivityWatchForm from "../../components/Timeline/ImportActivityWat
 import { LiveSummaryBar } from "../../components/Timeline/LiveSummaryBar";
 import { TimelineScheduleView } from "../../components/Timeline/TimelineScheduleView";
 import { TimelineWeekView } from "../../components/Timeline/TimelineWeekView";
+import { TimelineMonthView } from "../../components/Timeline/TimelineMonthView";
 import { LifeView } from "../../components/Timeline/LifeView";
 import { ImportGoogleCalendarModal } from "../../components/Modal/ImportGoogleCalendarModal";
 import { StaticSummaryBar } from "../../components/Timeline/StaticSummaryBar";
@@ -35,6 +42,8 @@ import { DayTimelineContent } from "../../components/Timeline/DayTimelineContent
 import { TimeScale } from "../../components/Timeline/TimeScale";
 import { AWEventDetailContent } from "../../components/Timeline/AWEventDetailContent";
 import { useIsLargeScreen } from "../../hooks/use-mobile";
+import { useQuickNotes } from "../../utils/useQuickNotes";
+import { SuggestionBanner } from "../../components/Timeline/SuggestionBanner";
 
 interface Impact {
   id?: string;
@@ -54,20 +63,23 @@ interface Impact {
   sourceUrl?: string;
   allDay?: boolean;
   requiresOnlineTime?: boolean;
+  dismissed?: boolean;
 }
 
 export default function TimelinePageContent() {
+  const { use24Hour } = useTimeFormat();
 
   const [impacts, setImpacts] = useState<Impact[]>([]);
   const impactsRef = useRef(impacts);
-  impactsRef.current = impacts;
+  useEffect(() => {
+    impactsRef.current = impacts;
+  });
   const [isDataLoaded, setIsDataLoaded] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showMobileAddDrawer, setShowMobileAddDrawer] = useState(false);
   const [editingImpact, setEditingImpact] = useState<Impact | null>(null);
   const [editPopupAnchor, setEditPopupAnchor] = useState<{ top: number; left: number; right: number; bottom: number } | null>(null);
-  const [editPopupPosition, setEditPopupPosition] = useState({ top: 0, left: 0 });
-  const editPopupRef = useRef<HTMLDivElement>(null);
+  const editSubmitRef = useRef<(() => void) | null>(null);
   const [editingIndex, setEditingIndex] = useState<number>(-1);
   const [editFormData, setEditFormData] = useState<{
     activity: string;
@@ -93,11 +105,9 @@ export default function TimelinePageContent() {
   const [gcalImportRange, setGcalImportRange] = useState<{ start: Date; end: Date } | null>(null);
   const [selectedAWEvent, setSelectedAWEvent] = useState<ProcessedAWEvent | null>(null);
   const [selectedAWHourEvents, setSelectedAWHourEvents] = useState<ProcessedAWEvent[] | null>(null);
+  const [expandedAWEventId, setExpandedAWEventId] = useState<string | null>(null);
   const [awPopupAnchor, setAwPopupAnchor] = useState<{ top: number; left: number; right: number; bottom: number; width: number; height: number } | null>(null);
-  const [awPopupPosition, setAwPopupPosition] = useState({ top: 0, left: 0 });
-  const awPopupRef = useRef<HTMLDivElement>(null);
   const [showMobileFiltersDrawer, setShowMobileFiltersDrawer] = useState(false);
-  const [showDesktopFilters, setShowDesktopFilters] = useState(false);
 
   // Helpers for add-activity (used in effect and handlers below)
   const getLocalDateTimeStrings = useCallback((timestamp: number) => {
@@ -166,28 +176,114 @@ export default function TimelinePageContent() {
 
   const isLargeScreen = useIsLargeScreen();
 
+  // Day notes popup (desktop) / drawer (mobile)
+  const [noteDrawerDate, setNoteDrawerDate] = useState<string | null>(null);
+  const [notePopupAnchor, setNotePopupAnchor] = useState<{ top: number; left: number; right: number; bottom: number } | null>(null);
+  const { notes: quickNotes } = useQuickNotes();
+
+  const dayNotesCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    quickNotes.forEach((note) => {
+      const d = new Date(note.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      counts[key] = (counts[key] ?? 0) + 1;
+    });
+    return counts;
+  }, [quickNotes]);
+
+  const noteDrawerNotes = useMemo(() => {
+    if (!noteDrawerDate) return [];
+    return quickNotes
+      .filter((n) => {
+        const d = new Date(n.createdAt);
+        const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+        return key === noteDrawerDate;
+      })
+      .sort((a, b) => b.createdAt - a.createdAt);
+  }, [quickNotes, noteDrawerDate]);
+
   // Pagination state: 7 days by default on large screens, 3 on small
   const [daysToShow, setDaysToShow] = useState(3);
 
   useEffect(() => {
     if (isLargeScreen && daysToShow === 3) {
-      setDaysToShow(7);
+      queueMicrotask(() => setDaysToShow(7));
     }
   }, [isLargeScreen, daysToShow]);
 
   // View mode state - default to schedule on mobile, day on desktop
-  const [viewMode, setViewMode] = useState<"day" | "schedule" | "week" | "life">(() => {
+  const [viewMode, setViewMode] = useState<"day" | "schedule" | "week" | "month" | "life">(() => {
     if (typeof window !== 'undefined') {
       return window.innerWidth < 768 ? "schedule" : "day";
     }
     return "day";
   });
 
+  // Week navigation via sessionStorage + custom events (no Next.js route changes)
+  const searchParams = useSearchParams();
+  const getMonday = useCallback((d: Date): Date => {
+    const date = new Date(d);
+    const day = date.getDay();
+    const diff = day === 0 ? -6 : 1 - day; // Monday = 1
+    date.setDate(date.getDate() + diff);
+    date.setHours(0, 0, 0, 0);
+    return date;
+  }, []);
+
+  const [currentWeekStart, setCurrentWeekStartRaw] = useState<Date>(() => {
+    if (typeof window !== 'undefined') {
+      const stored = sessionStorage.getItem('timeline-week-start');
+      if (stored) {
+        const parsed = new Date(stored);
+        if (!isNaN(parsed.getTime())) return getMonday(parsed);
+      }
+      const weekParam = searchParams.get("week");
+      if (weekParam) {
+        const parsed = new Date(weekParam + "T00:00:00");
+        if (!isNaN(parsed.getTime())) return getMonday(parsed);
+      }
+    }
+    return getMonday(new Date());
+  });
+
+  const setCurrentWeekStart = useCallback((date: Date) => {
+    const monday = getMonday(date);
+    setCurrentWeekStartRaw(monday);
+    sessionStorage.setItem('timeline-week-start', monday.toISOString());
+    // Update URL bar without triggering Next.js navigation
+    const key = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, '0')}-${String(monday.getDate()).padStart(2, '0')}`;
+    const params = new URLSearchParams(window.location.search);
+    params.set("week", key);
+    window.history.replaceState(null, '', `/timeline?${params.toString()}`);
+    window.dispatchEvent(new CustomEvent('weekChanged', { detail: monday }));
+  }, [getMonday]);
+
+  // Listen for week changes from the header navigator
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const date = (e as CustomEvent<Date>).detail;
+      setCurrentWeekStartRaw(date);
+    };
+    window.addEventListener('weekChanged', handler);
+    return () => window.removeEventListener('weekChanged', handler);
+  }, []);
+
+  const weekDates = useMemo(() => {
+    const dates: string[] = [];
+    // Chronological order (Monday first) for natural left-to-right reading
+    for (let i = 0; i <= 6; i++) {
+      const d = new Date(currentWeekStart);
+      d.setDate(d.getDate() + i);
+      dates.push(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`);
+    }
+    return dates;
+  }, [currentWeekStart]);
+
   // Active date for navigation highlighting
   const [activeDateKey, setActiveDateKey] = useState<string | null>(null);
 
   const { goals } = useGoals();
-  useGoalTypes();
+  const { goalTypes } = useGoalTypes();
   const { updateMentionsForSource, deleteMentionsForSource } = useMentions();
   const {
     addPhoto,
@@ -220,9 +316,14 @@ export default function TimelinePageContent() {
     };
 
     loadImpacts();
+
+    // Listen for external impact changes (e.g. from WebMCP suggestions)
+    const handleExternalUpdate = () => { loadImpacts(); };
+    window.addEventListener("impactsUpdated", handleExternalUpdate);
+    return () => { window.removeEventListener("impactsUpdated", handleExternalUpdate); };
   }, []);
 
-  const saveImpacts = async (newImpacts: Impact[]) => {
+  const saveImpacts = useCallback(async (newImpacts: Impact[]) => {
     try {
       // Filter out virtual continuations before saving
       const realImpacts = newImpacts.filter(imp => !imp.isVirtualContinuation);
@@ -235,7 +336,7 @@ export default function TimelinePageContent() {
     } catch (error) {
       console.error("Failed to save impacts:", error);
     }
-  };
+  }, []);
 
   const addNewActivity = async (formData: {
     activity: string;
@@ -332,9 +433,14 @@ export default function TimelinePageContent() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [getLocalDateTimeStrings]);
 
-  const openEditModal = (impact: Impact, index: number, anchorRect?: DOMRect) => {
+  const openEditModal = (impact: Impact, _index: number, anchorRect?: DOMRect) => {
+    // Find the correct index in the global impacts array by ID or timestamp,
+    // since the passed index may be from a filtered/grouped subset
+    const globalIndex = impact.id
+      ? impacts.findIndex(i => i.id === impact.id)
+      : impacts.findIndex(i => i.date === impact.date && i.activity === impact.activity);
     setEditingImpact(impact);
-    setEditingIndex(index);
+    setEditingIndex(globalIndex >= 0 ? globalIndex : _index);
 
     const { dateStr, timeStr } = getLocalDateTimeStrings(impact.date);
     const editData: { activity: string; date: string; time: string; endDate?: string; endTime?: string; goalId: string; requiresOnlineTime?: boolean } = {
@@ -425,8 +531,6 @@ export default function TimelinePageContent() {
     // Track mentions
     const entityIds = extractMentionedEntityIds(formData.activity);
     await updateMentionsForSource('impact', impactId, 'activity', entityIds, formData.activity);
-
-    closeEditPopup();
   };
 
   // Handle photo deletion from edit form
@@ -468,6 +572,13 @@ export default function TimelinePageContent() {
     closeEditPopup();
   };
 
+  const handleDismissActivity = async (impact: Impact) => {
+    const updatedImpacts = impacts.map((imp) =>
+      imp.id === impact.id ? { ...imp, dismissed: !imp.dismissed } : imp
+    );
+    await saveImpacts(updatedImpacts);
+  };
+
   const formatTime = (timestamp: number) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString("en-US", {
@@ -483,7 +594,6 @@ export default function TimelinePageContent() {
       weekday: "short",
       month: "short",
       day: "numeric",
-      year: "numeric",
     });
   };
 
@@ -568,7 +678,9 @@ export default function TimelinePageContent() {
         nextDayStart.setHours(24, 0, 0, 0);
         const nextDateKey = toDateKey(nextDayStart.getTime());
 
-        if (nextDateKey === endDateKey) {
+        // Only create a continuation if the event genuinely extends past midnight
+        // (endTime strictly after midnight — not exactly at 00:00:00 which is zero duration)
+        if (nextDateKey === endDateKey && endTime > nextDayStart.getTime()) {
           const virtualImpact: Impact = {
             id: impact.id,
             activity: impact.activity,
@@ -621,8 +733,22 @@ export default function TimelinePageContent() {
     return Array.from(dateSet).sort().reverse();
   }, [groupedImpacts, awData, filterSettings.showActivityWatch]);
 
-  const dates = allDates.slice(0, daysToShow);
-  const hasMoreDays = allDates.length > daysToShow;
+  // For day view, use week-based dates; for schedule view, use data-driven dates
+  const dates = viewMode === "day" ? weekDates : allDates.slice(0, daysToShow);
+  // Day/week/month draw a calendar grid that does not depend on the events —
+  // render it at once and let the events fill in when the pod answers.
+  // Schedule and life views are built from the events themselves.
+  const calendarView = viewMode === "day" || viewMode === "week" || viewMode === "month";
+  const showGrid = calendarView || (isDataLoaded && impacts.length > 0);
+
+  // Loading hint as a toast: it lives outside the layout, so nothing jumps
+  // when it appears or goes away. Dismissed as soon as the pod has answered.
+  useEffect(() => {
+    if (isDataLoaded) return;
+    const id = toast.loading("Loading events…");
+    return () => { toast.dismiss(id); };
+  }, [isDataLoaded]);
+  const hasMoreDays = viewMode !== "day" && allDates.length > daysToShow;
 
   // Track which date is currently in view
   useEffect(() => {
@@ -764,86 +890,60 @@ export default function TimelinePageContent() {
   const handleAWPopupClose = useCallback(() => {
     setSelectedAWEvent(null);
     setSelectedAWHourEvents(null);
+    setExpandedAWEventId(null);
     setAwPopupAnchor(null);
   }, []);
 
+  const tryCloseOpenPopups = useCallback(() => {
+    let closed = false;
+    if (awPopupAnchor != null) {
+      setSelectedAWEvent(null);
+      setSelectedAWHourEvents(null);
+      setAwPopupAnchor(null);
+      closed = true;
+    }
+    if (notePopupAnchor != null) {
+      setNotePopupAnchor(null);
+      closed = true;
+    }
+    return closed;
+  }, [awPopupAnchor, notePopupAnchor]);
+
   const showAWPopup = (selectedAWEvent != null || (selectedAWHourEvents && selectedAWHourEvents.length > 0)) && awPopupAnchor != null;
 
-  useLayoutEffect(() => {
-    if (!awPopupAnchor) return;
-    const updatePosition = () => {
-      const GAP = 8;
-      const popupWidth = 320;
-      const popupMaxHeight = Math.min(400, window.innerHeight * 0.6);
-      let top = awPopupAnchor.bottom + GAP;
-      let left = awPopupAnchor.left;
-      if (top + popupMaxHeight > window.innerHeight - 16) {
-        top = Math.max(16, awPopupAnchor.top - popupMaxHeight - GAP);
-      }
-      if (left + popupWidth > window.innerWidth - 16) {
-        left = window.innerWidth - popupWidth - 16;
-      }
-      if (left < 16) left = 16;
-      setAwPopupPosition({ top, left });
-    };
-    updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [awPopupAnchor]);
 
-  useEffect(() => {
-    if (!showAWPopup) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (awPopupRef.current?.contains(target)) return;
-      handleAWPopupClose();
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showAWPopup, handleAWPopupClose]);
 
   const showEditPopup = editFormData != null && editPopupAnchor != null;
 
-  useLayoutEffect(() => {
-    if (!editPopupAnchor) return;
-    const updatePosition = () => {
-      const GAP = 8;
-      const popupWidth = 360;
-      const popupMaxHeight = Math.min(480, window.innerHeight * 0.7);
-      let top = editPopupAnchor.bottom + GAP;
-      let left = editPopupAnchor.left;
-      if (top + popupMaxHeight > window.innerHeight - 16) {
-        top = Math.max(16, editPopupAnchor.top - popupMaxHeight - GAP);
-      }
-      if (left + popupWidth > window.innerWidth - 16) {
-        left = window.innerWidth - popupWidth - 16;
-      }
-      if (left < 16) left = 16;
-      setEditPopupPosition({ top, left });
-    };
-    updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, [editPopupAnchor]);
+  // The popups are anchored to a rect captured on click (a calendar block or a
+  // day-header button), not to a rendered element. Radix positions against a
+  // virtual anchor, so we hand it that rect; flipping at the viewport edge and
+  // closing on outside click/Escape come from the Popover itself.
+  const virtualAnchor = (r: { top: number; left: number; right: number; bottom: number } | null) => ({
+    current: {
+      getBoundingClientRect: () => {
+        const top = r?.top ?? 0, left = r?.left ?? 0, right = r?.right ?? 0, bottom = r?.bottom ?? 0;
+        return { top, left, right, bottom, x: left, y: top, width: right - left, height: bottom - top, toJSON: () => ({}) } as DOMRect;
+      },
+    },
+  });
+  const editAnchorRef = useMemo(() => virtualAnchor(editPopupAnchor), [editPopupAnchor]);
+  const awAnchorRef = useMemo(() => virtualAnchor(awPopupAnchor), [awPopupAnchor]);
+  const noteAnchorRef = useMemo(() => virtualAnchor(notePopupAnchor), [notePopupAnchor]);
 
-  useEffect(() => {
-    if (!showEditPopup || showDeleteConfirm) return;
-    const handleClickOutside = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (editPopupRef.current?.contains(target)) return;
-      closeEditPopup();
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [showEditPopup, showDeleteConfirm, closeEditPopup]);
+
+
+
+
+  const openNotePanel = useCallback((dateKey: string, buttonEl: HTMLButtonElement) => {
+    setNoteDrawerDate(dateKey);
+    if (isLargeScreen) {
+      const rect = buttonEl.getBoundingClientRect();
+      setNotePopupAnchor({ top: rect.top, left: rect.left, right: rect.right, bottom: rect.bottom });
+    } else {
+      setNotePopupAnchor(null);
+    }
+  }, [isLargeScreen]);
 
   // Create manual entry from AW event
   const handleCreateManualEntry = (event: ProcessedAWEvent) => {
@@ -917,57 +1017,79 @@ export default function TimelinePageContent() {
     return total;
   }, [awData, filterSettings, dates, getFilteredAWEventsForDate]);
 
+  // undefined: slots not looked up yet (first paint); null: the shell has none.
+  // Rendering the inline fallback before the lookup would flash the view
+  // switcher inside the content and then move it into the header.
+  const [headerSlot, setHeaderSlot] = useState<HTMLElement | null | undefined>(undefined);
+  const [headerActionsSlot, setHeaderActionsSlot] = useState<HTMLElement | null | undefined>(undefined);
+
+  useEffect(() => {
+    // Find the portal targets in the AppShell header; re-resolve on resize/rotation
+    const update = () => {
+      setHeaderSlot(document.getElementById("timeline-header-slot"));
+      setHeaderActionsSlot(document.getElementById("timeline-header-actions-slot"));
+    };
+    queueMicrotask(update);
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
+  }, []);
+
+  const tabs = (
+    <Select
+      value={viewMode}
+      onValueChange={(v) => setViewMode(v as "day" | "schedule" | "week" | "month" | "life")}
+    >
+      <SelectTrigger className="h-11 md:h-8 w-[110px] sm:w-[140px] rounded-full">
+        <SelectValue placeholder="View" />
+      </SelectTrigger>
+      <SelectContent>
+        <SelectItem value="day">Day</SelectItem>
+        <SelectItem value="schedule">Schedule</SelectItem>
+        <SelectItem value="week">Week</SelectItem>
+        <SelectItem value="month">Month</SelectItem>
+        <SelectItem value="life">Life</SelectItem>
+      </SelectContent>
+    </Select>
+  );
+
+  const filterButton =
+    viewMode === "day" && awData && awData.buckets.length > 0 ? (
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button variant="outline" size="sm" className="w-11 px-0 md:w-8 shrink-0" title="Filters">
+            <FilterIcon className="text-muted-foreground" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="end" className="w-96 max-w-[calc(100vw-2rem)] p-0">
+          <FilterControls
+            filterSettings={filterSettings}
+            buckets={awData.buckets}
+            onUpdateFilters={updateFilterSettings}
+            onToggleBucket={toggleBucket}
+            forceExpanded={true}
+          />
+        </PopoverContent>
+      </Popover>
+    ) : null;
+
   return (
     <div className="@container">
-        {/* Header: title left, tabs + filter right when container has enough space */}
-        <div className="flex flex-col gap-3 @4xl:flex-row @4xl:items-center @4xl:justify-between mb-6">
-          <div className="shrink-0">
-            <h1 className="text-2xl md:text-3xl font-bold text-foreground">Timeline</h1>
-            <p className="text-sm text-muted-foreground mt-1">Daily breakdown of your activities</p>
+        {/* Portal tabs into the sub-header; filter button goes next to the Import button in the top bar */}
+        {headerSlot ? createPortal(tabs, headerSlot) : headerSlot === null ? (
+          <div className="mb-6 flex items-center gap-3 flex-wrap">
+            {tabs}
+            {filterButton}
           </div>
-          <div className="flex items-center gap-3 flex-wrap">
-            {/* View Tabs */}
-            <Tabs value={viewMode} onValueChange={(value) => setViewMode(value as "day" | "schedule" | "week" | "life")}>
-              <TabsList className="grid w-full @4xl:w-auto grid-cols-4">
-                <TabsTrigger value="day">Day View</TabsTrigger>
-                <TabsTrigger value="schedule">Schedule View</TabsTrigger>
-                <TabsTrigger value="week">Week View</TabsTrigger>
-                <TabsTrigger value="life">Life</TabsTrigger>
-              </TabsList>
-            </Tabs>
-            {/* Compact filter button — only in wide layout */}
-            {viewMode === "day" && awData && awData.buckets.length > 0 && (
-              <div className="hidden @4xl:block relative shrink-0">
-                <button
-                  onClick={() => setShowDesktopFilters(!showDesktopFilters)}
-                  className="flex items-center gap-2 px-3 py-2 h-10 bg-card border border-border rounded-lg hover:bg-muted/50 transition text-sm"
-                >
-                  <FilterIcon className="w-4 h-4 text-muted-foreground" />
-                  <span className="font-medium text-foreground">Filters</span>
-                  {totalActiveTime > 0 && (
-                    <span className="text-xs text-green-700 dark:text-green-400">
-                      {formatDuration(totalActiveTime)}
-                    </span>
-                  )}
-                </button>
-                {showDesktopFilters && (
-                  <div className="absolute right-0 top-full mt-1 z-50 w-96 bg-popover border border-border rounded-lg shadow-xl">
-                    <FilterControls
-                      filterSettings={filterSettings}
-                      buckets={awData.buckets}
-                      onUpdateFilters={updateFilterSettings}
-                      onToggleBucket={toggleBucket}
-                      forceExpanded={true}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </div>
+        ) : null}
+        {headerSlot && headerActionsSlot && filterButton && createPortal(filterButton, headerActionsSlot)}
 
         {/* Mobile Add Activity Button */}
-        <button
+        <Button
+          size="lg"
           onClick={() => {
             // Round current time to nearest 15 minutes
             const roundedTimestamp = roundToNearest15Minutes(Date.now());
@@ -980,35 +1102,33 @@ export default function TimelinePageContent() {
             });
             setShowMobileAddDrawer(true);
           }}
-          className="md:hidden fixed bottom-24 left-1/2 transform -translate-x-1/2 z-[45] flex items-center gap-2 px-6 py-3 bg-primary text-primary-foreground rounded-full shadow-lg hover:bg-primary/90 transition cursor-pointer"
+          className="md:hidden fixed bottom-24 left-1/2 -translate-x-1/2 z-[45] shadow-lg"
         >
           <PlusIcon className="w-5 h-5" />
           <span>Add Activity</span>
-        </button>
+        </Button>
 
         {/* Mobile Filter Button */}
         {viewMode === "day" && awData && awData.buckets.length > 0 && (
-          <button
+          <Button
+            variant="outline"
             onClick={() => setShowMobileFiltersDrawer(true)}
-            className="md:hidden w-full flex items-center justify-center gap-2 px-4 py-3 bg-card border border-border rounded-lg hover:bg-muted/50 transition mb-6"
+            className="md:hidden w-full mb-6"
           >
             <FilterIcon className="w-5 h-5 text-muted-foreground" />
-            <span className="font-semibold text-foreground">Filters</span>
-          </button>
+          </Button>
         )}
 
         {/* Desktop Filter — popup anchored to toggle button, hidden when inline header button takes over */}
         {viewMode === "day" && awData && awData.buckets.length > 0 && (
-          <div className="hidden md:block @4xl:hidden mb-6 relative">
-            <button
-              onClick={() => setShowDesktopFilters(!showDesktopFilters)}
-              className="flex items-center gap-2 px-4 py-2 bg-card border border-border rounded-lg hover:bg-muted/50 transition"
-            >
-              <FilterIcon className="w-4 h-4 text-muted-foreground" />
-              <span className="font-medium text-foreground text-sm">Filters</span>
-            </button>
-            {showDesktopFilters && (
-              <div className="absolute left-0 top-full mt-1 z-50 w-96 bg-popover border border-border rounded-lg shadow-xl">
+          <div className="hidden md:block @4xl:hidden mb-6">
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="md:px-4" title="Filters">
+                  <FilterIcon className="text-muted-foreground" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="start" className="w-96 max-w-[calc(100vw-2rem)] p-0">
                 <FilterControls
                   filterSettings={filterSettings}
                   buckets={awData.buckets}
@@ -1016,32 +1136,29 @@ export default function TimelinePageContent() {
                   onToggleBucket={toggleBucket}
                   forceExpanded={true}
                 />
-              </div>
-            )}
+              </PopoverContent>
+            </Popover>
           </div>
         )}
 
         {/* Error Display */}
         {awError && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-lg">
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 rounded-control">
             <p className="text-sm text-red-500">{awError}</p>
           </div>
         )}
 
-        {/* Loading State */}
-        {!isDataLoaded && (
+        {/* Loading State — only where there is nothing to draw without events */}
+        {!isDataLoaded && !calendarView && (
           <div className="flex flex-col items-center justify-center py-32">
-            <p className="text-lg text-muted-foreground">Loading timeline data...</p>
+            <Spinner className="h-8 w-8 text-muted-foreground" />
           </div>
         )}
 
         {/* Empty State */}
-        {isDataLoaded && impacts.length === 0 && (
+        {isDataLoaded && impacts.length === 0 && !calendarView && (
           <div className="flex flex-col items-center justify-center py-32">
-            <p className="text-lg text-muted-foreground mb-4">No timeline data yet</p>
-            <p className="text-sm text-muted-foreground mb-6">
-              Click &quot;Add Activity&quot; above to start logging your activities
-            </p>
+            <p className="text-lg text-muted-foreground">No timeline data yet</p>
           </div>
         )}
 
@@ -1067,14 +1184,33 @@ export default function TimelinePageContent() {
         </Modal>
 
         {/* Edit Activity Popup */}
-        {showEditPopup &&
-          !showDeleteConfirm &&
-          createPortal(
-            <div
-              ref={editPopupRef}
-              className="fixed z-[9999] w-[360px] max-h-[min(480px,70vh)] overflow-y-auto scrollbar-hide rounded-lg border border-border bg-popover shadow-xl p-4"
-              style={{ top: editPopupPosition.top, left: editPopupPosition.left }}
-            >
+        <Popover
+          open={showEditPopup && !showDeleteConfirm}
+          onOpenChange={(open) => {
+            if (open) return;
+            // Save any unsaved edits, then close.
+            editSubmitRef.current?.();
+            closeEditPopup();
+          }}
+        >
+          <PopoverAnchor virtualRef={editAnchorRef} />
+          <PopoverContent
+            side="bottom"
+            align="start"
+            collisionPadding={16}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            className="z-[9999] w-[360px] max-w-[calc(100vw-2rem)] max-h-[min(480px,70vh)] overflow-y-auto scrollbar-hide p-4"
+          >
+              <button
+                onClick={() => {
+                  editSubmitRef.current?.();
+                  closeEditPopup();
+                }}
+                className="absolute top-2 right-2 p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted z-10"
+                aria-label="Close"
+              >
+                <XIcon className="w-4 h-4" />
+              </button>
               {editFormData && (
                 <ActivityForm
                   initialData={editFormData}
@@ -1085,11 +1221,63 @@ export default function TimelinePageContent() {
                   onDelete={() => setShowDeleteConfirm(true)}
                   existingPhotos={editingImpact?.id ? getPhotosForImpact(editingImpact.id) : []}
                   onDeletePhoto={handleDeletePhotoFromImpact}
+                  submitRef={editSubmitRef}
+                  hideSubmit
                 />
               )}
-            </div>,
-            document.body
-          )}
+          </PopoverContent>
+        </Popover>
+
+        {/* Note Popup (desktop) */}
+        <Popover
+          open={notePopupAnchor !== null && noteDrawerDate !== null}
+          onOpenChange={(open) => {
+            if (open) return;
+            setNotePopupAnchor(null);
+            setNoteDrawerDate(null);
+          }}
+        >
+          <PopoverAnchor virtualRef={noteAnchorRef} />
+          <PopoverContent
+            side="bottom"
+            align="start"
+            collisionPadding={16}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            className="z-[9999] w-80 max-h-[min(400px,70vh)] overflow-y-auto scrollbar-hide p-0"
+          >
+              <div className="px-4 py-3 border-b border-border">
+                <p className="text-sm font-semibold text-foreground">
+                  {new Date(noteDrawerDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                </p>
+              </div>
+              <div className="p-3 space-y-2">
+                {noteDrawerNotes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground py-2 text-center">No notes for this day.</p>
+                ) : (
+                  noteDrawerNotes.map((note) => (
+                    <article key={note.id} className="rounded-control border border-border/80 bg-muted/30 overflow-hidden">
+                      <div className="p-2.5">
+                        {note.text && (
+                          <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed"><HighlightedMentions text={note.text} /></p>
+                        )}
+                        {!note.text && note.audioPath && (
+                          <p className="text-xs text-muted-foreground italic">Voice note</p>
+                        )}
+                        {!note.text && !note.audioPath && (note.photoIds?.length ?? 0) > 0 && (
+                          <p className="text-xs text-muted-foreground italic">Photo note</p>
+                        )}
+                      </div>
+                      <div className="px-2.5 py-1 border-t border-border/60">
+                        <time className="text-xs text-muted-foreground tabular-nums">
+                          {new Date(note.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                        </time>
+                      </div>
+                    </article>
+                  ))
+                )}
+              </div>
+          </PopoverContent>
+        </Popover>
 
         {/* Delete Activity Confirmation Modal */}
         <Modal
@@ -1102,24 +1290,27 @@ export default function TimelinePageContent() {
           </Modal.Body>
           <Modal.Footer>
             <div className="flex gap-2 justify-end">
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowDeleteConfirm(false)}
-                className="px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
+                variant="destructive"
                 onClick={deleteActivity}
-                className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700"
               >
                 Delete
-              </button>
+              </Button>
             </div>
           </Modal.Footer>
         </Modal>
 
+        {/* Pending WebMCP Suggestions */}
+        <SuggestionBanner />
+
         {/* Timeline Content - Only show when data is loaded and exists */}
-        {isDataLoaded && impacts.length > 0 && (
+        {showGrid && (
           <>
             {/* Schedule View */}
             {viewMode === "schedule" && (
@@ -1142,6 +1333,11 @@ export default function TimelinePageContent() {
                   setGcalImportRange({ start, end });
                   setShowGCalModal(true);
                 }}
+                onNoteClick={(dateKey, btn) => openNotePanel(dateKey, btn)}
+                dayNotesCounts={dayNotesCounts}
+                hasMoreDays={hasMoreDays}
+                remainingDays={allDates.length - daysToShow}
+                onLoadMore={() => setDaysToShow(prev => prev + (isLargeScreen ? 7 : 5))}
                 daysToShow={daysToShow}
               />
             )}
@@ -1149,13 +1345,13 @@ export default function TimelinePageContent() {
             {/* Day View - Single shared time scale for all days */}
             {viewMode === "day" && (
               <>
-        <div className="flex flex-col">
+        <div>
           {/* Single scroll container so headers and timeline columns stay aligned */}
           <div className="overflow-x-auto scrollbar-hide border-b border-border pb-4 mb-4 scroll-mt-32">
             <div
               className="min-w-max inline-grid gap-x-4 gap-y-4"
               style={{
-                gridTemplateColumns: `3rem repeat(${dates.length}, minmax(400px, 400px))`,
+                gridTemplateColumns: `3rem repeat(${dates.length}, minmax(${filterSettings.showManual && filterSettings.showActivityWatch ? "400px, 400px" : "200px, 200px"}))${hasMoreDays ? ' auto' : ''}`,
                 gridTemplateRows: "auto auto",
               }}
             >
@@ -1164,26 +1360,53 @@ export default function TimelinePageContent() {
               {dates.map((dateKey) => {
               const allDayImpacts = (groupedImpacts[dateKey] || []).filter(i => i.allDay);
               const dayImpacts = (groupedImpacts[dateKey] || []).filter(i => !i.allDay);
-              let displayDate: string;
+              let weekdayLabel: string;
+              let dayNum: number;
               let isTodayFlag: boolean;
               const firstImpact = dayImpacts[0] ?? allDayImpacts[0];
+              const headingParts = (ts: number) => {
+                const d = new Date(ts);
+                return {
+                  weekday: d.toLocaleDateString("en-US", { weekday: "short" }),
+                  day: d.getDate(),
+                };
+              };
               if (firstImpact) {
-                displayDate = formatDate(firstImpact.date);
+                ({ weekday: weekdayLabel, day: dayNum } = headingParts(firstImpact.date));
                 isTodayFlag = isToday(firstImpact.date);
               } else {
                 const [year, month, day] = dateKey.split('-').map(Number);
                 const dateTimestamp = new Date(year, month - 1, day).getTime();
-                displayDate = formatDate(dateTimestamp);
+                ({ weekday: weekdayLabel, day: dayNum } = headingParts(dateTimestamp));
                 isTodayFlag = isToday(dateTimestamp);
               }
               return (
                 <div key={dateKey} id={`day-${dateKey}`} className="row-start-1 space-y-3">
-                  <h2 className="text-xl font-semibold text-foreground">
-                    {displayDate}
-                    {isTodayFlag && (
-                      <span className="ml-2 text-sm font-normal text-primary">(Today)</span>
-                    )}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-xl font-semibold text-foreground flex items-center gap-2">
+                      <span>{weekdayLabel},</span>
+                      {isTodayFlag ? (
+                        <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-blue-500 text-white">
+                          {dayNum}
+                        </span>
+                      ) : (
+                        <span>{dayNum}</span>
+                      )}
+                    </h2>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => openNotePanel(dateKey, e.currentTarget)}
+                      title="View notes for this day"
+                      className={
+                        dayNotesCounts[dateKey]
+                          ? 'text-primary hover:text-primary/80'
+                          : 'text-muted-foreground'
+                      }
+                    >
+                      <DocumentTextIcon />
+                    </Button>
+                  </div>
                   {allDayImpacts.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {allDayImpacts.map(imp => (
@@ -1204,14 +1427,14 @@ export default function TimelinePageContent() {
                       getDurationInMs={getDurationInMs}
                       getActivityColor={getActivityColor}
                     />
-                  ) : dayImpacts.length > 0 ? (
+                  ) : (
                     <StaticSummaryBar
                       dateKey={dateKey}
                       dayImpacts={dayImpacts}
                       getActivityColor={getActivityColor}
                       formatTime={formatTime}
                     />
-                  ) : null}
+                  )}
                   <HeaderPresenceBar
                     dateKey={dateKey}
                     afkEvents={getFilteredAWEventsForDate(dateKey).filter(e => e.bucketType === 'afkstatus')}
@@ -1261,45 +1484,28 @@ export default function TimelinePageContent() {
                     onResizeImpact={handleResizeImpact}
                     onAWEventClick={handleAWEventClick}
                     onAWHourClick={handleAWHourClick}
+                    tryCloseOpenPopups={tryCloseOpenPopups}
                     sharedTimeScale
                   />
                 </div>
               );
             })}
+            {hasMoreDays && (
+              <div className="row-start-1 row-span-2 flex items-center pl-2">
+                <button
+                  onClick={() => setDaysToShow(prev => prev + (isLargeScreen ? 7 : 5))}
+                  className="flex flex-col items-center gap-1 px-3 py-6 bg-muted hover:bg-muted/80 text-foreground rounded-control font-medium text-sm transition-colors h-full"
+                >
+                  <span className="text-xs text-muted-foreground">{allDates.length - daysToShow}</span>
+                  <span className="text-xs">more</span>
+                  <span className="text-lg leading-none mt-1">→</span>
+                </button>
+              </div>
+            )}
             </div>
           </div>
         </div>
-
-        {/* Load More Button */}
-        {hasMoreDays && (
-          <div className="flex justify-center mt-8 mb-4">
-            <button
-              onClick={() => setDaysToShow(prev => prev + (isLargeScreen ? 7 : 5))}
-              className="px-6 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg font-semibold transition-colors flex items-center gap-2"
-            >
-              Load Next {isLargeScreen ? 7 : 5} Days
-              <span className="text-xs text-muted-foreground">
-                ({allDates.length - daysToShow} remaining)
-              </span>
-            </button>
-          </div>
-        )}
               </>
-            )}
-
-            {/* Load More Button - Schedule View */}
-            {viewMode === "schedule" && hasMoreDays && (
-              <div className="flex justify-center mt-8 mb-4">
-                <button
-                  onClick={() => setDaysToShow(prev => prev + (isLargeScreen ? 7 : 5))}
-                  className="px-6 py-3 bg-muted hover:bg-muted/80 text-foreground rounded-lg font-semibold transition-colors flex items-center gap-2"
-                >
-                  Load Next {isLargeScreen ? 7 : 5} Days
-                  <span className="text-xs text-muted-foreground">
-                    ({allDates.length - daysToShow} remaining)
-                  </span>
-                </button>
-              </div>
             )}
 
             {/* Week View */}
@@ -1307,6 +1513,7 @@ export default function TimelinePageContent() {
               <TimelineWeekView
                 impacts={impacts}
                 goals={goals}
+                goalTypes={goalTypes}
                 onEditActivity={openEditModal}
                 onAddActivity={handleAddActivityForDate}
                 getActivityColor={getActivityColor}
@@ -1314,6 +1521,19 @@ export default function TimelinePageContent() {
                 formatTime={formatTime}
                 isToday={isToday}
                 getDurationInMs={getDurationInMs}
+                weekStartDate={currentWeekStart}
+              />
+            )}
+
+            {/* Month View */}
+            {viewMode === "month" && (
+              <TimelineMonthView
+                impacts={impacts}
+                goals={goals}
+                goalTypes={goalTypes}
+                isToday={isToday}
+                getDurationInMs={getDurationInMs}
+                monthDate={currentWeekStart}
               />
             )}
 
@@ -1376,13 +1596,15 @@ export default function TimelinePageContent() {
         />
 
         {/* ActivityWatch Event Popup - positioned next to clicked event */}
-        {showAWPopup &&
-          createPortal(
-            <div
-              ref={awPopupRef}
-              className="fixed z-[9999] w-80 max-h-[min(400px,60vh)] overflow-y-auto scrollbar-hide rounded-lg border border-border bg-popover shadow-xl p-3"
-              style={{ top: awPopupPosition.top, left: awPopupPosition.left }}
-            >
+        <Popover open={!!showAWPopup} onOpenChange={(open) => { if (!open) handleAWPopupClose(); }}>
+          <PopoverAnchor virtualRef={awAnchorRef} />
+          <PopoverContent
+            side="bottom"
+            align="start"
+            collisionPadding={16}
+            onOpenAutoFocus={(e) => e.preventDefault()}
+            className="z-[9999] w-80 max-h-[min(400px,60vh)] overflow-y-auto scrollbar-hide p-3"
+          >
               <div className="space-y-2">
                 {selectedAWEvent && (
                   <AWEventDetailContent
@@ -1396,66 +1618,105 @@ export default function TimelinePageContent() {
                   selectedAWHourEvents.length > 1 &&
                   !selectedAWEvent && (
                     <div className="space-y-2">
-                      <p className="text-xs font-medium text-muted-foreground">
-                        {selectedAWHourEvents.length} events
-                      </p>
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="text-xs font-medium text-muted-foreground">
+                          {selectedAWHourEvents.length} events
+                        </p>
+                        <button
+                          onClick={handleAWPopupClose}
+                          className="p-1 text-muted-foreground hover:text-foreground rounded hover:bg-muted"
+                          aria-label="Close"
+                        >
+                          <XIcon className="w-4 h-4" />
+                        </button>
+                      </div>
                       {selectedAWHourEvents
                         .sort((a, b) => a.timestamp - b.timestamp)
-                        .map((event, idx) => (
-                          <div
-                            key={`${event.id}-${idx}`}
-                            className="p-2 rounded-lg border border-border bg-muted/30 hover:bg-muted/50 transition-colors"
-                          >
-                            <div className="flex items-center justify-between gap-2">
-                              <div className="flex items-center gap-2 min-w-0">
-                                <div
-                                  className={`w-1.5 h-8 rounded shrink-0 ${event.color}`}
-                                />
-                                <div className="min-w-0">
-                                  <p className="text-sm font-semibold text-foreground truncate">
-                                    {event.displayName}
-                                  </p>
-                                  <p className="text-[10px] text-muted-foreground">
-                                    {new Date(event.timestamp).toLocaleTimeString()} ·{" "}
-                                    {Math.floor(event.duration / 60)}m
-                                  </p>
+                        .map((event, idx) => {
+                          const isExpanded = expandedAWEventId === event.id;
+                          return (
+                            <div
+                              key={`${event.id}-${idx}`}
+                              className="rounded-control border border-border bg-muted/30 transition-colors"
+                            >
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setExpandedAWEventId(isExpanded ? null : event.id)
+                                }
+                                aria-expanded={isExpanded}
+                                className="w-full flex items-center justify-between gap-2 p-2 hover:bg-muted/60 rounded-control transition-colors text-left"
+                              >
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <div
+                                    className={`w-1.5 h-8 rounded shrink-0 ${event.color}`}
+                                  />
+                                  <div className="min-w-0">
+                                    <p className="text-sm font-semibold text-foreground truncate">
+                                      {event.displayName}
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(event.timestamp).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: !use24Hour })} ·{" "}
+                                      {Math.floor(event.duration / 60)}m
+                                    </p>
+                                  </div>
                                 </div>
-                              </div>
-                              <div className="flex gap-1 shrink-0">
-                                <button
-                                  onClick={() => {
-                                    setSelectedAWEvent(event);
-                                    setSelectedAWHourEvents(null);
-                                  }}
-                                  className="px-2 py-1 text-xs font-medium bg-muted text-foreground rounded hover:bg-muted/80"
-                                >
-                                  Details
-                                </button>
-                                <button
-                                  onClick={() => {
-                                    handleCreateManualEntry(event);
-                                    handleAWPopupClose();
-                                  }}
-                                  className="px-2 py-1 text-xs font-medium bg-primary text-primary-foreground rounded hover:opacity-90"
-                                >
-                                  To Entry
-                                </button>
-                              </div>
+                                <span className="shrink-0 text-muted-foreground">
+                                  {isExpanded ? (
+                                    <ChevronUpIcon className="h-5 w-5" />
+                                  ) : (
+                                    <ChevronDownIcon className="h-5 w-5" />
+                                  )}
+                                </span>
+                              </button>
+                              {isExpanded && (
+                                <div className="border-t border-border px-2 py-2 space-y-2">
+                                  <div>
+                                    <p className="text-xs font-medium text-foreground">Bucket</p>
+                                    <p className="text-xs text-muted-foreground">{event.bucketType}</p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-foreground">Timestamp</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {new Date(event.timestamp).toLocaleString(undefined, { year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: !use24Hour })}
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-foreground">Duration</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {Math.floor(event.duration / 60)}m {Math.floor(event.duration % 60)}s
+                                    </p>
+                                  </div>
+                                  <div>
+                                    <p className="text-xs font-medium text-foreground mb-1">Event Data</p>
+                                    <div className="bg-background rounded-control border border-border overflow-y-auto scrollbar-hide p-2 max-h-32">
+                                      <pre className="text-xs text-foreground font-mono whitespace-pre-wrap break-words">
+                                        {JSON.stringify(event.eventData, null, 2)}
+                                      </pre>
+                                    </div>
+                                  </div>
+                                  <div className="flex justify-end pt-1">
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        handleCreateManualEntry(event);
+                                        handleAWPopupClose();
+                                      }}
+                                      className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded hover:opacity-90"
+                                    >
+                                      To Entry
+                                    </button>
+                                  </div>
+                                </div>
+                              )}
                             </div>
-                          </div>
-                        ))}
-                      <button
-                        onClick={handleAWPopupClose}
-                        className="w-full mt-2 px-3 py-1.5 text-xs bg-muted text-foreground rounded hover:opacity-80"
-                      >
-                        Close
-                      </button>
+                          );
+                        })}
                     </div>
                   )}
               </div>
-            </div>,
-            document.body
-          )}
+          </PopoverContent>
+        </Popover>
 
         <Drawer open={showMobileAddDrawer} onOpenChange={setShowMobileAddDrawer}>
           <DrawerContent>
@@ -1486,7 +1747,7 @@ export default function TimelinePageContent() {
             </DrawerHeader>
             <div className="px-4 pb-8 overflow-y-auto">
               {awData && awData.buckets.length > 0 && (
-                <div className="bg-card rounded-lg">
+                <div className="bg-card rounded-control">
                   <FilterControls
                     filterSettings={filterSettings}
                     buckets={awData.buckets}
@@ -1497,6 +1758,48 @@ export default function TimelinePageContent() {
                     forceExpanded={true}
                   />
                 </div>
+              )}
+            </div>
+          </DrawerContent>
+        </Drawer>
+
+        {/* Day Notes Drawer (mobile only — desktop uses the popup above) */}
+        <Drawer open={noteDrawerDate !== null && notePopupAnchor === null} onOpenChange={(open) => { if (!open) setNoteDrawerDate(null); }}>
+          <DrawerContent className="max-h-[85vh]">
+            <DrawerHeader className="text-left">
+              <DrawerTitle>
+                Notes — {noteDrawerDate
+                  ? new Date(noteDrawerDate + 'T12:00:00').toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+                  : ''}
+              </DrawerTitle>
+            </DrawerHeader>
+            <div className="px-4 pb-8 overflow-y-auto space-y-3">
+              {noteDrawerNotes.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No notes for this day.</p>
+              ) : (
+                noteDrawerNotes.map((note) => (
+                  <article
+                    key={note.id}
+                    className="rounded-card border border-border/80 bg-muted/30 overflow-hidden"
+                  >
+                    <div className="p-3">
+                      {note.text && (
+                        <p className="text-sm text-foreground whitespace-pre-wrap leading-relaxed"><HighlightedMentions text={note.text} /></p>
+                      )}
+                      {!note.text && note.audioPath && (
+                        <p className="text-sm text-muted-foreground italic">Voice note</p>
+                      )}
+                      {!note.text && !note.audioPath && note.photoIds && note.photoIds.length > 0 && (
+                        <p className="text-sm text-muted-foreground italic">Photo note</p>
+                      )}
+                    </div>
+                    <div className="px-3 border-t border-border/60 bg-background/50 py-1">
+                      <time className="text-xs text-muted-foreground tabular-nums">
+                        {new Date(note.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                      </time>
+                    </div>
+                  </article>
+                ))
               )}
             </div>
           </DrawerContent>

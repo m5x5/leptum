@@ -1,0 +1,29 @@
+id: https://mpeters.dev/ns/leptum/linkml/goalType
+name: leptum-goalType
+description: >-
+  Mirrors GoalType (lib/remoteStorage.ts) as written by goalTypeToRdf and
+  read by extractGoalType (lib/solidRdf/transform.ts / fromRdf.ts).
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  GoalType:
+    tree_root: true
+    class_uri: leptum:GoalType
+    description: >-
+      A goal type/category. Additional rdf:type values are permitted (ShEx
+      EXTRA a).
+    attributes:
+      name:
+        slot_uri: schema:name
+        range: string
+      description:
+        slot_uri: schema:description
+        range: string

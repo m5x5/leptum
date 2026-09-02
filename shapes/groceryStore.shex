@@ -1,0 +1,23 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors GroceryStore (types/grocery.ts) as written by groceryStoreToRdf and
+# read by extractGroceryStore. GeoCoordinates duplicated locally (not shared
+# with task.shex's leptum:GeoCoordinatesShape) — ldo build merges every file
+# under ./shapes into one schema, and cross-file type references don't
+# resolve into valid generated TypeScript (verified: emits the bare shape
+# IRI as a type name, which prettier then fails to parse).
+leptum:GroceryStoreShape EXTRA a {
+  a [ schema:GroceryStore ] ;
+  schema:name xsd:string ? ;
+  schema:address xsd:string ? ;
+  schema:openingHours xsd:string ? ;
+  schema:geo @leptum:GroceryStoreGeoShape ?
+}
+
+leptum:GroceryStoreGeoShape {
+  a [ schema:GeoCoordinates ] ? ;
+  schema:latitude xsd:decimal ;
+  schema:longitude xsd:decimal
+}

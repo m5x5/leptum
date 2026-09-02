@@ -1,0 +1,115 @@
+@prefix schema: <https://schema.org/> .
+@prefix ical: <http://www.w3.org/2002/12/cal/ical#> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+leptum:RoutineShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( schema:Action ical:Vtodo leptum:Routine ) ] ;
+    sh:qualifiedMinCount 1 ;
+  ] ;
+  sh:property [
+    sh:path ical:uid ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path ical:summary ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path ical:rrule ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path schema:actionStatus ;
+    sh:in ( schema:CompletedActionStatus schema:ActiveActionStatus schema:PotentialActionStatus schema:FailedActionStatus ) ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path schema:about ;
+    sh:nodeKind sh:IRI ;
+  ] ;
+  sh:property [
+    sh:path leptum:isShowUpRoutine ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:routineTask ;
+    sh:node leptum:RoutineTaskShape ;
+  ] .
+
+leptum:RoutineTaskShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path rdf:type ;
+    sh:qualifiedValueShape [ sh:in ( schema:Action ical:Vtodo ) ] ;
+    sh:qualifiedMinCount 1 ;
+  ] ;
+  sh:property [
+    sh:path ical:uid ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path schema:name ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path ical:summary ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path schema:description ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path ical:relatedTo ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path schema:actionStatus ;
+    sh:in ( schema:CompletedActionStatus schema:ActiveActionStatus schema:PotentialActionStatus schema:FailedActionStatus ) ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:completedAt ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:effort ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:numericEstimate ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1 ;
+  ] ;
+  sh:property [
+    sh:path leptum:order ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1 ;
+  ] .

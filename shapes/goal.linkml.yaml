@@ -1,0 +1,153 @@
+id: https://mpeters.dev/ns/leptum/linkml/goal
+name: leptum-goal
+description: >-
+  Mirrors Goal (lib/remoteStorage.ts) as written by goalToRdf and read by
+  extractGoal. milestones/trackingConfig/trackingData didn't round-trip
+  through the flat Fact[] reader — restoring them is the highest-value fix in
+  the ldo migration.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Goal:
+    tree_root: true
+    class_uri: schema:Action
+    description: >-
+      A goal. The rdf:type is one of schema:Action or leptum:Goal (class_uri
+      lists the first; leptum:Goal is the alternative). Additional rdf:type
+      values are permitted (ShEx EXTRA a).
+    attributes:
+      name:
+        slot_uri: schema:name
+        range: string
+      description:
+        slot_uri: schema:description
+        range: string
+      color:
+        slot_uri: schema:color
+        range: string
+      additionalType:
+        slot_uri: schema:additionalType
+        range: uri
+      actionStatus:
+        slot_uri: schema:actionStatus
+        range: ActionStatusEnum
+      endTime:
+        slot_uri: schema:endTime
+        range: datetime
+      created:
+        slot_uri: dcterms:created
+        range: datetime
+      completedAt:
+        slot_uri: leptum:completedAt
+        range: datetime
+      milestone:
+        slot_uri: leptum:milestone
+        range: Milestone
+        inlined: true
+        multivalued: true
+      trackingConfig:
+        slot_uri: leptum:trackingConfig
+        range: TrackingConfig
+        inlined: true
+      trackingEntry:
+        slot_uri: leptum:trackingEntry
+        range: TrackingEntry
+        inlined: true
+        multivalued: true
+
+  Milestone:
+    description: A milestone within a goal.
+    attributes:
+      name:
+        slot_uri: schema:name
+        range: string
+      endTime:
+        slot_uri: schema:endTime
+        range: datetime
+      actionStatus:
+        slot_uri: schema:actionStatus
+        range: MilestoneActionStatusEnum
+      completedAt:
+        slot_uri: leptum:completedAt
+        range: datetime
+      order:
+        slot_uri: leptum:order
+        range: decimal
+
+  TrackingConfig:
+    description: Goal tracking configuration.
+    attributes:
+      trackingType:
+        slot_uri: leptum:trackingType
+        range: string
+        description: >-
+          Should be a value-set enum (counter/checklist/timer/amount)
+          matching GoalTrackingConfig['type'] — left as string, same
+          @ldo/cli literal-enum crash workaround as task.shex's effort
+          field.
+      unit:
+        slot_uri: leptum:unit
+        range: string
+      icon:
+        slot_uri: leptum:icon
+        range: string
+      dailyTarget:
+        slot_uri: leptum:dailyTarget
+        range: decimal
+      maxPerDay:
+        slot_uri: leptum:maxPerDay
+        range: decimal
+      increments:
+        slot_uri: leptum:increments
+        range: decimal
+        multivalued: true
+      options:
+        slot_uri: leptum:options
+        range: string
+        multivalued: true
+
+  TrackingEntry:
+    description: One tracking entry for a goal.
+    attributes:
+      date:
+        slot_uri: leptum:date
+        range: string
+      value:
+        slot_uri: leptum:value
+        range: decimal
+      completed:
+        slot_uri: leptum:completed
+        range: boolean
+      notes:
+        slot_uri: leptum:notes
+        range: string
+      timestamp:
+        slot_uri: leptum:timestamp
+        range: datetime
+
+enums:
+  ActionStatusEnum:
+    permissible_values:
+      CompletedActionStatus:
+        meaning: schema:CompletedActionStatus
+      ActiveActionStatus:
+        meaning: schema:ActiveActionStatus
+      PotentialActionStatus:
+        meaning: schema:PotentialActionStatus
+      FailedActionStatus:
+        meaning: schema:FailedActionStatus
+  MilestoneActionStatusEnum:
+    permissible_values:
+      CompletedActionStatus:
+        meaning: schema:CompletedActionStatus
+      PotentialActionStatus:
+        meaning: schema:PotentialActionStatus

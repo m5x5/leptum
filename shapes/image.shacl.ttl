@@ -1,0 +1,48 @@
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:PhotoAttachmentShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors PhotoAttachment (lib/remoteStorage.ts) as written by photoToRdf. schema:contentUrl is an IRI to a real Solid binary resource (raw image bytes, PUT with its own Content-Type by imageBackend.ts), not an embedded base64 literal. No separate thumbnail resource is modeled; the UI renders from the full image directly." ;
+  sh:targetClass schema:ImageObject ;
+  sh:property [
+    sh:path leptum:aboutImpact ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:contentUrl ;
+    sh:nodeKind sh:IRI ;
+    sh:maxCount 1 ;
+    sh:description "IRI of the pod binary resource holding the raw image bytes."
+  ] ;
+  sh:property [
+    sh:path schema:encodingFormat ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:width ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:height ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path schema:caption ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path dcterms:created ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] .

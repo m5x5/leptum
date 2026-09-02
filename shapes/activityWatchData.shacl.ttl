@@ -1,0 +1,170 @@
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix sh: <http://www.w3.org/ns/shacl#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+
+leptum:ActivityWatchDataShape
+  a sh:NodeShape ;
+  rdfs:comment "Mirrors ActivityWatchData (lib/remoteStorage.ts / activity-watch.d.ts) — a single imported-data blob (one fixed resource, same singleton shape as UserSettings/LocationUpdate), not one-per-record. Designed from the RS schema directly. Additional rdf:type values are permitted (ShEx EXTRA a)." ;
+  sh:targetClass leptum:ActivityWatchData ;
+  sh:property [
+    sh:path leptum:importedAt ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:event ;
+    sh:node leptum:AWEventShape
+  ] ;
+  sh:property [
+    sh:path leptum:bucket ;
+    sh:node leptum:BucketMetadataShape
+  ] .
+
+leptum:AWEventShape
+  a sh:NodeShape ;
+  rdfs:comment "One ActivityWatch event. Includes flattened EventData fields (activity-watch.d.ts) — all optional." ;
+  sh:property [
+    sh:path leptum:id ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:bucketId ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:bucketType ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:timestamp ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:duration ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:displayName ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:color ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:isHidden ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:status ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:file ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:project ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:language ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:projectPath ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:editor ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:editorVersion ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:eventType ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:url ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:title ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:audible ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:incognito ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:tabCount ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:app ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] .
+
+leptum:BucketMetadataShape
+  a sh:NodeShape ;
+  sh:property [
+    sh:path leptum:id ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:bucketType ;
+    sh:datatype xsd:string ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:eventCount ;
+    sh:datatype xsd:decimal ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:rangeStart ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:rangeEnd ;
+    sh:datatype xsd:dateTime ;
+    sh:maxCount 1
+  ] ;
+  sh:property [
+    sh:path leptum:isVisible ;
+    sh:datatype xsd:boolean ;
+    sh:maxCount 1
+  ] .

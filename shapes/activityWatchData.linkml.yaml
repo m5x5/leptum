@@ -1,0 +1,132 @@
+id: https://mpeters.dev/ns/leptum/linkml/activityWatchData
+name: leptum-activityWatchData
+description: >-
+  Mirrors ActivityWatchData (lib/remoteStorage.ts / activity-watch.d.ts) — a
+  single imported-data blob (one fixed resource, same singleton shape as
+  UserSettings/LocationUpdate), not one-per-record. Designed from the RS
+  schema directly.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  ActivityWatchData:
+    tree_root: true
+    class_uri: leptum:ActivityWatchData
+    description: >-
+      Singleton imported ActivityWatch data blob. Additional rdf:type values
+      are permitted (ShEx EXTRA a).
+    attributes:
+      importedAt:
+        slot_uri: leptum:importedAt
+        range: datetime
+      event:
+        slot_uri: leptum:event
+        range: AWEvent
+        inlined: true
+        multivalued: true
+      bucket:
+        slot_uri: leptum:bucket
+        range: BucketMetadata
+        inlined: true
+        multivalued: true
+
+  AWEvent:
+    description: >-
+      One ActivityWatch event, including flattened EventData fields
+      (activity-watch.d.ts) — all optional.
+    attributes:
+      id:
+        slot_uri: leptum:id
+        range: string
+      bucketId:
+        slot_uri: leptum:bucketId
+        range: string
+      bucketType:
+        slot_uri: leptum:bucketType
+        range: string
+      timestamp:
+        slot_uri: leptum:timestamp
+        range: datetime
+      duration:
+        slot_uri: leptum:duration
+        range: decimal
+      displayName:
+        slot_uri: leptum:displayName
+        range: string
+      color:
+        slot_uri: leptum:color
+        range: string
+      isHidden:
+        slot_uri: leptum:isHidden
+        range: boolean
+      status:
+        slot_uri: leptum:status
+        range: string
+        description: Flattened EventData field (activity-watch.d.ts).
+      file:
+        slot_uri: leptum:file
+        range: string
+      project:
+        slot_uri: leptum:project
+        range: string
+      language:
+        slot_uri: leptum:language
+        range: string
+      projectPath:
+        slot_uri: leptum:projectPath
+        range: string
+      editor:
+        slot_uri: leptum:editor
+        range: string
+      editorVersion:
+        slot_uri: leptum:editorVersion
+        range: string
+      eventType:
+        slot_uri: leptum:eventType
+        range: string
+      url:
+        slot_uri: leptum:url
+        range: string
+      title:
+        slot_uri: leptum:title
+        range: string
+      audible:
+        slot_uri: leptum:audible
+        range: boolean
+      incognito:
+        slot_uri: leptum:incognito
+        range: boolean
+      tabCount:
+        slot_uri: leptum:tabCount
+        range: decimal
+      app:
+        slot_uri: leptum:app
+        range: string
+
+  BucketMetadata:
+    description: Metadata about one imported ActivityWatch bucket.
+    attributes:
+      id:
+        slot_uri: leptum:id
+        range: string
+      bucketType:
+        slot_uri: leptum:bucketType
+        range: string
+      eventCount:
+        slot_uri: leptum:eventCount
+        range: decimal
+      rangeStart:
+        slot_uri: leptum:rangeStart
+        range: datetime
+      rangeEnd:
+        slot_uri: leptum:rangeEnd
+        range: datetime
+      isVisible:
+        slot_uri: leptum:isVisible
+        range: boolean

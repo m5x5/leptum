@@ -1,0 +1,75 @@
+PREFIX schema: <https://schema.org/>
+PREFIX ical: <http://www.w3.org/2002/12/cal/ical#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+PREFIX crdt: <https://vocab.noeldemartin.com/crdt/>
+
+# Mirrors StandaloneTask (lib/remoteStorage.ts) as written by taskToRdf and
+# read by extractTask (lib/solidRdf/transform.ts / fromRdf.ts).
+#
+# EXTRA a: a Task resource's rdf:type also includes schema:Action and
+# ical:Vtodo together (and, for legacy Jobs, a third leptum:LegacyJob type) —
+# EXTRA lets the shape require specific type values without rejecting a
+# resource for having *additional* ones.
+leptum:TaskShape EXTRA a {
+  a [ schema:Action ical:Vtodo ] ;
+
+  # Foreign Turtle (e.g. Focus's tasks) uses ical:summary instead of
+  # schema:name for the title. Modeled as two independent optional fields,
+  # not a ShEx OneOf — @ldo/cli 1.0.0-alpha.51's TS generator silently drops
+  # OneOf branches across differently-named predicates from the generated
+  # interface entirely (verified), so the app still does `name ?? summary`
+  # itself, same as extractTask() today.
+  schema:name xsd:string ? ;
+  ical:summary xsd:string ? ;
+
+  schema:description xsd:string ? ;
+
+  schema:actionStatus
+    [ schema:CompletedActionStatus
+      schema:ActiveActionStatus
+      schema:PotentialActionStatus
+      schema:FailedActionStatus
+    ] ? ;
+
+  dcterms:created xsd:dateTime ? ;
+  # Fallback createdAt predicate used by other Solid apps sharing this
+  # container (e.g. SoukAI-based apps) — same fallback extractTask() does via
+  # get1(facts, 'https://vocab.noeldemartin.com/crdt/createdAt').
+  crdt:createdAt xsd:dateTime ? ;
+
+  leptum:completedAt xsd:dateTime ? ;
+  leptum:archivedAt xsd:dateTime ? ;
+
+  # Goal(s) this task is "about" — schema:about is written as a single IRI
+  # today but read via getAll(), so model it as zero-or-more.
+  schema:about IRI * ;
+
+  leptum:partOfRoutine IRI ? ;
+  leptum:routineInstanceId xsd:string ? ;
+
+  # Should be value-set enums — [ "XS" "S" "M" "L" "XL" ] and the 10 Emotion
+  # literals — matching StandaloneTask's union types exactly. Left as plain
+  # xsd:string: @ldo/cli 1.0.0-alpha.51's TS generator throws a SyntaxError
+  # ("Type expected") on any literal (non-IRI) ShEx value-set, so `ldo build`
+  # can't produce task.typings.ts with the enum form. Revisit once fixed
+  # upstream — see docs/solid-rdf-mapping.md notes on the @ldo/ldo prototype.
+  leptum:effort xsd:string ? ;
+  leptum:numericEstimate xsd:decimal ? ;
+
+  leptum:emotions xsd:string * ;
+
+  schema:geo @leptum:GeoCoordinatesShape ? ;
+
+  leptum:indoorX xsd:decimal ? ;
+  leptum:indoorY xsd:decimal ? ;
+
+  leptum:sortIndex xsd:decimal ?
+}
+
+leptum:GeoCoordinatesShape {
+  a [ schema:GeoCoordinates ] ? ;
+  schema:latitude xsd:decimal ;
+  schema:longitude xsd:decimal
+}

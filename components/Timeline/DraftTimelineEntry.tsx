@@ -1,8 +1,9 @@
-import { useState, useRef, useEffect, useLayoutEffect } from "react";
-import { createPortal } from "react-dom";
+import { useState, useRef } from "react";
 import { useGoals } from "../../utils/useGoals";
 import { useGoalTypes } from "../../utils/useGoalTypes";
 import { MentionInput, HighlightedMentions } from "../ui/mention-input";
+import { Button } from "../ui/button";
+import { Popover, PopoverAnchor, PopoverContent } from "../ui/popover";
 import { useEntities } from "../../utils/useEntities";
 
 interface DraftTimelineEntryProps {
@@ -25,47 +26,11 @@ export default function DraftTimelineEntry({
 }: DraftTimelineEntryProps) {
   const [activity, setActivity] = useState("");
   const [goalId, setGoalId] = useState("");
-  const [popoverPosition, setPopoverPosition] = useState({ top: 0, left: 0 });
   const { goals } = useGoals();
   const { goalTypes } = useGoalTypes();
   const { entities } = useEntities();
   const containerRef = useRef<HTMLDivElement>(null);
-  const popoverRef = useRef<HTMLDivElement>(null);
 
-  const updatePosition = () => {
-    if (containerRef.current) {
-      const rect = containerRef.current.getBoundingClientRect();
-      setPopoverPosition({
-        top: rect.bottom + 8,
-        left: rect.left,
-      });
-    }
-  };
-
-  useLayoutEffect(() => {
-    updatePosition();
-    window.addEventListener("scroll", updatePosition, true);
-    window.addEventListener("resize", updatePosition);
-    return () => {
-      window.removeEventListener("scroll", updatePosition, true);
-      window.removeEventListener("resize", updatePosition);
-    };
-  }, []);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      const target = event.target as Node;
-      if (
-        containerRef.current?.contains(target) ||
-        popoverRef.current?.contains(target)
-      ) {
-        return;
-      }
-      onCancel();
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [onCancel]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -93,10 +58,17 @@ export default function DraftTimelineEntry({
   };
 
   const formContent = (
-    <div
-      ref={popoverRef}
-      className="fixed p-3 bg-popover shadow-xl rounded-lg border border-border z-[9999] min-w-[280px] max-w-[min(400px,90vw)]"
-      style={{ top: popoverPosition.top, left: popoverPosition.left }}
+    <PopoverContent
+      side="bottom"
+      align="start"
+      sideOffset={8}
+      collisionPadding={16}
+      onOpenAutoFocus={(e) => e.preventDefault()}
+      // Clicks on the draft block itself (resize, move) must not cancel it.
+      onInteractOutside={(e) => {
+        if (containerRef.current?.contains(e.target as Node)) e.preventDefault();
+      }}
+      className="z-[9999] p-3 min-w-[280px] w-auto max-w-[min(400px,90vw)]"
     >
       <form onSubmit={handleSubmit} className="flex flex-col gap-3">
         <MentionInput
@@ -110,7 +82,7 @@ export default function DraftTimelineEntry({
         <div className="flex items-center gap-2">
           {goals && goals.length > 0 && (
             <select
-              className="text-sm bg-muted/50 border border-border rounded px-2 py-1.5 focus:outline-none focus:border-primary max-w-[200px]"
+              className="flex h-10 rounded-chip border border-input bg-background px-3 py-2 text-base ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 md:text-sm max-w-[200px]"
               value={goalId}
               onChange={(e) => setGoalId(e.target.value)}
             >
@@ -131,58 +103,58 @@ export default function DraftTimelineEntry({
             </select>
           )}
           <div className="flex-1" />
-          <button
+          <Button
             type="button"
+            variant="ghost"
+            size="sm"
             onClick={onCancel}
-            className="px-3 py-1.5 text-xs font-medium text-muted-foreground hover:text-foreground transition-colors"
           >
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
+            size="sm"
             disabled={!activity.trim()}
-            className="px-3 py-1.5 text-xs font-medium bg-primary text-primary-foreground rounded hover:opacity-90 transition-opacity disabled:opacity-50"
           >
             Save
-          </button>
+          </Button>
         </div>
       </form>
-    </div>
+    </PopoverContent>
   );
 
   return (
     <>
-      <div ref={containerRef} className="relative z-10">
-        <div className="relative flex items-start opacity-70">
+      <div
+        ref={containerRef}
+        className="relative z-10 rounded-control border border-border shadow-sm overflow-hidden"
+        style={{ height: `${barHeight}px`, minHeight: 32 }}
+      >
+        <div className="h-full flex flex-col p-2 overflow-hidden bg-card relative">
           <div
-            className={`absolute left-[-1.45rem] w-1 ${getSelectedGoalColor()}`}
-            style={{ height: `${barHeight}px` }}
+            className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getSelectedGoalColor()}`}
           />
-          <div
-            className={`bg-card border-b border-border flex-1 min-w-0 ${isShortActivity ? "pb-2" : "pb-3"}`}
-            style={{ minHeight: `${barHeight}px` }}
-          >
-            <div className="flex flex-col gap-0.5">
-              <h3 className="text-sm font-semibold text-foreground/80 italic truncate">
-                {activity ? (
-                  <HighlightedMentions text={activity} />
-                ) : (
-                  "New Activity..."
-                )}
-              </h3>
-              <div className="flex items-center gap-2 text-xs text-muted-foreground/80">
-                <span className="font-mono whitespace-nowrap">
-                  {formatTime(startTime)}
-                </span>
-                <span className="px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground whitespace-nowrap">
-                  {getDurationString()}
-                </span>
-              </div>
-            </div>
+          <div className="flex items-center gap-1 min-w-0 pl-3">
+            <span className="text-sm font-semibold truncate text-foreground">
+              {activity ? <HighlightedMentions text={activity} /> : "New Activity..."}
+            </span>
           </div>
+          {!isShortActivity && (
+            <div className="flex items-center justify-between gap-1 min-h-0 pl-3 mt-0.5">
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatTime(startTime)}
+              </span>
+              <span className="text-xs text-muted-foreground truncate">
+                {getDurationString()}
+              </span>
+            </div>
+          )}
         </div>
       </div>
-      {typeof document !== "undefined" && createPortal(formContent, document.body)}
+      <Popover open onOpenChange={(open) => { if (!open) onCancel(); }}>
+        <PopoverAnchor virtualRef={containerRef} />
+        {formContent}
+      </Popover>
     </>
   );
 }

@@ -1,42 +1,23 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { remoteStorageClient, LifeEvent } from '../lib/remoteStorage';
+import { defineCollection } from '../lib/query/defineCollection';
 
 export type { LifeEvent };
 
+export const lifeEventsCollection = defineCollection<LifeEvent[]>(
+  'lifeEvents',
+  () => remoteStorageClient.getLifeEvents(),
+  { initial: [], refreshOn: ['lifeEventsUpdated'] }
+);
+
 export function useLifeEvents() {
-  const [events, setEvents] = useState<LifeEvent[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  const loadEvents = useCallback(async () => {
-    try {
-      const data = await remoteStorageClient.getLifeEvents();
-      setEvents(data);
-    } catch (error) {
-      console.error('Failed to load life events:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadEvents();
-
-    const handleChange = (event: { relativePath: string }) => {
-      if (event.relativePath.startsWith('life-events/')) {
-        loadEvents();
-      }
-    };
-
-    remoteStorageClient.onChange(handleChange);
-
-    return () => {
-      remoteStorageClient.offChange(handleChange);
-    };
-  }, [loadEvents]);
+  const { data, isPending } = lifeEventsCollection.useQuery();
+  const events = data ?? [];
 
   const saveEvent = useCallback(async (event: LifeEvent) => {
-    setEvents(prev => {
-      const idx = prev.findIndex(e => e.id === event.id);
+    lifeEventsCollection.markSelfWrite();
+    lifeEventsCollection.set((prev) => {
+      const idx = prev.findIndex((e) => e.id === event.id);
       if (idx >= 0) {
         const next = [...prev];
         next[idx] = event;
@@ -44,13 +25,26 @@ export function useLifeEvents() {
       }
       return [...prev, event].sort((a, b) => a.startWeek.localeCompare(b.startWeek));
     });
-    await remoteStorageClient.saveLifeEvent(event);
+    try {
+      await remoteStorageClient.saveLifeEvent(event);
+    } catch (error) {
+      console.error('Failed to save life event:', error);
+      void lifeEventsCollection.invalidate(); // roll back to what the pod has
+      throw error;
+    }
   }, []);
 
   const deleteEvent = useCallback(async (id: string) => {
-    setEvents(prev => prev.filter(e => e.id !== id));
-    await remoteStorageClient.deleteLifeEvent(id);
+    lifeEventsCollection.markSelfWrite();
+    lifeEventsCollection.set((prev) => prev.filter((e) => e.id !== id));
+    try {
+      await remoteStorageClient.deleteLifeEvent(id);
+    } catch (error) {
+      console.error('Failed to delete life event:', error);
+      void lifeEventsCollection.invalidate();
+      throw error;
+    }
   }, []);
 
-  return { events, loading, saveEvent, deleteEvent };
+  return { events, loading: isPending, saveEvent, deleteEvent };
 }

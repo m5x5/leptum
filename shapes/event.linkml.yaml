@@ -1,0 +1,102 @@
+id: https://mpeters.dev/ns/leptum/linkml/event
+name: leptum-event
+description: >-
+  Mirrors the shared 'events' container — LifeEvent and Impact both write
+  schema:Event (see containers.ts). Disambiguated as extractEventResource()
+  does: schema:startDate holding a bare YYYY-MM-DD date (not a full datetime)
+  means LifeEvent, not Impact.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Event:
+    tree_root: true
+    class_uri: schema:Event
+    description: >-
+      A LifeEvent or Impact resource. Additional rdf:type values are
+      permitted (ShEx EXTRA a). Impact-only fields are absent on LifeEvent
+      resources.
+    attributes:
+      name:
+        slot_uri: schema:name
+        range: string
+      startDate:
+        slot_uri: schema:startDate
+        range: string
+      endDate:
+        slot_uri: schema:endDate
+        range: string
+      color:
+        slot_uri: schema:color
+        range: string
+      created:
+        slot_uri: dcterms:created
+        range: datetime
+      description:
+        slot_uri: schema:description
+        range: string
+        description: Impact-only field — absent on LifeEvent resources.
+      url:
+        slot_uri: schema:url
+        range: string
+        description: Impact-only field — absent on LifeEvent resources.
+      about:
+        slot_uri: schema:about
+        range: uri
+        description: Impact-only field — absent on LifeEvent resources.
+      image:
+        slot_uri: schema:image
+        range: uri
+        multivalued: true
+        description: Impact-only field — absent on LifeEvent resources.
+      allDay:
+        slot_uri: leptum:allDay
+        range: boolean
+      dismissed:
+        slot_uri: leptum:dismissed
+        range: boolean
+      requiresOnlineTime:
+        slot_uri: leptum:requiresOnlineTime
+        range: boolean
+      stress:
+        slot_uri: leptum:stress
+        range: string
+        description: >-
+          Impact.{stress,fulfillment,...} are `string | number` app-side —
+          modeled as string (same convention as task.shex's effort/emotions
+          fields).
+      fulfillment:
+        slot_uri: leptum:fulfillment
+        range: string
+      motivation:
+        slot_uri: leptum:motivation
+        range: string
+      cleanliness:
+        slot_uri: leptum:cleanliness
+        range: string
+      happiness:
+        slot_uri: leptum:happiness
+        range: string
+      confidence:
+        slot_uri: leptum:confidence
+        range: string
+      energy:
+        slot_uri: leptum:energy
+        range: string
+      focus:
+        slot_uri: leptum:focus
+        range: string
+      shame:
+        slot_uri: leptum:shame
+        range: string
+      guilt:
+        slot_uri: leptum:guilt
+        range: string

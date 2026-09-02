@@ -43,3 +43,4 @@ playwright-report/
 
 # automation tools (contains personal paths)
 .automaker/
+certificates

@@ -18,6 +18,11 @@ export interface RichTextEditorProps {
 const RichTextEditor = React.forwardRef<HTMLDivElement, RichTextEditorProps>(
   ({ value, onChange, placeholder, className, minHeight = "150px" }, ref) => {
     const [isMounted, setIsMounted] = React.useState(false);
+    const onChangeRef = React.useRef(onChange);
+    onChangeRef.current = onChange;
+    const stableOnChange = React.useCallback((val: string) => {
+      onChangeRef.current(val);
+    }, []);
 
     React.useEffect(() => {
       setIsMounted(true);
@@ -54,7 +59,7 @@ const RichTextEditor = React.forwardRef<HTMLDivElement, RichTextEditorProps>(
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           className={cn(
-            "w-full px-3 py-2 bg-background border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none",
+            "w-full px-3 py-2 bg-background border border-input rounded-control text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none",
             className
           )}
           rows={3}
@@ -70,14 +75,14 @@ const RichTextEditor = React.forwardRef<HTMLDivElement, RichTextEditorProps>(
               value={value}
               onChange={(e) => onChange(e.target.value)}
               placeholder={placeholder}
-              className="w-full px-3 py-2 bg-background border border-input rounded-lg text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
+              className="w-full px-3 py-2 bg-background border border-input rounded-control text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring resize-none"
               rows={3}
             />
           }
         >
           <SimpleMDE
             value={value}
-            onChange={onChange}
+            onChange={stableOnChange}
             options={editorOptions}
           />
         </React.Suspense>

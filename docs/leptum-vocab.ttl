@@ -1,0 +1,204 @@
+@prefix leptum: <https://mpeters.dev/ns/leptum#> .
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+@prefix rdfs: <http://www.w3.org/2000/01/rdf-schema#> .
+@prefix owl: <http://www.w3.org/2002/07/owl#> .
+@prefix dcterms: <http://purl.org/dc/terms/> .
+@prefix schema: <https://schema.org/> .
+@prefix xsd: <http://www.w3.org/2001/XMLSchema#> .
+
+# ─────────────────────────────────────────────────────────────────────────
+# The Leptum vocabulary.
+#
+# Covers only what has no existing standard shape to reuse: mood/emotion
+# dials, goal-tracking configuration, device health telemetry, and a handful
+# of Leptum-internal back-references. Everywhere a concept fits schema.org,
+# iCal, FOAF, ActivityStreams, or the Web Annotation vocabulary, this export
+# uses that instead — see docs/solid-rdf-mapping.md for the full mapping and
+# lib/solidRdf/transform.ts for the code that emits it.
+#
+# Host this document at https://mpeters.dev/ns/leptum so the leptum: IRIs
+# used throughout exported pod data actually resolve to something.
+# ─────────────────────────────────────────────────────────────────────────
+
+<https://mpeters.dev/ns/leptum#> a owl:Ontology ;
+    dcterms:title "The Leptum Vocabulary" ;
+    dcterms:description "Terms for Leptum-specific concepts that have no existing RDF vocabulary: mood tracking, goal-tracking configuration, and personal health telemetry." ;
+    dcterms:creator <https://pod.mpeters.dev/michael/profile/card#me> .
+
+# ═══════════════════════════════════════════════════════════════════════
+# Classes
+# ═══════════════════════════════════════════════════════════════════════
+
+leptum:Goal a rdfs:Class ;
+    rdfs:label "Goal" ;
+    rdfs:subClassOf schema:Action ;
+    rdfs:comment "A longer-horizon objective. Composed with schema:Action for name/status/dates; the milestone, tracking-config, and tracking-entry structure below is Leptum-specific." .
+
+leptum:GoalType a rdfs:Class ;
+    rdfs:label "Goal type" ;
+    rdfs:comment "A user-defined category a Goal belongs to (referenced via schema:additionalType)." .
+
+leptum:Insight a rdfs:Class ;
+    rdfs:label "Insight" ;
+    rdfs:comment "A user-recorded behavioral pattern: a named observation plus the metrics it affects." .
+
+leptum:PatternNote a rdfs:Class ;
+    rdfs:label "Pattern note" ;
+    rdfs:comment "A freeform note attached to a recurring activity." .
+
+leptum:VelocityEntry a rdfs:Class ;
+    rdfs:label "Velocity entry" ;
+    rdfs:comment "One completed-task throughput sample, used for the completion-velocity statistic." .
+
+leptum:Context a rdfs:Class ;
+    rdfs:label "Context" ;
+    rdfs:comment "An @-mentionable entity that is neither a person (foaf:Person) nor a project (schema:Project) — a place, situation, or other context." .
+
+leptum:GroceryNotification a rdfs:Class ;
+    rdfs:label "Grocery proximity notification" ;
+    rdfs:comment "An ephemeral, generated notification about a nearby grocery store and what's worth buying there." .
+
+leptum:UserSettings a rdfs:Class ;
+    rdfs:label "User settings" ;
+    rdfs:comment "Leptum-specific app preferences that aren't personal-profile data (those use schema:birthDate etc. directly)." .
+
+leptum:DailyHealthMetrics a rdfs:Class ;
+    rdfs:label "Daily health metrics" ;
+    rdfs:comment "One day's aggregated Health Connect / device telemetry. Properties are open-ended: any camelCase field written by a device sync (leptum_app's DeviceSync.kt, HealthConnectSync.kt, UsageStatsSync.kt) becomes leptum:<fieldName> here — there is deliberately no fixed enumeration, since the set the phone captures is larger than what any one client currently reads (see docs/solid-rdf-mapping.md)." .
+
+leptum:LegacyJob a rdfs:Class ;
+    rdfs:subClassOf schema:Action ;
+    rdfs:comment "Leptum's pre-Routine habit model. Exported for completeness; new data should use schema:Action + ical:Vtodo under leptum:Routine semantics instead." .
+
+leptum:LegacyStack a rdfs:Class ;
+    rdfs:comment "Leptum's pre-Routine grouped-habit model. Exported for completeness only." .
+
+# ═══════════════════════════════════════════════════════════════════════
+# Properties — goal tracking
+# ═══════════════════════════════════════════════════════════════════════
+
+leptum:milestone a rdf:Property ; rdfs:domain leptum:Goal ; rdfs:comment "A milestone toward the goal (schema:Action, plus leptum:order and leptum:completedAt)." .
+leptum:trackingConfig a rdf:Property ; rdfs:domain leptum:Goal ; rdfs:comment "Visual-tracking widget configuration for this goal." .
+leptum:trackingType a rdf:Property ; rdfs:comment "One of: counter, checklist, timer, amount." .
+leptum:trackingEntry a rdf:Property ; rdfs:domain leptum:Goal ; rdfs:comment "One day's logged value against the goal's tracking config." .
+leptum:unit a rdf:Property ; rdfs:comment "The unit a tracked quantity is measured in." .
+leptum:icon a rdf:Property ; rdfs:comment "An icon identifier for a goal's tracking widget." .
+leptum:dailyTarget a rdf:Property ; rdfs:range schema:Number .
+leptum:maxPerDay a rdf:Property ; rdfs:range schema:Number .
+leptum:increments a rdf:Property ; rdfs:comment "Suggested step sizes for an 'amount' tracking widget." .
+leptum:options a rdf:Property ; rdfs:comment "Suggested option labels for a 'checklist' tracking widget." .
+leptum:date a rdf:Property ; rdfs:comment "An ISO date (YYYY-MM-DD) for a tracking entry or daily health record." .
+leptum:value a rdf:Property ; rdfs:comment "A tracked numeric value for a given date." .
+leptum:completed a rdf:Property ; rdfs:range schema:Boolean .
+leptum:timestamp a rdf:Property ; rdfs:range xsd:dateTime .
+leptum:notes a rdf:Property ; rdfs:comment "Freeform notes on a single tracking entry (distinct from schema:description on the parent Goal)." .
+
+# ═══════════════════════════════════════════════════════════════════════
+# Properties — tasks, routines, completion
+# ═══════════════════════════════════════════════════════════════════════
+
+leptum:completedAt a rdf:Property ; rdfs:range xsd:dateTime .
+leptum:archivedAt a rdf:Property ; rdfs:range xsd:dateTime .
+leptum:effort a rdf:Property ; rdfs:comment "One of: XS, S, M, L, XL." .
+leptum:numericEstimate a rdf:Property ; rdfs:range schema:Number .
+leptum:emotions a rdf:Property ; rdfs:comment "Emotion tags logged against a completed task." .
+leptum:partOfRoutine a rdf:Property ; rdfs:comment "The Routine a task instance was generated from." .
+leptum:routineInstanceId a rdf:Property ; rdfs:comment "Identifies one scheduled occurrence of a recurring Routine." .
+leptum:isShowUpRoutine a rdf:Property ; rdfs:range schema:Boolean ; rdfs:comment "Marks Leptum's special daily 'show up' routine." .
+leptum:task a rdf:Property ; rdfs:comment "A sub-task embedded in a Routine, LegacyJob, or LegacyStack." .
+leptum:taskCount a rdf:Property ; rdfs:range schema:Number .
+leptum:order a rdf:Property ; rdfs:range schema:Number .
+leptum:indoorX a rdf:Property ; rdfs:comment "Indoor X coordinate in metres from a reference corner." .
+leptum:indoorY a rdf:Property ; rdfs:comment "Indoor Y coordinate in metres from a reference corner." .
+
+# ═══════════════════════════════════════════════════════════════════════
+# Properties — timeline / mood
+# ═══════════════════════════════════════════════════════════════════════
+
+leptum:allDay a rdf:Property ; rdfs:range schema:Boolean .
+leptum:dismissed a rdf:Property ; rdfs:range schema:Boolean .
+leptum:requiresOnlineTime a rdf:Property ; rdfs:range schema:Boolean .
+leptum:stress a rdf:Property ; rdfs:comment "0–10 self-reported stress at the time of this event." .
+leptum:fulfillment a rdf:Property ; rdfs:comment "0–10 self-reported fulfillment." .
+leptum:motivation a rdf:Property ; rdfs:comment "0–10 self-reported motivation." .
+leptum:cleanliness a rdf:Property ; rdfs:comment "0–10 self-reported cleanliness of surroundings." .
+leptum:happiness a rdf:Property ; rdfs:comment "0–10 self-reported happiness." .
+leptum:confidence a rdf:Property ; rdfs:comment "0–10 self-reported confidence." .
+leptum:energy a rdf:Property ; rdfs:comment "0–10 self-reported energy." .
+leptum:focus a rdf:Property ; rdfs:comment "0–10 self-reported focus." .
+leptum:shame a rdf:Property ; rdfs:comment "0–10 self-reported shame." .
+leptum:guilt a rdf:Property ; rdfs:comment "0–10 self-reported guilt." .
+
+# ═══════════════════════════════════════════════════════════════════════
+# Properties — insights, patterns, velocity, weekly goals, mentions
+# ═══════════════════════════════════════════════════════════════════════
+
+leptum:category a rdf:Property ; rdfs:domain leptum:Insight .
+leptum:affectedMetric a rdf:Property ; rdfs:domain leptum:Insight .
+leptum:metric a rdf:Property ; rdfs:comment "Name of a metric an Insight affects, e.g. 'sleepQuality'." .
+leptum:effect a rdf:Property ; rdfs:comment "'positive' or 'negative'." .
+leptum:activity a rdf:Property ; rdfs:domain leptum:PatternNote ; rdfs:comment "The recurring activity name a PatternNote is about." .
+leptum:period a rdf:Property ; rdfs:domain leptum:VelocityEntry ; rdfs:comment "e.g. '2024-W01' or '2024-01-15'." .
+leptum:weekStart a rdf:Property ; rdfs:comment "Monday of the week, as an ISO date." .
+leptum:item a rdf:Property .
+leptum:day a rdf:Property ; rdfs:comment "monday–sunday." .
+leptum:text a rdf:Property ; rdfs:comment "Freeform text, used where no more specific property applies (e.g. a v1-format weekly goal item)." .
+leptum:targetMinutes a rdf:Property ; rdfs:range schema:Number .
+leptum:note a rdf:Property ; rdfs:comment "A short freeform annotation on a weekly-goal item." .
+leptum:fieldName a rdf:Property ; rdfs:comment "Which field of the source document a Mention (oa:Annotation) was found in." .
+leptum:tag a rdf:Property ; rdfs:comment "A free-text tag on an Entity." .
+leptum:context a rdf:Property ; rdfs:comment "A text snippet around a Mention." .
+leptum:position a rdf:Property ; rdfs:comment "Character offset of a Mention within its source field." .
+
+# ═══════════════════════════════════════════════════════════════════════
+# Properties — grocery, location, settings
+# ═══════════════════════════════════════════════════════════════════════
+
+leptum:status a rdf:Property ; rdfs:comment "pending | accepted | dismissed, for a GroceryNotification." .
+leptum:score a rdf:Property ; rdfs:range schema:Number .
+leptum:accuracy a rdf:Property ; rdfs:comment "GPS accuracy in metres." .
+leptum:showKeyboardShortcuts a rdf:Property ; rdfs:range schema:Boolean .
+leptum:timeFormat a rdf:Property ; rdfs:comment "12h | 24h | system." .
+leptum:wakingStartHour a rdf:Property ; rdfs:range schema:Number .
+leptum:wakingEndHour a rdf:Property ; rdfs:range schema:Number .
+
+# Which Solid contacts feed @mention suggestions. Both absent = every address book on the pod.
+leptum:suggestContactsFrom a rdf:Property ;
+    rdfs:label "suggest contacts from" ;
+    rdfs:comment "A vcard:AddressBook whose every contact is offered as an @mention suggestion." ;
+    rdfs:range <http://www.w3.org/2006/vcard/ns#AddressBook> .
+leptum:suggestContactsFromGroup a rdf:Property ;
+    rdfs:label "suggest contacts from group" ;
+    rdfs:comment "A vcard:Group whose members are offered as an @mention suggestion." ;
+    rdfs:range <http://www.w3.org/2006/vcard/ns#Group> .
+
+# ═══════════════════════════════════════════════════════════════════════
+# Properties — health telemetry
+# ═══════════════════════════════════════════════════════════════════════
+# Deliberately open-ended (see leptum:DailyHealthMetrics above). These are
+# the fields both the web app and leptum_app currently recognize; leptum_app
+# writes roughly twice this many (hydration, nutrition macros, screen time,
+# and other device-context fields) that the web app has no reader for yet.
+# All of them still round-trip through this export as leptum:<fieldName>.
+
+leptum:steps a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:distanceMeters a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:activeCalories a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:totalCalories a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:sleepMinutes a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:heartRateAvg a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:heartRateMin a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:heartRateMax a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:restingHeartRate a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:hrvRmssd a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:weightKg a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:bodyFatPct a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:bloodPressureSystolic a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:bloodPressureDiastolic a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:bloodGlucoseMmol a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:oxygenSaturationPct a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:floorsClimbed a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics ; rdfs:range schema:Number .
+leptum:exerciseSession a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics .
+leptum:exerciseType a rdf:Property ; rdfs:comment "Health Connect exercise-type code." .
+leptum:sleepSession a rdf:Property ; rdfs:domain leptum:DailyHealthMetrics .
+leptum:durationMinutes a rdf:Property ; rdfs:range schema:Number .

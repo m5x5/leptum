@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useCallback } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
 import { calculateStreaks, StreakInfo } from './streakUtils';
+import { useCompletionsQuery, setCompletionsCache, invalidate, markSelfWrite } from '../lib/query/collections';
 
 export interface RoutineCompletion {
   routineId: string;
@@ -10,38 +11,23 @@ export interface RoutineCompletion {
   taskCount: number;
 }
 
-let cachedCompletions: RoutineCompletion[] | null = null;
+const EMPTY: RoutineCompletion[] = [];
 
 export function useRoutineCompletions() {
-  const [completions, setCompletions] = useState<RoutineCompletion[]>(() => cachedCompletions ?? []);
-  const [loading, setLoading] = useState(cachedCompletions === null);
+  const query = useCompletionsQuery();
+  const completions = query.data ?? EMPTY;
+  const loading = query.isPending;
 
-  const loadCompletions = useCallback(async () => {
-    try {
-      const data = await remoteStorageClient.getRoutineCompletions();
-      cachedCompletions = data;
-      setCompletions(data);
-    } catch (error) {
-      console.error('Failed to load routine completions:', error);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    loadCompletions();
-  }, [loadCompletions]);
+  const loadCompletions = useCallback(() => invalidate('completions'), []);
 
   const addCompletion = useCallback(async (completion: RoutineCompletion) => {
+    markSelfWrite('completions');
+    setCompletionsCache((prev) => [...prev, completion]);
     try {
       await remoteStorageClient.addRoutineCompletion(completion);
-      setCompletions(prev => {
-        const next = [...prev, completion];
-        cachedCompletions = next;
-        return next;
-      });
     } catch (error) {
       console.error('Failed to add routine completion:', error);
+      void invalidate('completions');
     }
   }, []);
 
@@ -65,6 +51,6 @@ export function useRoutineCompletions() {
     getCompletionsForRoutine,
     getCompletionsForDateRange,
     getStreaksForRoutine,
-    reload: loadCompletions
+    reload: loadCompletions,
   };
 }

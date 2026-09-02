@@ -1,0 +1,20 @@
+PREFIX schema: <https://schema.org/>
+PREFIX xsd: <http://www.w3.org/2001/XMLSchema#>
+PREFIX dcterms: <http://purl.org/dc/terms/>
+PREFIX leptum: <https://mpeters.dev/ns/leptum#>
+
+# Mirrors PhotoAttachment (lib/remoteStorage.ts) as written by photoToRdf.
+# schema:contentUrl is an IRI to a real Solid binary resource (raw image
+# bytes, PUT with its own Content-Type by imageBackend.ts) — not an
+# embedded base64 literal like RemoteStorage used. No separate thumbnail
+# resource is modeled; the UI renders from the full image directly.
+leptum:PhotoAttachmentShape EXTRA a {
+  a [ schema:ImageObject ] ;
+  leptum:aboutImpact IRI ? ;
+  schema:contentUrl IRI ? ;
+  schema:encodingFormat xsd:string ? ;
+  schema:width xsd:decimal ? ;
+  schema:height xsd:decimal ? ;
+  schema:caption xsd:string ? ;
+  dcterms:created xsd:dateTime ?
+}

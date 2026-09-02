@@ -29,7 +29,7 @@ export function DeadlineIndicator({ targetDate, compact = false, showDate = true
   }
 
   return (
-    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-medium ${colors.bg} ${colors.text} ${colors.border} border`}>
+    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-chip text-xs font-medium ${colors.bg} ${colors.text} ${colors.border} border`}>
       {status.isOverdue ? (
         <ExclamationCircleIcon className="w-4 h-4" />
       ) : (
@@ -58,10 +58,10 @@ export function DeadlineCountdown({ targetDate, className = '' }: DeadlineCountd
 
   return (
     <div className={`flex flex-col items-center ${className}`}>
-      <div className={`text-3xl font-bold ${colors.text}`}>
+      <div className={`text-3xl font-semibold ${colors.text}`}>
         {status.isOverdue ? `-${Math.abs(status.daysRemaining)}` : status.daysRemaining}
       </div>
-      <div className={`text-xs uppercase tracking-wider ${colors.text}`}>
+      <div className={`text-xs uppercase ${colors.text}`}>
         {Math.abs(status.daysRemaining) === 1 ? 'day' : 'days'}
       </div>
       <div className={`text-xs mt-1 ${status.isOverdue ? colors.text : 'text-muted-foreground'}`}>
@@ -71,4 +71,3 @@ export function DeadlineCountdown({ targetDate, className = '' }: DeadlineCountd
   );
 }
 
-export default DeadlineIndicator;

@@ -10,7 +10,6 @@ export default function sitemap(): MetadataRoute.Sitemap {
     "/routines",
     "/goals",
     "/insights",
-    "/stacks",
     "/settings",
   ];
 

@@ -6,6 +6,9 @@ import { LiveActivityDuration } from "./LiveActivityDuration";
 import { GCalBadge } from "../ui/gcal-badge";
 import { HighlightedMentions } from "../ui/mention-input";
 import { CALENDAR_PX_PER_HOUR, CALENDAR_DAY_HEIGHT, QUARTER_HOUR_MS, PX_PER_QUARTER } from "./calendarConstants";
+import { useNow } from "../../hooks/useNow";
+
+const HOUR_MS = 60 * 60 * 1000;
 
 interface Impact {
   id?: string;
@@ -36,6 +39,10 @@ interface CalendarDayColumnProps {
   editingSlot: { start: number; end: number } | null;
   setEditingSlot: (v: { start: number; end: number } | null) => void;
   hideTimeScale?: boolean;
+  /** Skip rendering hour gridlines (e.g. when a continuous overlay is drawing them) */
+  hideGridLines?: boolean;
+  /** Called before a new entry is created. Return true if a popup was open and was closed — the click is consumed and no entry is created. */
+  tryCloseOpenPopups?: () => boolean;
 }
 
 export function CalendarDayColumn({
@@ -56,10 +63,13 @@ export function CalendarDayColumn({
   editingSlot,
   setEditingSlot,
   hideTimeScale = false,
+  hideGridLines = false,
+  tryCloseOpenPopups,
 }: CalendarDayColumnProps) {
+  const now = useNow();
   const fullDayMs = dayEnd - dayStart;
   const dayTop = isTodayFlag
-    ? Math.min(roundToNearest15Minutes(Date.now()), dayEnd)
+    ? Math.min(roundToNearest15Minutes(now), dayEnd)
     : dayEnd;
 
   const toTop = (t: number) => ((t - dayStart) / fullDayMs) * CALENDAR_DAY_HEIGHT;
@@ -74,7 +84,6 @@ export function CalendarDayColumn({
     [dayStart, fullDayMs, roundToNearest15Minutes]
   );
 
-  const HOUR_MS = 60 * 60 * 1000;
   const [dragPreview, setDragPreview] = useState<{ start: number; end: number } | null>(null);
   const [resizingEvent, setResizingEvent] = useState<{
     impact: Impact;
@@ -85,23 +94,35 @@ export function CalendarDayColumn({
     end: number;
   } | null>(null);
   const resizingRef = React.useRef<typeof resizingEvent>(null);
-  resizingRef.current = resizingEvent;
+  useEffect(() => {
+    resizingRef.current = resizingEvent;
+  });
   const gridRef = React.useRef<HTMLDivElement>(null);
 
   const sortedImpacts = [...dayImpacts].sort((a, b) => a.date - b.date);
 
-  const getEventEnd = (impact: Impact, idx: number): number => {
-    if (impact.endTime != null) return impact.endTime;
-    if (idx < sortedImpacts.length - 1) return sortedImpacts[idx + 1].date;
-    return isTodayFlag ? dayTop : dayEnd;
-  };
+  const getEventEnd = useCallback(
+    (impact: Impact, idx: number): number => {
+      if (impact.endTime != null) return impact.endTime;
+      if (idx < sortedImpacts.length - 1) return sortedImpacts[idx + 1].date;
+      return isTodayFlag ? dayTop : dayEnd;
+    },
+    [sortedImpacts, isTodayFlag, dayTop, dayEnd]
+  );
 
   const hasDraggedRef = React.useRef(false);
   const dragPreviewRef = React.useRef<{ start: number; end: number } | null>(null);
-  dragPreviewRef.current = dragPreview;
+  useEffect(() => {
+    dragPreviewRef.current = dragPreview;
+  });
 
   const handleSlotMouseDown = useCallback(
     (e: React.MouseEvent<HTMLDivElement>) => {
+      // First click while a popup is open just closes the popup.
+      if (tryCloseOpenPopups?.()) {
+        e.preventDefault();
+        return;
+      }
       e.preventDefault();
       const rect = gridRef.current?.getBoundingClientRect();
       if (!rect) return;
@@ -113,7 +134,7 @@ export function CalendarDayColumn({
       setDragPreview(initial);
       hasDraggedRef.current = false;
     },
-    [timeFromY, dayEnd]
+    [timeFromY, dayEnd, tryCloseOpenPopups]
   );
 
   useEffect(() => {
@@ -157,7 +178,7 @@ export function CalendarDayColumn({
       document.removeEventListener("mousemove", handleMove);
       document.removeEventListener("mouseup", handleUp);
     };
-  }, [dragPreview, dayEnd, setEditingSlot]);
+  }, [dragPreview, dayEnd, setEditingSlot, timeFromY, roundToNearest15Minutes]);
 
   useEffect(() => {
     if (!resizingEvent || !onResizeImpact) return;
@@ -204,7 +225,7 @@ export function CalendarDayColumn({
       document.removeEventListener("mousemove", handleMove);
       document.removeEventListener("mouseup", handleUp);
     };
-  }, [resizingEvent, onResizeImpact, timeFromY, roundToNearest15Minutes, sortedImpacts, dayStart, dayEnd, dayTop, isTodayFlag]);
+  }, [resizingEvent, onResizeImpact, timeFromY, roundToNearest15Minutes, sortedImpacts, dayStart, dayEnd, dayTop, isTodayFlag, getEventEnd]);
 
   const computeOverlapLayout = useCallback(() => {
     const events = sortedImpacts.map((imp, idx) => ({
@@ -237,7 +258,7 @@ export function CalendarDayColumn({
       const total = maxConcurrent(e.start, e.end);
       return { ...e, col: cols[i], total, left: cols[i] / total, width: 1 / total };
     });
-  }, [sortedImpacts]);
+  }, [sortedImpacts, getEventEnd]);
 
   const layoutEvents = computeOverlapLayout();
   const slots: React.JSX.Element[] = [];
@@ -317,7 +338,13 @@ export function CalendarDayColumn({
       idx === sortedImpacts.length - 1 &&
       !impact.isVirtualContinuation &&
       impact.endTime == null;
-    const duration = getDuration(impact.date, eventEnd);
+    // For virtual continuations, the displayed times/duration span the entire original event
+    // (which started yesterday), not just today's clipped slice.
+    const displayStart =
+      impact.isVirtualContinuation && impact.originalStartTime != null
+        ? impact.originalStartTime
+        : impact.date;
+    const duration = getDuration(displayStart, eventEnd);
 
     const leftPct = left * 100;
     const widthPct = width * 100;
@@ -327,9 +354,9 @@ export function CalendarDayColumn({
     slots.push(
       <div
         key={`event-${impact.date}-${idx}`}
-        className={`absolute z-10 rounded-lg border shadow-sm cursor-pointer transition-shadow hover:shadow-md overflow-hidden group ${
+        className={`absolute z-10 rounded-control border shadow-sm cursor-pointer transition-shadow hover:shadow-md overflow-hidden group ${
           isLive ? "border-primary border-2" : "border-border"
-        }`}
+        } ${impact.isVirtualContinuation ? "rounded-t-none border-t-0" : ""}`}
         style={{
           left: `${leftPct}%`,
           width: width < 1 ? `calc(${widthPct}% - 2px)` : `${widthPct}%`,
@@ -343,68 +370,63 @@ export function CalendarDayColumn({
           onOpenEditModal(impact, actualIndex, rect);
         }}
       >
-        <div className="h-full flex flex-col p-2 overflow-hidden bg-card relative">
+        <div className="h-full flex items-start gap-2 p-2 overflow-hidden bg-card relative">
           <div
-            className={`absolute left-0 top-0 bottom-0 w-1 rounded-l-lg ${getActivityColor(
-              impact
-            )}`}
+            className={`w-1.5 self-stretch rounded shrink-0 ${getActivityColor(impact)}`}
           />
-          <div className="flex items-center gap-1 min-w-0 pl-3">
-            {impact.id?.startsWith("gcal-") && (
-              <GCalBadge href={impact.sourceUrl} />
-            )}
-            <span
-              className={`text-sm font-semibold truncate ${
-                isLive ? "text-primary" : "text-foreground"
-              }`}
-            >
-              <HighlightedMentions text={impact.activity} />
-            </span>
-            {impact.isVirtualContinuation && (
-              <span className="text-[10px] text-amber-600 dark:text-amber-400 shrink-0">
-                ↗
+          <div className="flex-1 min-w-0 flex flex-col leading-tight">
+            <div className="flex items-center gap-1 min-w-0">
+              {impact.id?.startsWith("gcal-") && (
+                <GCalBadge href={impact.sourceUrl} />
+              )}
+              <span
+                className={`text-sm font-semibold truncate ${
+                  isLive ? "text-primary" : "text-foreground"
+                }`}
+              >
+                <HighlightedMentions text={impact.activity} />
               </span>
-            )}
-          </div>
-          <div className="flex items-center justify-between gap-1 min-h-0 pl-3 mt-0.5">
-            <span
-              className={`text-xs font-mono shrink-0 ${
-                isLive ? "text-primary font-semibold" : "text-muted-foreground"
-              }`}
-            >
-              {formatTime(impact.date)}
-            </span>
-            {isLive && (
-              <LiveActivityDuration
-                startTime={impact.date}
-                formatDuration={getDuration}
-              />
-            )}
-            {!isLive && (
-              <span className="text-xs text-muted-foreground truncate">
-                {duration}
-              </span>
-            )}
-          </div>
-          {impact.id && getPhotosForImpact(impact.id).length > 0 && (
-            <div className="flex gap-1 mt-1 overflow-x-auto scrollbar-hide pl-3">
-              {getPhotosForImpact(impact.id).slice(0, 3).map((photo) => (
-                <Image
-                  key={photo.id}
-                  src={photo.thumbnail}
-                  alt=""
-                  width={24}
-                  height={24}
-                  unoptimized
-                  className="w-6 h-6 object-cover rounded shrink-0"
-                />
-              ))}
             </div>
-          )}
+            <div className="flex items-center justify-between gap-1 min-h-0">
+              <span
+                className={`text-xs shrink-0 ${
+                  isLive ? "text-primary font-semibold" : "text-muted-foreground"
+                }`}
+              >
+                {formatTime(displayStart)} – {formatTime(eventEnd)}
+              </span>
+              {isLive && (
+                <LiveActivityDuration
+                  startTime={impact.date}
+                  formatDuration={getDuration}
+                />
+              )}
+              {!isLive && (
+                <span className="text-xs text-muted-foreground truncate">
+                  {duration}
+                </span>
+              )}
+            </div>
+            {impact.id && getPhotosForImpact(impact.id).length > 0 && (
+              <div className="flex gap-1 mt-1 overflow-x-auto scrollbar-hide">
+                {getPhotosForImpact(impact.id).slice(0, 3).map((photo) => (
+                  <Image
+                    key={photo.id}
+                    src={photo.thumbnail}
+                    alt=""
+                    width={24}
+                    height={24}
+                    unoptimized
+                    className="w-6 h-6 object-cover rounded shrink-0"
+                  />
+                ))}
+              </div>
+            )}
+          </div>
           {canResize && (
             <>
               <div
-                className="absolute left-0 right-0 top-0 h-3 cursor-n-resize opacity-0 group-hover:opacity-100 flex items-center justify-center z-10 select-none"
+                className="absolute left-0 right-0 top-0 h-3 cursor-n-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 flex items-center justify-center z-10 select-none"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -422,7 +444,7 @@ export function CalendarDayColumn({
                 <div className="w-8 h-0.5 rounded-full bg-muted-foreground/50" />
               </div>
               <div
-                className="absolute left-0 right-0 bottom-0 h-3 cursor-n-resize opacity-0 group-hover:opacity-100 flex items-center justify-center z-10 select-none"
+                className="absolute left-0 right-0 bottom-0 h-3 cursor-n-resize opacity-100 md:opacity-0 md:group-hover:opacity-100 focus-visible:opacity-100 flex items-center justify-center z-10 select-none"
                 onMouseDown={(e) => {
                   e.preventDefault();
                   e.stopPropagation();
@@ -472,21 +494,27 @@ export function CalendarDayColumn({
 
       {/* Calendar column - grid of hourly slots */}
       <div
-        ref={gridRef}
-        className={`relative ${hideTimeScale ? "w-full" : "flex-1"} min-w-0 overflow-hidden`}
+        className={`relative ${hideTimeScale ? "w-full" : "flex-1"} min-w-0`}
         style={{ height: CALENDAR_DAY_HEIGHT }}
       >
-        {/* Grid lines - hour (bold) and 15-min (subtle) */}
-        {Array.from({ length: 97 }, (_, i) => (
+        {/* Grid lines - hour only. Bleed into the surrounding gap-x to look continuous across days. */}
+        {!hideGridLines && (
           <div
-            key={`grid-${i}`}
-            className={`absolute left-0 right-0 h-px pointer-events-none ${i % 4 === 0 ? "bg-border/60" : "bg-border/25"}`}
-            style={{ top: i * PX_PER_QUARTER }}
-          />
-        ))}
+            className="absolute inset-y-0 pointer-events-none"
+            style={{ left: "-0.5rem", right: "-0.5rem" }}
+          >
+            {Array.from({ length: 25 }, (_, i) => (
+              <div
+                key={`grid-${i}`}
+                className="absolute left-0 right-0 h-px bg-border/60"
+                style={{ top: i * PX_PER_QUARTER * 4 }}
+              />
+            ))}
+          </div>
+        )}
+        <div ref={gridRef} className="relative w-full h-full overflow-hidden">
         {/* Current time line */}
         {isTodayFlag && (() => {
-          const now = Date.now();
           if (now < dayStart || now > dayEnd) return null;
           const topPx =
             ((now - dayStart) / (dayEnd - dayStart)) * CALENDAR_DAY_HEIGHT;
@@ -501,6 +529,7 @@ export function CalendarDayColumn({
           );
         })()}
         {slots}
+        </div>
       </div>
     </div>
   );

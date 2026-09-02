@@ -2,6 +2,7 @@ import { useState } from "react";
 import Modal from ".";
 import { Input } from "../ui/input";
 import { RichTextEditor } from "../ui/rich-text-editor";
+import { Button } from "../ui/button";
 
 
 interface OnboardingModalProps {
@@ -49,27 +50,27 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
           <p className="text-foreground">
             Leptum helps you track your goals, manage tasks, build routines, and log activities - all while keeping your data under your control.
           </p>
-          <div className="bg-muted/50 border border-border rounded-lg p-4">
+          <div className="bg-muted/50 border border-border rounded-control p-4">
             <h4 className="font-semibold text-foreground mb-2">Key Features:</h4>
             <ul className="space-y-2 text-sm text-foreground">
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
+                <span className="text-primary font-semibold">•</span>
                 <span><strong>Goals:</strong> Track what matters most with deadlines and progress</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
+                <span className="text-primary font-semibold">•</span>
                 <span><strong>Tasks:</strong> Manage one-off to-dos with ease</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
+                <span className="text-primary font-semibold">•</span>
                 <span><strong>Routines:</strong> Schedule recurring tasks with CRON expressions</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
+                <span className="text-primary font-semibold">•</span>
                 <span><strong>Timeline:</strong> Log activities and track your journey</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">•</span>
+                <span className="text-primary font-semibold">•</span>
                 <span><strong>Stacks:</strong> Themed lists of habits (e.g. morning habits) on the Stacks page</span>
               </li>
             </ul>
@@ -127,7 +128,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
                     ...formData,
                     goal: { ...formData.goal, color }
                   })}
-                  className={`w-10 h-10 rounded-lg ${color} hover:opacity-80 transition ${
+                  className={`w-10 h-10 rounded-control ${color} hover:opacity-80 transition ${
                     formData.goal.color === color
                       ? "ring-2 ring-foreground ring-offset-2 ring-offset-background"
                       : ""
@@ -172,7 +173,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
               minHeight="100px"
             />
           </div>
-          <div className="bg-muted/50 border border-border rounded-lg p-3">
+          <div className="bg-muted/50 border border-border rounded-control p-3">
             <p className="text-sm text-foreground">
               <strong>Tip:</strong> You can complete tasks by clicking the checkbox next to them. Completed tasks are automatically archived.
             </p>
@@ -261,7 +262,7 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
               placeholder="What did you do?"
             />
           </div>
-          <div className="bg-muted/50 border border-border rounded-lg p-3">
+          <div className="bg-muted/50 border border-border rounded-control p-3">
             <p className="text-sm text-foreground mb-2">
               <strong>Timeline Features:</strong>
             </p>
@@ -292,30 +293,30 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
       description: "We've created sample data to get you started. Explore the app and make it your own!",
       content: (
         <div className="space-y-4 mt-4">
-          <div className="bg-primary/10 border border-primary/20 rounded-lg p-4">
+          <div className="bg-primary/10 border border-primary/20 rounded-control p-4">
             <h4 className="font-semibold text-foreground mb-2">What&apos;s Next?</h4>
             <ul className="space-y-2 text-sm text-foreground">
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">1.</span>
+                <span className="text-primary font-semibold">1.</span>
                 <span>Review your sample goal, task, routine, and timeline entry</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">2.</span>
+                <span className="text-primary font-semibold">2.</span>
                 <span>Modify or delete them to suit your needs</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">3.</span>
+                <span className="text-primary font-semibold">3.</span>
                 <span>Create your own goals and tasks</span>
               </li>
               <li className="flex items-start gap-2">
-                <span className="text-primary font-bold">4.</span>
-                <span>Connect RemoteStorage in Settings to sync your data across devices</span>
+                <span className="text-primary font-semibold">4.</span>
+                <span>Connect a Solid Pod in Settings to sync your data across devices</span>
               </li>
             </ul>
           </div>
-          <div className="bg-muted/50 border border-border rounded-lg p-3">
+          <div className="bg-muted/50 border border-border rounded-control p-3">
             <p className="text-sm text-foreground">
-              <strong>Remember:</strong> Your data is stored locally and only syncs when you connect a RemoteStorage provider. You&apos;re in full control!
+              <strong>Remember:</strong> Your data syncs through the Solid Pod you choose. You&apos;re in full control!
             </p>
           </div>
         </div>
@@ -372,30 +373,30 @@ const OnboardingModal = ({ isOpen, onComplete, onSkip }: OnboardingModalProps) =
       </Modal.Body>
       <Modal.Footer>
         <div className="flex gap-2 justify-between">
-          <button
+          <Button
             type="button"
-            className="min-h-[44px] px-4 py-2 text-muted-foreground hover:text-foreground transition text-sm"
+            variant="ghost"
+            className="text-muted-foreground"
             onClick={handleSkipAll}
           >
             Skip tutorial
-          </button>
+          </Button>
           <div className="flex gap-2">
             {currentStep > 0 && (
-              <button
+              <Button
                 type="button"
-                className="min-h-[44px] px-4 py-2 bg-muted text-foreground rounded-lg hover:opacity-80"
+                variant="secondary"
                 onClick={handleBack}
               >
                 Back
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               type="button"
-              className="min-h-[44px] px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:opacity-90 font-semibold"
               onClick={handleNext}
             >
               {currentStep === steps.length - 1 ? "Get Started" : "Next"}
-            </button>
+            </Button>
           </div>
         </div>
       </Modal.Footer>

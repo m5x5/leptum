@@ -50,19 +50,24 @@ export function useActivityWatch(): UseActivityWatchReturn {
   const [duplicateCount, setDuplicateCount] = useState(0);
 
   /**
-   * Load ActivityWatch data from RemoteStorage
+   * Fetch ActivityWatch data from Solid and apply it to state.
+   * Does not touch isLoading/error on entry — callers that need to reset
+   * those (e.g. a manual reload) do so before calling this.
    */
-  const loadData = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-
+  const fetchAndApplyData = useCallback(async () => {
     try {
-      const data = await remoteStorageClient.getActivityWatchData();
+      const data = await remoteStorageClient.getActivityWatchData().catch((err) => {
+        console.error('Failed to load ActivityWatch data:', err);
+        setError('Failed to load ActivityWatch data');
+        return undefined;
+      });
 
-      if (data) {
+      if (data === undefined) {
+        // error already recorded above
+      } else if (data) {
         const { uniqueEvents, duplicateCount: removedCount } = filterDuplicateEvents(data.events);
         setDuplicateCount(removedCount);
-        
+
         setAwData({ ...data, events: uniqueEvents });
 
         // Initialize filter settings with buckets that are marked as visible
@@ -75,20 +80,28 @@ export function useActivityWatch(): UseActivityWatchReturn {
       } else {
         setAwData(null);
       }
-    } catch (err) {
-      console.error('Failed to load ActivityWatch data:', err);
-      setError('Failed to load ActivityWatch data');
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   /**
-   * Load data on mount
+   * Load ActivityWatch data from Solid
+   */
+  const loadData = useCallback(async () => {
+    setIsLoading(true);
+    setError(null);
+    await fetchAndApplyData();
+  }, [fetchAndApplyData]);
+
+  /**
+   * Load data on mount. isLoading/error already start at their "loading"
+   * defaults, so we call the fetch directly instead of loadData (which
+   * would redundantly re-set them synchronously in the effect).
    */
   useEffect(() => {
-    loadData();
-  }, [loadData]);
+    fetchAndApplyData();
+  }, [fetchAndApplyData]);
 
   /**
    * Import new ActivityWatch data from JSON file
@@ -194,7 +207,7 @@ export function useActivityWatch(): UseActivityWatchReturn {
           };
         });
 
-        // Update bucket metadata in RemoteStorage
+        // Update bucket metadata in Solid
         const updatedBuckets = awData.buckets.map((bucket) =>
           bucket.id === bucketId
             ? { ...bucket, isVisible: !bucket.isVisible }
@@ -227,7 +240,7 @@ export function useActivityWatch(): UseActivityWatchReturn {
   }, []);
 
   /**
-   * Reload data from RemoteStorage
+   * Reload data from Solid
    */
   const reload = useCallback(async () => {
     await loadData();

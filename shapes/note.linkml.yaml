@@ -1,0 +1,62 @@
+id: https://mpeters.dev/ns/leptum/linkml/note
+name: leptum-note
+description: >-
+  Mirrors the shared 'notes' container — QuickNote and WeekReflection both
+  write as:Note (see containers.ts). Disambiguated the same way
+  extractQuickNote()/extractWeekReflection() do today: leptum:weekStart
+  present means WeekReflection, not QuickNote.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  as: https://www.w3.org/ns/activitystreams#
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  Note:
+    tree_root: true
+    class_uri: as:Note
+    description: >-
+      A note (QuickNote or WeekReflection). Additional rdf:type values are
+      permitted (ShEx EXTRA a).
+    attributes:
+      content:
+        slot_uri: as:content
+        range: string
+      published:
+        slot_uri: as:published
+        range: datetime
+      updated:
+        slot_uri: as:updated
+        range: datetime
+      attachment:
+        slot_uri: as:attachment
+        range: uri
+        multivalued: true
+      audio:
+        slot_uri: schema:audio
+        range: NoteAudio
+        inlined: true
+      weekStart:
+        slot_uri: leptum:weekStart
+        range: string
+  NoteAudio:
+    class_uri: schema:AudioObject
+    description: >-
+      Audio metadata for a note. The rdf:type is optional in the ShEx shape,
+      and additional rdf:type values are permitted (ShEx EXTRA a).
+    attributes:
+      contentUrl:
+        slot_uri: schema:contentUrl
+        range: uri
+        description: >-
+          A real Solid binary resource (raw audio bytes, its own
+          Content-Type) — not a local file path like RemoteStorage used. See
+          noteBackend audio helpers for the PUT/GET side.
+      duration:
+        slot_uri: schema:duration
+        range: decimal

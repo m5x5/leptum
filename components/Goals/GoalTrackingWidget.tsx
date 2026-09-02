@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Goal } from '../../utils/useGoals';
 import { TrackingCounter } from './TrackingCounter';
 import { TrackingChecklist } from './TrackingChecklist';
@@ -10,13 +11,24 @@ interface GoalTrackingWidgetProps {
   showHistory?: boolean; // When false, hides the 7-day history chart
   showQuickAdd?: boolean; // When false, hides the quick add buttons
   routineName?: string; // Optional: filter checklist to show only items matching this routine name
+  routineCardHeader?: ReactNode;
+  routineCardActions?: ReactNode;
 }
 
 /**
  * GoalTrackingWidget - Shows tracking UI for goals with templates
  * Falls back to showing impact count for goals without templates
  */
-export function GoalTrackingWidget({ goal, onUpdate, embedded = false, showHistory = true, showQuickAdd = true, routineName }: GoalTrackingWidgetProps) {
+export function GoalTrackingWidget({
+  goal,
+  onUpdate,
+  embedded = false,
+  showHistory = true,
+  showQuickAdd = true,
+  routineName,
+  routineCardHeader,
+  routineCardActions,
+}: GoalTrackingWidgetProps) {
   const { impacts } = useImpacts();
   
   // If goal has template and tracking config, use new tracking system
@@ -35,6 +47,8 @@ export function GoalTrackingWidget({ goal, onUpdate, embedded = false, showHisto
           showHistory={showHistory}
           showQuickAdd={showQuickAdd}
           routineName={routineName}
+          routineCardHeader={routineCardHeader}
+          routineCardActions={routineCardActions}
         />
       );
     }
@@ -79,7 +93,7 @@ export function GoalTrackingWidget({ goal, onUpdate, embedded = false, showHisto
   }
 
   return (
-    <div className="bg-card border border-border rounded-lg p-4 mb-4">
+    <div className="bg-card border border-border rounded-control p-4 mb-4">
       <div className="flex items-center gap-2 mb-2">
         <span className="text-xl">{goal.color ? '📊' : '📈'}</span>
         <h3 className="text-lg font-semibold text-foreground">{goal.name}</h3>

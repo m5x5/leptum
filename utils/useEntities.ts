@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useCallback } from 'react';
 import { remoteStorageClient } from '../lib/remoteStorage';
+import { defineCollection } from '../lib/query/defineCollection';
 
 export interface Entity {
   id: string;
@@ -11,62 +12,71 @@ export interface Entity {
   updatedAt?: number;
 }
 
+export const entitiesCollection = defineCollection<Entity[]>(
+  'entities',
+  () => remoteStorageClient.getEntities(),
+  { initial: [], refreshOn: ['entitiesUpdated'] }
+);
+
 export function useEntities() {
-  const [entities, setEntities] = useState<Entity[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data, isPending } = entitiesCollection.useQuery();
+  const entities = data ?? [];
 
-  // Load entities on mount
-  useEffect(() => {
-    loadEntities();
-  }, []);
-
-  const loadEntities = async () => {
-    try {
-      const loadedEntities = await remoteStorageClient.getEntities();
-      setEntities(loadedEntities);
-    } catch (error) {
-      console.error('Failed to load entities:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const addEntity = async (entity: Omit<Entity, 'id' | 'createdAt'>) => {
+  const addEntity = useCallback(async (entity: Omit<Entity, 'id' | 'createdAt'>) => {
     const newEntity: Entity = {
       ...entity,
       id: `entity-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       createdAt: Date.now(),
     };
-
-    const updatedEntities = [...entities, newEntity];
-    setEntities(updatedEntities);
-    await remoteStorageClient.saveEntities(updatedEntities);
+    entitiesCollection.markSelfWrite();
+    entitiesCollection.set((prev) => [...prev, newEntity]);
+    try {
+      await remoteStorageClient.saveEntity(newEntity);
+    } catch (error) {
+      console.error('Failed to add entity:', error);
+      void entitiesCollection.invalidate();
+      throw error;
+    }
     return newEntity;
-  };
+  }, []);
 
-  const updateEntity = async (id: string, updates: Partial<Entity>) => {
-    const updatedEntities = entities.map(entity =>
-      entity.id === id ? { ...entity, ...updates, updatedAt: Date.now() } : entity
-    );
-    setEntities(updatedEntities);
-    await remoteStorageClient.saveEntities(updatedEntities);
-  };
+  const updateEntity = useCallback(async (id: string, updates: Partial<Entity>) => {
+    const existing = entitiesCollection.get().find((e) => e.id === id);
+    if (!existing) return;
+    const updated: Entity = { ...existing, ...updates, updatedAt: Date.now() };
+    entitiesCollection.markSelfWrite();
+    entitiesCollection.set((prev) => prev.map((e) => (e.id === id ? updated : e)));
+    try {
+      // A type change moves the resource between containers.
+      if (existing.type !== updated.type) await remoteStorageClient.deleteEntity(id, existing.type);
+      await remoteStorageClient.saveEntity(updated);
+    } catch (error) {
+      console.error('Failed to update entity:', error);
+      void entitiesCollection.invalidate();
+      throw error;
+    }
+  }, []);
 
-  const deleteEntity = async (id: string) => {
-    const updatedEntities = entities.filter(entity => entity.id !== id);
-    setEntities(updatedEntities);
-    await remoteStorageClient.saveEntities(updatedEntities);
-
-    // TODO: Also clean up mentions referencing this entity
-    // This will be handled via useMentions hook when we integrate it
-  };
+  const deleteEntity = useCallback(async (id: string) => {
+    const existing = entitiesCollection.get().find((e) => e.id === id);
+    entitiesCollection.markSelfWrite();
+    entitiesCollection.set((prev) => prev.filter((e) => e.id !== id));
+    try {
+      await remoteStorageClient.deleteEntity(id, existing?.type);
+    } catch (error) {
+      console.error('Failed to delete entity:', error);
+      void entitiesCollection.invalidate();
+      throw error;
+    }
+    // TODO: Also clean up mentions referencing this entity (useMentions.deleteMentionsForEntity)
+  }, []);
 
   return {
     entities,
-    loading,
+    loading: isPending,
     addEntity,
     updateEntity,
     deleteEntity,
-    refreshEntities: loadEntities,
+    refreshEntities: entitiesCollection.invalidate,
   };
 }

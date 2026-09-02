@@ -1,0 +1,77 @@
+id: https://mpeters.dev/ns/leptum/linkml/groceryNotification
+name: leptum-groceryNotification
+description: >-
+  Mirrors GroceryNotification (types/grocery.ts) as written by
+  groceryNotificationToRdf and read by extractGroceryNotification.
+  leptum:item is an array of blank nodes (GroceryShoppingBriefItem);
+  storeName/distance/totalEstimatedPrice/totalEstimatedWeightKg are computed
+  client-side and not persisted, so they are not modeled here.
+prefixes:
+  linkml: https://w3id.org/linkml/
+  schema: https://schema.org/
+  xsd: http://www.w3.org/2001/XMLSchema#
+  dcterms: http://purl.org/dc/terms/
+  leptum: https://mpeters.dev/ns/leptum#
+default_prefix: leptum
+default_range: string
+imports:
+  - linkml:types
+
+classes:
+  GroceryNotification:
+    tree_root: true
+    class_uri: leptum:GroceryNotification
+    description: >-
+      Grocery shopping proximity notification. Additional rdf:type values are
+      permitted (ShEx EXTRA a).
+    attributes:
+      about:
+        slot_uri: schema:about
+        range: uri
+      status:
+        slot_uri: leptum:status
+        range: string
+      score:
+        slot_uri: leptum:score
+        range: decimal
+      item:
+        slot_uri: leptum:item
+        range: GroceryItem
+        inlined: true
+        multivalued: true
+      created:
+        slot_uri: dcterms:created
+        range: datetime
+  GroceryItem:
+    description: A single grocery shopping brief item (blank node).
+    attributes:
+      itemName:
+        slot_uri: leptum:itemName
+        range: string
+      itemQuantity:
+        slot_uri: leptum:itemQuantity
+        range: decimal
+      itemUnit:
+        slot_uri: leptum:itemUnit
+        range: string
+      itemEstimatedPrice:
+        slot_uri: leptum:itemEstimatedPrice
+        range: decimal
+      itemPricePerUnit:
+        slot_uri: leptum:itemPricePerUnit
+        range: decimal
+      itemIsOnSale:
+        slot_uri: leptum:itemIsOnSale
+        range: boolean
+      itemSalePrice:
+        slot_uri: leptum:itemSalePrice
+        range: decimal
+      itemIsRecurring:
+        slot_uri: leptum:itemIsRecurring
+        range: boolean
+      itemDaysOverdue:
+        slot_uri: leptum:itemDaysOverdue
+        range: decimal
+      itemEstimatedWeightKg:
+        slot_uri: leptum:itemEstimatedWeightKg
+        range: decimal
